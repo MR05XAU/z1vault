@@ -20,6 +20,7 @@ import Notebook from "./pages/Notebook";
 import Analytics from "./pages/Analytics";
 import Admin from "./pages/Admin";
 import PaymentsCheck from "./pages/PaymentsCheck";
+import GoLive from "./pages/GoLive";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/analytics" element={<Protected><Analytics /></Protected>} />
             <Route path="/admin" element={<AuthOnly><Admin /></AuthOnly>} />
             <Route path="/admin/payments-check" element={<AuthOnly><PaymentsCheck /></AuthOnly>} />
+            <Route path="/admin/go-live" element={<AuthOnly><GoLive /></AuthOnly>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
