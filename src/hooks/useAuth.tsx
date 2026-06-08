@@ -8,6 +8,7 @@ interface AuthCtx {
   loading: boolean;
   hasAccess: boolean;
   accessLoading: boolean;
+  isAdmin: boolean;
   refreshAccess: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -20,21 +21,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [hasAccess, setHasAccess] = useState(false);
   const [accessLoading, setAccessLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const refreshAccess = useCallback(async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) {
       setHasAccess(false);
       setAccessLoading(false);
+      setIsAdmin(false);
       return;
     }
     setAccessLoading(true);
-    const { data } = await supabase
-      .from("entitlements")
-      .select("has_access")
-      .eq("user_id", u.user.id)
-      .maybeSingle();
+    const [{ data }, { data: roles }] = await Promise.all([
+      supabase.from("entitlements").select("has_access").eq("user_id", u.user.id).maybeSingle(),
+      (supabase as any).from("user_roles").select("role").eq("user_id", u.user.id),
+    ]);
     setHasAccess(!!data?.has_access);
+    setIsAdmin((roles ?? []).some((r: any) => r.role === "admin"));
     setAccessLoading(false);
   }, []);
 
@@ -62,10 +65,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = async () => {
     await supabase.auth.signOut();
     setHasAccess(false);
+    setIsAdmin(false);
   };
 
   return (
-    <Ctx.Provider value={{ user, session, loading, hasAccess, accessLoading, refreshAccess, signOut }}>
+    <Ctx.Provider value={{ user, session, loading, hasAccess, accessLoading, isAdmin, refreshAccess, signOut }}>
       {children}
     </Ctx.Provider>
   );

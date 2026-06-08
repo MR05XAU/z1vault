@@ -1,17 +1,21 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SYSTEM_PROMPT = `You are the Z1 INSIGHTS AI Tutor, a private trading mentor embedded inside the Z1 INSIGHTS academy app.
+const SYSTEM_PROMPT = `You are the Z1 INSIGHTS AI Tutor — a private trading mentor that ONLY teaches from the Z1 INSIGHTS book provided to you in context.
 
-STRICT RULES:
-- Only answer questions about trading, markets, risk management, psychology, technical/fundamental analysis, and the content of the Z1 INSIGHTS book provided below.
-- If asked about anything outside trading/finance education (politics, personal advice, code help, celebrities, etc.), politely decline and steer the user back to a trading topic from the book.
-- Never give specific buy/sell recommendations on real tickers, never predict prices, never provide financial advice. Educate concepts only.
-- When referencing the book, cite the chapter by number and title, e.g. "(Chapter 3 — Risk Management)".
-- Prefer concise, structured answers. Use short paragraphs, bullets, and bold key terms.
-- If the user asks to "explain like I'm new", drop jargon and use analogies.
+ABSOLUTE RULES (never break these):
 
-When a chapter excerpt is provided as context, lean on it. If the user's question goes beyond the book, you may still answer if it is squarely about trading education, but note that the chapter does not cover it directly.`;
+1. SOURCE OF TRUTH: The "BOOK CONTEXT" block below is your ONLY source of factual knowledge. Treat it as the entire universe of allowed material.
+2. NEVER answer from outside the book. If the user asks something the book does not cover — even basic trading definitions — you must reply:
+   "That isn't covered in the chapters you have access to. Try asking about: [list 2-3 relevant chapter titles from BOOK CONTEXT]."
+3. NEVER reference outside sources, other authors, news, web information, or your own training data. No "in general", no "common wisdom", no "studies show".
+4. NEVER predict prices, recommend tickers, or give financial advice. Educational concepts ONLY.
+5. NEVER answer non-trading questions (politics, code help, personal advice, celebrities, current events). Redirect to a book topic.
+6. CITE every claim with the exact chapter, e.g. "(Ch 5 — Market structure)". If you cannot cite, do not say it.
+7. If a CURRENT CHAPTER is in context, anchor your answer to THAT chapter first. Only reference other provided chapters by name if directly relevant.
+8. Keep answers concise. Use short paragraphs, bullets, **bold** key terms. If the user asks "like I'm new", drop jargon and use a plain analogy from the book.
+
+If asked who you are: "I'm the Z1 INSIGHTS tutor — I only teach from your Z1 chapters."`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -59,19 +63,50 @@ Deno.serve(async (req) => {
 
     const { messages, chapterId, highlightedText } = await req.json();
 
-    let contextBlock = "";
-    if (chapterId) {
-      const { data: chap } = await supabase
-        .from("book_chapters")
-        .select("chapter_number, title, content")
-        .eq("id", chapterId)
-        .maybeSingle();
-      if (chap) {
-        contextBlock = `\n\nCURRENT CHAPTER CONTEXT (Chapter ${chap.chapter_number} — ${chap.title}):\n${chap.content}`;
-      }
+    // Build BOOK CONTEXT — always include every chapter title so the tutor can route,
+    // and the FULL TEXT of the current chapter (if any) plus the most relevant other chapters
+    // chosen by simple keyword overlap with the latest user message.
+    let contextBlock = "\n\n=== BOOK CONTEXT (your ONLY source of truth) ===\n";
+
+    const { data: allChapters } = await supabase
+      .from("book_chapters")
+      .select("id, chapter_number, title, content")
+      .eq("published", true)
+      .order("order_index");
+
+    const lastUserMsg = [...(messages ?? [])].reverse().find((m: any) => m.role === "user")?.content ?? "";
+    const tokens = (lastUserMsg as string).toLowerCase().split(/\W+/).filter((t) => t.length > 3);
+
+    let currentChap: any = null;
+    if (chapterId) currentChap = (allChapters ?? []).find((c) => c.id === chapterId);
+
+    // Score chapters by overlap with the user message
+    const scored = (allChapters ?? []).map((c) => {
+      if (currentChap && c.id === currentChap.id) return { c, score: 1e9 };
+      const hay = (c.title + " " + c.content).toLowerCase();
+      let s = 0;
+      for (const t of tokens) if (hay.includes(t)) s += 1;
+      return { c, score: s };
+    }).sort((a, b) => b.score - a.score);
+
+    contextBlock += "\nAVAILABLE CHAPTERS:\n";
+    for (const c of allChapters ?? []) {
+      contextBlock += `- Ch ${c.chapter_number} — ${c.title}\n`;
+    }
+
+    // Include up to 3 chapters worth of content (current + top 2 relevant), cap each at 6000 chars
+    const picked = scored.slice(0, 3).filter((x) => x.score > 0 || (currentChap && x.c.id === currentChap.id));
+    for (const { c } of picked) {
+      const text = (c.content || "").slice(0, 6000);
+      contextBlock += `\n--- Ch ${c.chapter_number}: ${c.title} ---\n${text}\n`;
+    }
+    contextBlock += "\n=== END BOOK CONTEXT ===\n";
+
+    if (currentChap) {
+      contextBlock += `\nThe reader is currently on Ch ${currentChap.chapter_number} — ${currentChap.title}. Anchor your answer there first.`;
     }
     if (highlightedText) {
-      contextBlock += `\n\nUSER HIGHLIGHTED THIS PASSAGE:\n"""${highlightedText}"""`;
+      contextBlock += `\n\nUSER HIGHLIGHTED THIS PASSAGE FROM THE CURRENT CHAPTER:\n"""${highlightedText}"""\nExplain this passage using only the book context above.`;
     }
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {

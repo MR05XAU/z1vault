@@ -18,6 +18,7 @@ import Tutor from "./pages/Tutor";
 import Quiz from "./pages/Quiz";
 import Notebook from "./pages/Notebook";
 import Analytics from "./pages/Analytics";
+import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -66,6 +67,7 @@ const App = () => (
             <Route path="/quiz/:chapterId" element={<Protected><Quiz /></Protected>} />
             <Route path="/notebook" element={<Protected><Notebook /></Protected>} />
             <Route path="/analytics" element={<Protected><Analytics /></Protected>} />
+            <Route path="/admin" element={<AuthOnly><Admin /></AuthOnly>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
