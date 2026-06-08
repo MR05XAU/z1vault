@@ -154,6 +154,12 @@ export default function Auth() {
               <>Already in? <span className="text-gold-bright">Sign in</span></>
             )}
           </button>
+
+          {mode === "signin" && (
+            <Link to="/forgot-password" className="mt-2 text-xs text-muted-foreground/80 text-center hover:text-gold-bright">
+              Forgot password?
+            </Link>
+          )}
         </div>
 
         <p className="text-[10px] text-center text-muted-foreground/70 tracking-wide">

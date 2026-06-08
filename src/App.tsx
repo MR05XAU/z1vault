@@ -9,6 +9,9 @@ import { ReactNode } from "react";
 import Splash from "./pages/Splash";
 import Onboarding from "./pages/Onboarding";
 import Auth from "./pages/Auth";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import Account from "./pages/Account";
 import Paywall from "./pages/Paywall";
 import CheckoutReturn from "./pages/CheckoutReturn";
 import Vault from "./pages/Vault";
@@ -60,6 +63,9 @@ const App = () => (
             <Route path="/" element={<Splash />} />
             <Route path="/onboarding" element={<Onboarding />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/account" element={<AuthOnly><Account /></AuthOnly>} />
             <Route path="/paywall" element={<AuthOnly><Paywall /></AuthOnly>} />
             <Route path="/checkout/return" element={<AuthOnly><CheckoutReturn /></AuthOnly>} />
             <Route path="/vault" element={<Protected><Vault /></Protected>} />
