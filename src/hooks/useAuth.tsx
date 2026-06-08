@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessLoading(true);
     const [{ data }, { data: roles }] = await Promise.all([
       supabase.from("entitlements").select("has_access").eq("user_id", u.user.id).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", u.user.id),
+      (supabase as any).from("user_roles").select("role").eq("user_id", u.user.id),
     ]);
     setHasAccess(!!data?.has_access);
     setIsAdmin((roles ?? []).some((r: any) => r.role === "admin"));

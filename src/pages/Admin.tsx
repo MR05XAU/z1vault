@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+const sb = supabase as any; // types regen after migration runs
 import { useAuth } from "@/hooks/useAuth";
 import { MobileShell } from "@/components/MobileShell";
 import { Button } from "@/components/ui/button";
@@ -126,7 +127,7 @@ function ChaptersPanel() {
   const [editing, setEditing] = useState<any | null>(null);
 
   const refresh = async () => {
-    const { data } = await supabase.from("book_chapters").select("*").order("order_index");
+    const { data } = await sb.from("book_chapters").select("*").order("order_index");
     setChapters(data ?? []);
   };
   useEffect(() => { refresh(); }, []);
@@ -182,8 +183,8 @@ function ChapterEditor({ chapter, onDone }: { chapter: any; onDone: () => void }
       published: c.published !== false,
     };
     const op = c.id
-      ? supabase.from("book_chapters").update(payload).eq("id", c.id)
-      : supabase.from("book_chapters").insert(payload);
+      ? sb.from("book_chapters").update(payload).eq("id", c.id)
+      : sb.from("book_chapters").insert(payload);
     const { error } = await op;
     setSaving(false);
     if (error) toast.error(error.message);
@@ -300,8 +301,8 @@ function QuizEditor({ q, onDone }: { q: any; onDone: () => void }) {
       order_index: Number(v.order_index) || 1, published: v.published !== false,
     };
     const op = v.id
-      ? supabase.from("quizzes").update(payload).eq("id", v.id)
-      : supabase.from("quizzes").insert(payload);
+      ? sb.from("quizzes").update(payload).eq("id", v.id)
+      : sb.from("quizzes").insert(payload);
     const { error } = await op;
     setSaving(false);
     if (error) toast.error(error.message); else { toast.success("Saved"); onDone(); }
@@ -333,14 +334,14 @@ function NotebookPanel() {
   const [editing, setEditing] = useState<any | null>(null);
 
   const refresh = async () => {
-    const { data } = await supabase.from("notebook_pages").select("*").order("order_index");
+    const { data } = await sb.from("notebook_pages").select("*").order("order_index");
     setPages(data ?? []);
   };
   useEffect(() => { refresh(); }, []);
 
   const remove = async (id: string) => {
     if (!confirm("Delete this page?")) return;
-    const { error } = await supabase.from("notebook_pages").delete().eq("id", id);
+    const { error } = await sb.from("notebook_pages").delete().eq("id", id);
     if (error) toast.error(error.message); else refresh();
   };
 
@@ -381,8 +382,8 @@ function NotebookEditor({ page, onDone }: { page: any; onDone: () => void }) {
       order_index: Number(p.order_index) || 1, published: p.published !== false,
     };
     const op = p.id
-      ? supabase.from("notebook_pages").update(payload).eq("id", p.id)
-      : supabase.from("notebook_pages").insert(payload);
+      ? sb.from("notebook_pages").update(payload).eq("id", p.id)
+      : sb.from("notebook_pages").insert(payload);
     const { error } = await op;
     setSaving(false);
     if (error) toast.error(error.message); else { toast.success("Saved"); onDone(); }
