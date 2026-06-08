@@ -19,6 +19,7 @@ import Quiz from "./pages/Quiz";
 import Notebook from "./pages/Notebook";
 import Analytics from "./pages/Analytics";
 import Admin from "./pages/Admin";
+import PaymentsCheck from "./pages/PaymentsCheck";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -68,6 +69,7 @@ const App = () => (
             <Route path="/notebook" element={<Protected><Notebook /></Protected>} />
             <Route path="/analytics" element={<Protected><Analytics /></Protected>} />
             <Route path="/admin" element={<AuthOnly><Admin /></AuthOnly>} />
+            <Route path="/admin/payments-check" element={<AuthOnly><PaymentsCheck /></AuthOnly>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
