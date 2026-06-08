@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
   );
 
   try {
-    if (event.type === "transaction.completed" || event.type === "checkout.session.completed") {
+    if (event.type === "checkout.session.completed") {
       const data: any = event.data.object;
       const session = data.object === "checkout.session" ? data : await stripe.checkout.sessions.retrieve(data.id);
 
@@ -35,7 +35,20 @@ Deno.serve(async (req) => {
 
       const amount = session.amount_total ?? 0;
       const currency = session.currency ?? "usd";
-      const paymentId = session.payment_intent ?? session.id;
+      const paymentId = (session.payment_intent as string) ?? session.id;
+
+      // Best-effort: pull the receipt URL from the latest charge
+      let receiptUrl: string | null = null;
+      try {
+        if (session.payment_intent) {
+          const pi: any = await stripe.paymentIntents.retrieve(session.payment_intent as string, {
+            expand: ["latest_charge"],
+          });
+          receiptUrl = pi.latest_charge?.receipt_url ?? null;
+        }
+      } catch (e) {
+        console.warn("receipt fetch failed", e);
+      }
 
       if (userId) {
         await supabase.from("purchases").upsert(
@@ -45,6 +58,7 @@ Deno.serve(async (req) => {
             amount_cents: amount,
             currency,
             status: "completed",
+            receipt_url: receiptUrl,
           },
           { onConflict: "stripe_payment_id" }
         );
@@ -62,6 +76,42 @@ Deno.serve(async (req) => {
           );
       } else {
         console.warn("No userId on session; cannot grant access", session.id);
+      }
+    } else if (event.type === "charge.refunded" || event.type === "charge.refund.updated") {
+      const charge: any = event.data.object.object === "charge"
+        ? event.data.object
+        : await stripe.charges.retrieve((event.data.object as any).charge);
+
+      const piId: string | undefined = typeof charge.payment_intent === "string"
+        ? charge.payment_intent
+        : charge.payment_intent?.id;
+      if (!piId) return new Response(JSON.stringify({ received: true }), { headers: { "Content-Type": "application/json" } });
+
+      const fullyRefunded = charge.refunded === true || (charge.amount_refunded ?? 0) >= (charge.amount ?? 0);
+
+      // Find the purchase row by payment intent id
+      const { data: purchaseRows } = await supabase
+        .from("purchases")
+        .select("user_id")
+        .eq("stripe_payment_id", piId)
+        .limit(1);
+      const userId = purchaseRows?.[0]?.user_id;
+
+      await supabase
+        .from("purchases")
+        .update({
+          status: fullyRefunded ? "refunded" : "partially_refunded",
+          refunded_at: new Date().toISOString(),
+        })
+        .eq("stripe_payment_id", piId);
+
+      if (userId && fullyRefunded) {
+        await supabase
+          .from("entitlements")
+          .upsert(
+            { user_id: userId, has_access: false, source: "stripe_refund", granted_at: null },
+            { onConflict: "user_id" }
+          );
       }
     }
 
