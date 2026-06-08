@@ -1,8 +1,9 @@
 import { NavLink } from "react-router-dom";
-import { Home, BookOpen, Sparkles, BookMarked, BarChart3 } from "lucide-react";
+import { Home, BookOpen, Sparkles, BookMarked, BarChart3, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
-const items = [
+const baseItems = [
   { to: "/vault", label: "Vault", icon: Home },
   { to: "/library", label: "Book", icon: BookOpen },
   { to: "/tutor", label: "Tutor", icon: Sparkles },
@@ -11,6 +12,8 @@ const items = [
 ];
 
 export function BottomNav() {
+  const { isAdmin } = useAuth();
+  const items = isAdmin ? [...baseItems, { to: "/admin", label: "Admin", icon: ShieldCheck }] : baseItems;
   return (
     <nav className="glass-strong rounded-2xl px-2 py-2 flex items-center justify-around shadow-lift">
       {items.map(({ to, label, icon: Icon }) => (

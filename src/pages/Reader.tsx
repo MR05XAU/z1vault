@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, Bookmark, Highlighter, Sparkles, ChevronLeft, ChevronRight, Trophy, X } from "lucide-react";
+import { ArrowLeft, Bookmark, Highlighter, Sparkles, ChevronLeft, ChevronRight, Trophy, X, Download, CheckCircle2, Wifi, WifiOff, Headphones, Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
+import { downloadChapter, getOffline, isOnline, offlineAudioUrl, removeChapter, type DownloadProgress } from "@/lib/offline";
 
 export default function Reader() {
   const { chapterId } = useParams();
@@ -21,19 +22,72 @@ export default function Reader() {
   const [noteText, setNoteText] = useState("");
   const [askAnswer, setAskAnswer] = useState("");
   const [asking, setAsking] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const [dlProgress, setDlProgress] = useState<DownloadProgress | null>(null);
+  const [online, setOnline] = useState<boolean>(isOnline());
+  const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!chapterId) return;
     (async () => {
-      const { data: ch } = await supabase.from("book_chapters").select("*").eq("id", chapterId).maybeSingle();
+      // Try network first; fall back to offline cache.
+      let ch: any = null;
+      try {
+        const { data } = await supabase.from("book_chapters").select("*").eq("id", chapterId).maybeSingle();
+        ch = data;
+      } catch { /* offline */ }
+      if (!ch) {
+        const cached = await getOffline(chapterId);
+        if (cached) ch = cached;
+      }
       setChapter(ch);
+      const local = await getOffline(chapterId);
+      setDownloaded(!!local);
+      if (local?.audio_cached && local.audio_url) {
+        const u = await offlineAudioUrl(local.audio_url);
+        if (u) setAudioBlobUrl(u);
+      }
       if (ch) {
-        const { data: all } = await supabase.from("book_chapters").select("id,chapter_number,title").order("order_index");
-        const idx = (all ?? []).findIndex((c) => c.id === ch.id);
-        setNeighbors({ prev: all?.[idx - 1], next: all?.[idx + 1] });
+        try {
+          const { data: all } = await supabase.from("book_chapters").select("id,chapter_number,title").order("order_index");
+          const idx = (all ?? []).findIndex((c) => c.id === ch.id);
+          setNeighbors({ prev: all?.[idx - 1], next: all?.[idx + 1] });
+        } catch {}
       }
     })();
   }, [chapterId]);
+
+  useEffect(() => {
+    const on = () => setOnline(true), off = () => setOnline(false);
+    window.addEventListener("online", on); window.addEventListener("offline", off);
+    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+  }, []);
+
+  const startDownload = async () => {
+    if (!chapter) return;
+    setDlProgress({ stage: "text", loaded: 0, total: chapter.audio_url ? 2 : 1 });
+    try {
+      await downloadChapter(chapter, (p) => setDlProgress(p));
+      setDownloaded(true);
+      if (chapter.audio_url) {
+        const u = await offlineAudioUrl(chapter.audio_url);
+        if (u) setAudioBlobUrl(u);
+      }
+      toast.success("Saved for offline reading.");
+    } catch (e: any) {
+      toast.error(e?.message || "Download failed");
+    } finally {
+      setTimeout(() => setDlProgress(null), 1000);
+    }
+  };
+
+  const wipeDownload = async () => {
+    if (!chapter) return;
+    await removeChapter(chapter.id, chapter.audio_url);
+    setDownloaded(false);
+    setAudioBlobUrl(null);
+    toast.success("Removed offline copy.");
+  };
 
   // Persist progress on scroll
   useEffect(() => {
@@ -164,10 +218,37 @@ export default function Reader() {
             </div>
             <div className="text-sm font-medium truncate">{chapter.title}</div>
           </div>
+          <button
+            onClick={downloaded ? wipeDownload : startDownload}
+            disabled={!!dlProgress}
+            title={downloaded ? "Remove offline copy" : "Save for offline"}
+            className="size-9 grid place-items-center rounded-full glass press"
+          >
+            {dlProgress ? <Loader2 className="size-4 animate-spin text-gold-bright" />
+              : downloaded ? <CheckCircle2 className="size-4 text-success" />
+              : <Download className="size-4" />}
+          </button>
           <button onClick={addBookmark} className="size-9 grid place-items-center rounded-full glass press">
             <Bookmark className="size-4" />
           </button>
         </header>
+
+        {!online && (
+          <div className="px-4 py-1.5 text-[11px] text-center bg-surface-elevated border-b border-border/40 flex items-center justify-center gap-1.5 text-muted-foreground">
+            <WifiOff className="size-3" /> Offline — reading saved copy.
+          </div>
+        )}
+        {dlProgress && (
+          <div className="px-4 py-2 bg-surface-elevated border-b border-border/40">
+            <div className="text-[11px] text-muted-foreground mb-1 flex items-center justify-between">
+              <span>{dlProgress.stage === "audio" ? "Downloading narration…" : dlProgress.stage === "text" ? "Caching chapter…" : "Done"}</span>
+              <span>{dlProgress.loaded}/{dlProgress.total}</span>
+            </div>
+            <div className="h-1 bg-border-strong rounded-full overflow-hidden">
+              <div className="h-full gold-fill transition-all" style={{ width: `${(dlProgress.loaded / Math.max(1, dlProgress.total)) * 100}%` }} />
+            </div>
+          </div>
+        )}
 
         <div
           ref={scrollRef}
@@ -178,6 +259,12 @@ export default function Reader() {
           <div className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground mb-2">
             {chapter.subtitle}
           </div>
+          {(audioBlobUrl || chapter.audio_url) && (
+            <div className="glass rounded-2xl p-3 mb-6 flex items-center gap-2">
+              <Headphones className="size-4 text-gold-bright" />
+              <audio controls src={audioBlobUrl ?? chapter.audio_url} className="flex-1 h-9" />
+            </div>
+          )}
           <ReactMarkdown>{chapter.content}</ReactMarkdown>
 
           <div className="mt-12 pt-6 border-t border-border-strong">
