@@ -183,6 +183,8 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          receipt_url: string | null
+          refunded_at: string | null
           status: string
           stripe_payment_id: string | null
           user_id: string
@@ -192,6 +194,8 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          receipt_url?: string | null
+          refunded_at?: string | null
           status?: string
           stripe_payment_id?: string | null
           user_id: string
@@ -201,6 +205,8 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          receipt_url?: string | null
+          refunded_at?: string | null
           status?: string
           stripe_payment_id?: string | null
           user_id?: string
