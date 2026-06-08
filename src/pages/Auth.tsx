@@ -156,7 +156,7 @@ export default function Auth() {
           </button>
 
           {mode === "signin" && (
-            <Link to="/forgot-password" className="mt-2 text-xs text-muted-foreground/80 text-center hover:text-gold-bright">
+            <Link to="/forgot-password" className="mt-2 block text-xs text-muted-foreground/80 text-center hover:text-gold-bright">
               Forgot password?
             </Link>
           )}
