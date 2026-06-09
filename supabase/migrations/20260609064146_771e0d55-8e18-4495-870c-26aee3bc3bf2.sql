@@ -1,0 +1,1 @@
+DELETE FROM public.book_chapters WHERE chapter_number = 99;
