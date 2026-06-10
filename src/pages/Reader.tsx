@@ -193,11 +193,14 @@ export default function Reader() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let acc = "";
+      let buf = "";
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value);
-        for (const line of chunk.split("\n")) {
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed.startsWith("data:")) continue;
           const payload = trimmed.slice(5).trim();
@@ -285,6 +288,23 @@ export default function Reader() {
           <ReactMarkdown>{chapter.content}</ReactMarkdown>
 
           <div className="mt-12 pt-6 border-t border-border-strong">
+            {chapter.is_background ? (
+              <Button
+                onClick={async () => {
+                  if (user) {
+                    await supabase.from("user_progress").upsert(
+                      { user_id: user.id, chapter_id: chapter.id, progress_percentage: 100, last_position: scrollRef.current?.scrollTop ?? 0, completed: true },
+                      { onConflict: "user_id,chapter_id" },
+                    );
+                  }
+                  if (neighbors.next) nav(`/read/${neighbors.next.id}`);
+                  else nav("/library");
+                }}
+                className="w-full h-14 rounded-2xl gold-fill font-medium shadow-glow press"
+              >
+                <CheckCircle2 className="size-4 mr-2" /> Mark complete & continue
+              </Button>
+            ) : (
             <Button
               onClick={async () => {
                 if (user) {
@@ -299,6 +319,7 @@ export default function Reader() {
             >
               <Trophy className="size-4 mr-2" /> Take the chapter quiz
             </Button>
+            )}
             <div className="flex gap-2 mt-3">
               {neighbors.prev && (
                 <Button variant="outline" onClick={() => nav(`/read/${neighbors.prev.id}`)} className="flex-1 h-12 rounded-xl border-border-strong">

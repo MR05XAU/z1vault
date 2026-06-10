@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           estimated_minutes: number | null
           id: string
+          is_background: boolean
           order_index: number
           subtitle: string | null
           title: string
@@ -32,6 +33,7 @@ export type Database = {
           created_at?: string
           estimated_minutes?: number | null
           id?: string
+          is_background?: boolean
           order_index: number
           subtitle?: string | null
           title: string
@@ -43,6 +45,7 @@ export type Database = {
           created_at?: string
           estimated_minutes?: number | null
           id?: string
+          is_background?: boolean
           order_index?: number
           subtitle?: string | null
           title?: string
