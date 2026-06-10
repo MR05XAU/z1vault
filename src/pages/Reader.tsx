@@ -92,11 +92,28 @@ export default function Reader() {
   // Persist progress on scroll
   useEffect(() => {
     const el = scrollRef.current;
-    if (!el || !chapter) return;
+    if (!el || !chapter || !user) return;
+
+    // Mark as started immediately so progress isn't lost on short chapters / quick exits.
+    (async () => {
+      const { data: existing } = await supabase
+        .from("user_progress")
+        .select("progress_percentage,completed")
+        .eq("user_id", user.id)
+        .eq("chapter_id", chapter.id)
+        .maybeSingle();
+      if (!existing) {
+        await supabase.from("user_progress").upsert(
+          { user_id: user.id, chapter_id: chapter.id, progress_percentage: 5, last_position: 0, completed: false },
+          { onConflict: "user_id,chapter_id" },
+        );
+      }
+    })();
+
     let saveTimer: any;
     const onScroll = () => {
       const max = el.scrollHeight - el.clientHeight;
-      const pct = max > 0 ? Math.min(100, (el.scrollTop / max) * 100) : 0;
+      const pct = max > 0 ? Math.min(100, (el.scrollTop / max) * 100) : 100;
       clearTimeout(saveTimer);
       saveTimer = setTimeout(async () => {
         await supabase.from("user_progress").upsert(
@@ -269,7 +286,15 @@ export default function Reader() {
 
           <div className="mt-12 pt-6 border-t border-border-strong">
             <Button
-              onClick={() => nav(`/quiz/${chapter.id}`)}
+              onClick={async () => {
+                if (user) {
+                  await supabase.from("user_progress").upsert(
+                    { user_id: user.id, chapter_id: chapter.id, progress_percentage: 100, last_position: scrollRef.current?.scrollTop ?? 0, completed: true },
+                    { onConflict: "user_id,chapter_id" },
+                  );
+                }
+                nav(`/quiz/${chapter.id}`);
+              }}
               className="w-full h-14 rounded-2xl gold-fill font-medium shadow-glow press"
             >
               <Trophy className="size-4 mr-2" /> Take the chapter quiz
