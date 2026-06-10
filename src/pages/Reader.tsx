@@ -193,11 +193,14 @@ export default function Reader() {
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let acc = "";
+      let buf = "";
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        const chunk = decoder.decode(value);
-        for (const line of chunk.split("\n")) {
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
           const trimmed = line.trim();
           if (!trimmed.startsWith("data:")) continue;
           const payload = trimmed.slice(5).trim();
