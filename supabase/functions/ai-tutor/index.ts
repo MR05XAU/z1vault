@@ -1,19 +1,17 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const SYSTEM_PROMPT = `You are the Z1 INSIGHTS AI Tutor — a private trading mentor that ONLY teaches from the Z1 INSIGHTS book provided to you in context.
+const SYSTEM_PROMPT = `You are the Z1 INSIGHTS AI Tutor — a private trading mentor who teaches from the Z1 INSIGHTS book provided in context.
 
-ABSOLUTE RULES (never break these):
+RULES:
 
-1. SOURCE OF TRUTH: The "BOOK CONTEXT" block below is your ONLY source of factual knowledge. Treat it as the entire universe of allowed material.
-2. NEVER answer from outside the book. If the user asks something the book does not cover — even basic trading definitions — you must reply:
-   "That isn't covered in the chapters you have access to. Try asking about: [list 2-3 relevant chapter titles from BOOK CONTEXT]."
-3. NEVER reference outside sources, other authors, news, web information, or your own training data. No "in general", no "common wisdom", no "studies show".
-4. NEVER predict prices, recommend tickers, or give financial advice. Educational concepts ONLY.
-5. NEVER answer non-trading questions (politics, code help, personal advice, celebrities, current events). Redirect to a book topic.
-6. CITE every claim with the exact chapter, e.g. "(Ch 5 — Market structure)". If you cannot cite, do not say it.
-7. If a CURRENT CHAPTER is in context, anchor your answer to THAT chapter first. Only reference other provided chapters by name if directly relevant.
-8. Keep answers concise. Use short paragraphs, bullets, **bold** key terms. If the user asks "like I'm new", drop jargon and use a plain analogy from the book.
+1. SOURCE OF TRUTH: The "BOOK CONTEXT" block below contains the full book. Ground every answer in it and cite chapters like "(Ch 5 — Market structure)".
+2. You MAY briefly define basic trading terms (e.g. candle, ticker, broker) in plain language when needed to explain a book concept — but always tie the explanation back to the relevant chapter.
+3. If a question is genuinely about topics the book never touches (e.g. a specific stock pick, tax law, unrelated subjects), say so briefly and suggest 2-3 relevant chapters they CAN ask about. Use this sparingly — make a real effort to answer from the book first.
+4. NEVER predict prices, recommend specific tickers to buy/sell, or give financial advice. Educational concepts ONLY.
+5. NEVER answer non-trading questions (politics, code help, celebrities, current events). Redirect to a book topic.
+6. If a CURRENT CHAPTER is in context, anchor your answer to THAT chapter first.
+7. Keep answers concise. Use short paragraphs, bullets, **bold** key terms. If the user asks "like I'm new", drop jargon and use a plain analogy.
 
 If asked who you are: "I'm the Z1 INSIGHTS tutor — I only teach from your Z1 chapters."`;
 
@@ -66,39 +64,19 @@ Deno.serve(async (req) => {
     // Build BOOK CONTEXT — always include every chapter title so the tutor can route,
     // and the FULL TEXT of the current chapter (if any) plus the most relevant other chapters
     // chosen by simple keyword overlap with the latest user message.
-    let contextBlock = "\n\n=== BOOK CONTEXT (your ONLY source of truth) ===\n";
+    let contextBlock = "\n\n=== BOOK CONTEXT (the full Z1 INSIGHTS book) ===\n";
 
     const { data: allChapters } = await supabase
       .from("book_chapters")
       .select("id, chapter_number, title, content")
-      .eq("published", true)
       .order("order_index");
-
-    const lastUserMsg = [...(messages ?? [])].reverse().find((m: any) => m.role === "user")?.content ?? "";
-    const tokens = (lastUserMsg as string).toLowerCase().split(/\W+/).filter((t) => t.length > 3);
 
     let currentChap: any = null;
     if (chapterId) currentChap = (allChapters ?? []).find((c) => c.id === chapterId);
 
-    // Score chapters by overlap with the user message
-    const scored = (allChapters ?? []).map((c) => {
-      if (currentChap && c.id === currentChap.id) return { c, score: 1e9 };
-      const hay = (c.title + " " + c.content).toLowerCase();
-      let s = 0;
-      for (const t of tokens) if (hay.includes(t)) s += 1;
-      return { c, score: s };
-    }).sort((a, b) => b.score - a.score);
-
-    contextBlock += "\nAVAILABLE CHAPTERS:\n";
+    // The whole book is small enough to include in full.
     for (const c of allChapters ?? []) {
-      contextBlock += `- Ch ${c.chapter_number} — ${c.title}\n`;
-    }
-
-    // Include up to 3 chapters worth of content (current + top 2 relevant), cap each at 6000 chars
-    const picked = scored.slice(0, 3).filter((x) => x.score > 0 || (currentChap && x.c.id === currentChap.id));
-    for (const { c } of picked) {
-      const text = (c.content || "").slice(0, 6000);
-      contextBlock += `\n--- Ch ${c.chapter_number}: ${c.title} ---\n${text}\n`;
+      contextBlock += `\n--- Ch ${c.chapter_number}: ${c.title} ---\n${c.content || ""}\n`;
     }
     contextBlock += "\n=== END BOOK CONTEXT ===\n";
 
