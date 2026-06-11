@@ -1,0 +1,1 @@
+UPDATE public.book_chapters SET chapter_number = chapter_number - 1, order_index = order_index - 1 WHERE chapter_number >= 7;
