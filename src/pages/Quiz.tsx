@@ -24,6 +24,7 @@ export default function Quiz() {
   const [picked, setPicked] = useState<number | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
   const [done, setDone] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!chapterId) return;
@@ -34,6 +35,7 @@ export default function Quiz() {
       ]);
       setChapter(ch.data);
       setQs((qz.data ?? []).map((q: any) => ({ ...q, options: q.options as string[] })));
+      setLoading(false);
     })();
   }, [chapterId]);
 
@@ -64,6 +66,14 @@ export default function Quiz() {
       setIdx(idx + 1);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-[100dvh] vault-bg grid place-items-center">
+        <div className="size-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   if (!qs.length) {
     return (

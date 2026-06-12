@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, Bookmark, Highlighter, Sparkles, ChevronLeft, ChevronRight, Trophy, X, Download, CheckCircle2, Wifi, WifiOff, Headphones, Loader2 } from "lucide-react";
+import { ArrowLeft, Bookmark, Highlighter, Sparkles, ChevronLeft, ChevronRight, Trophy, X, Download, CheckCircle2, WifiOff, Headphones, Loader2 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { downloadChapter, getOffline, isOnline, offlineAudioUrl, removeChapter, type DownloadProgress } from "@/lib/offline";
@@ -279,7 +279,7 @@ export default function Reader() {
           <div className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground mb-2">
             {chapter.subtitle}
           </div>
-          {(audioBlobUrl || chapter.audio_url) && (
+          {(audioBlobUrl || chapter.audio_url) && chapter.audio_url && (
             <div className="glass rounded-2xl p-3 mb-6 flex items-center gap-2">
               <Headphones className="size-4 text-gold-bright" />
               <audio controls src={audioBlobUrl ?? chapter.audio_url} className="flex-1 h-9" />
