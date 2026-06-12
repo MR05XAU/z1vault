@@ -62,6 +62,20 @@ export default function Vault() {
     ? chapters.find((c) => c.id === lastTouched.chapter_id) ?? chapters[0]
     : chapters[0];
 
+  // Real day-streak: consecutive days with activity counting back from today.
+  const streak = (() => {
+    const days = new Set(
+      progress.map((p) => new Date(p.updated_at).toISOString().slice(0, 10))
+    );
+    let n = 0;
+    const d = new Date();
+    while (days.has(d.toISOString().slice(0, 10))) {
+      n++;
+      d.setDate(d.getDate() - 1);
+    }
+    return n;
+  })();
+
   return (
     <MobileShell
       bottomNav={<BottomNav />}
@@ -108,7 +122,7 @@ export default function Vault() {
       <section className="mt-5 grid grid-cols-3 gap-3 animate-fade-up" style={{ animationDelay: "100ms" }}>
         <StatTile icon={Trophy} label="Avg quiz" value={`${quizAvg}%`} />
         <StatTile icon={Flame} label="Done" value={`${chaptersDone}`} />
-        <StatTile icon={Clock} label="Streak" value={`${quizzes.length ? Math.min(quizzes.length, 30) : 0}d`} />
+        <StatTile icon={Clock} label="Streak" value={`${streak}d`} />
       </section>
 
       <section className="mt-8 animate-fade-up" style={{ animationDelay: "180ms" }}>
