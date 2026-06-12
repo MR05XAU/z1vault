@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { MobileShell } from "@/components/MobileShell";
@@ -9,7 +10,7 @@ import { toast } from "sonner";
 
 interface Msg { role: "user" | "assistant"; content: string }
 
-const STARTERS = [
+const DEFAULT_STARTERS = [
   "Explain the 1% rule like I'm new",
   "Summarize Chapter 1",
   "What's the difference between trending and ranging markets?",
@@ -17,10 +18,33 @@ const STARTERS = [
 ];
 
 export default function Tutor() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [starters, setStarters] = useState<string[]>(DEFAULT_STARTERS);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Personalised starters: pull the user's most-recently completed chapters
+  // and suggest follow-up questions tied to them.
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data } = await supabase
+        .from("user_progress")
+        .select("chapter_id, completed, updated_at, book_chapters(title, chapter_number)")
+        .eq("user_id", user.id)
+        .eq("completed", true)
+        .order("updated_at", { ascending: false })
+        .limit(3);
+      const items = (data ?? []).map((r: any) => r.book_chapters).filter(Boolean);
+      if (items.length === 0) return;
+      const dyn = items.slice(0, 3).map((c: any) =>
+        `Quiz me on Chapter ${c.chapter_number} — ${c.title}`
+      );
+      setStarters([...dyn, "Summarize what I've read so far"]);
+    })();
+  }, [user]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -112,7 +136,7 @@ export default function Tutor() {
               The tutor only answers trading questions grounded in your Z1 chapters.
             </p>
             <div className="mt-6 space-y-2">
-              {STARTERS.map((s, i) => (
+              {starters.map((s, i) => (
                 <button
                   key={s}
                   onClick={() => send(s)}

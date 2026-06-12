@@ -1,4 +1,6 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { queryClient } from "@/lib/queryClient";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -26,8 +28,6 @@ import PaymentsCheck from "./pages/PaymentsCheck";
 import GoLive from "./pages/GoLive";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
-
 function GateLoading() {
   return (
     <div className="min-h-[100dvh] vault-bg grid place-items-center">
@@ -54,6 +54,7 @@ function AuthOnly({ children }: { children: ReactNode }) {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <ErrorBoundary>
     <TooltipProvider>
       <Toaster />
       <Sonner theme="dark" />
@@ -83,6 +84,7 @@ const App = () => (
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
+    </ErrorBoundary>
   </QueryClientProvider>
 );
 

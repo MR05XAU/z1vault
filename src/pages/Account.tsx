@@ -10,7 +10,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, LogOut, Receipt, Mail, Lock, Trash2, LifeBuoy, Loader2, ExternalLink } from "lucide-react";
+import { ArrowLeft, LogOut, Receipt, Mail, Lock, Trash2, LifeBuoy, Loader2, ExternalLink, BookOpen } from "lucide-react";
 
 type Purchase = {
   id: string;
@@ -99,6 +99,21 @@ export default function Account() {
             {hasAccess ? "Lifetime access · Active" : "No active access"}
           </div>
         </div>
+
+        {/* Product */}
+        <section className="mt-6">
+          <div className="glass rounded-2xl p-4 flex items-center gap-3 gold-border">
+            <div className="size-10 rounded-xl bg-gold/10 grid place-items-center shrink-0">
+              <BookOpen className="size-4 text-gold-bright" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium">Z1 INSIGHTS — Lifetime Vault</div>
+              <div className="text-[11px] text-muted-foreground mt-0.5">
+                Interactive book, AI tutor, quizzes, analytics. One payment.
+              </div>
+            </div>
+          </div>
+        </section>
 
         {/* Purchases */}
         <section className="mt-8">

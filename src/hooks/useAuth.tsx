@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
+import { queryClient } from "@/lib/queryClient";
 
 interface AuthCtx {
   user: User | null;
@@ -66,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
     setHasAccess(false);
     setIsAdmin(false);
+    queryClient.clear();
   };
 
   return (

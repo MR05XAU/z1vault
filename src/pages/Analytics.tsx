@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { MobileShell } from "@/components/MobileShell";
@@ -8,6 +9,7 @@ import { Trophy, Highlighter, Bookmark, BookOpen, TrendingUp, LogOut } from "luc
 
 export default function Analytics() {
   const { user, signOut } = useAuth();
+  const nav = useNavigate();
   const [stats, setStats] = useState({
     chapters: 0,
     done: 0,
@@ -60,7 +62,7 @@ export default function Analytics() {
             <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Analytics</div>
             <h1 className="display text-3xl font-medium mt-1">Your edge.</h1>
           </div>
-          <button onClick={signOut} className="size-10 grid place-items-center rounded-full glass press text-muted-foreground">
+          <button onClick={async () => { await signOut(); nav("/auth", { replace: true }); }} className="size-10 grid place-items-center rounded-full glass press text-muted-foreground">
             <LogOut className="size-4" />
           </button>
         </header>

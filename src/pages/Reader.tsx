@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -12,6 +12,7 @@ import { downloadChapter, getOffline, isOnline, offlineAudioUrl, removeChapter, 
 
 export default function Reader() {
   const { chapterId } = useParams();
+  const [searchParams] = useSearchParams();
   const nav = useNavigate();
   const { user } = useAuth();
   const [chapter, setChapter] = useState<any>(null);
@@ -56,6 +57,41 @@ export default function Reader() {
       }
     })();
   }, [chapterId]);
+
+  // Scroll restore: ?pos=PX or ?pct=NN from a bookmark, otherwise last_position from progress.
+  useEffect(() => {
+    if (!chapter || !scrollRef.current || !user) return;
+    const el = scrollRef.current;
+    const restore = async () => {
+      const pos = searchParams.get("pos");
+      const pct = searchParams.get("pct");
+      if (pos) { el.scrollTop = Number(pos); return; }
+      if (pct) {
+        const max = el.scrollHeight - el.clientHeight;
+        el.scrollTop = Math.max(0, (Number(pct) / 100) * max);
+        return;
+      }
+      const { data } = await supabase
+        .from("user_progress").select("last_position")
+        .eq("user_id", user.id).eq("chapter_id", chapter.id).maybeSingle();
+      if (data?.last_position) el.scrollTop = Number(data.last_position);
+    };
+    // wait for content to render
+    const t = setTimeout(restore, 80);
+    return () => clearTimeout(t);
+  }, [chapter, user, searchParams]);
+
+  // Selection on mobile: track selectionchange so the action bar appears reliably.
+  useEffect(() => {
+    const handler = () => {
+      const sel = window.getSelection()?.toString().trim() ?? "";
+      if (sel.length > 3 && scrollRef.current?.contains(window.getSelection()?.anchorNode ?? null)) {
+        setSelectedText(sel);
+      }
+    };
+    document.addEventListener("selectionchange", handler);
+    return () => document.removeEventListener("selectionchange", handler);
+  }, []);
 
   useEffect(() => {
     const on = () => setOnline(true), off = () => setOnline(false);
@@ -130,6 +166,32 @@ export default function Reader() {
     };
     el.addEventListener("scroll", onScroll);
     return () => { el.removeEventListener("scroll", onScroll); clearTimeout(saveTimer); };
+  }, [chapter, user]);
+
+  // Flush progress on unload so quick exits don't lose the last scroll position.
+  useEffect(() => {
+    if (!chapter || !user) return;
+    const flush = () => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const max = el.scrollHeight - el.clientHeight;
+      const pct = max > 0 ? Math.min(100, (el.scrollTop / max) * 100) : 100;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_progress?on_conflict=user_id,chapter_id`;
+      const body = JSON.stringify({
+        user_id: user.id, chapter_id: chapter.id,
+        progress_percentage: pct, last_position: el.scrollTop, completed: pct >= 95,
+      });
+      try {
+        const blob = new Blob([body], { type: "application/json" });
+        navigator.sendBeacon?.(url, blob);
+      } catch {}
+    };
+    window.addEventListener("pagehide", flush);
+    window.addEventListener("beforeunload", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      window.removeEventListener("beforeunload", flush);
+    };
   }, [chapter, user]);
 
   const onMouseUp = () => {
