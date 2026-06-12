@@ -10,7 +10,10 @@ export default function Splash() {
   useEffect(() => {
     if (loading) return;
     const t = setTimeout(() => {
-      if (!user) return nav("/onboarding", { replace: true });
+      if (!user) {
+        const seen = (() => { try { return localStorage.getItem("z1.onboardingDone") === "1"; } catch { return false; } })();
+        return nav(seen ? "/auth" : "/onboarding", { replace: true });
+      }
       if (accessLoading) return;
       if (!hasAccess) return nav("/paywall", { replace: true });
       nav("/vault", { replace: true });

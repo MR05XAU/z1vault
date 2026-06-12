@@ -56,10 +56,13 @@ const slides = [
   },
 ];
 
+const ONBOARD_KEY = "z1.onboardingDone";
+
 export default function Onboarding() {
   const [i, setI] = useState(0);
   const nav = useNavigate();
-  const next = () => (i < slides.length - 1 ? setI(i + 1) : nav("/auth"));
+  const finish = () => { try { localStorage.setItem(ONBOARD_KEY, "1"); } catch {} ; nav("/auth"); };
+  const next = () => (i < slides.length - 1 ? setI(i + 1) : finish());
   const slide = slides[i];
 
   return (
@@ -77,7 +80,7 @@ export default function Onboarding() {
             ))}
           </div>
           <button
-            onClick={() => nav("/auth")}
+            onClick={finish}
             className="text-xs text-muted-foreground tracking-wide hover:text-foreground transition-colors"
           >
             Skip

@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Check, X, Trophy } from "lucide-react";
+import { ArrowLeft, Check, X, Trophy, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Q {
@@ -25,6 +25,7 @@ export default function Quiz() {
   const [answers, setAnswers] = useState<number[]>([]);
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [review, setReview] = useState(false);
 
   useEffect(() => {
     if (!chapterId) return;
@@ -89,6 +90,57 @@ export default function Quiz() {
   if (done) {
     const final = answers.reduce((s, a, i) => s + (a === qs[i].correct_answer ? 1 : 0), 0);
     const pct = Math.round((final / qs.length) * 100);
+    if (review) {
+      return (
+        <div className="min-h-[100dvh] vault-bg flex justify-center">
+          <div className="w-full max-w-md flex flex-col px-5 safe-top pb-10">
+            <header className="flex items-center gap-3 mt-2">
+              <button onClick={() => setReview(false)} className="size-9 grid place-items-center rounded-full glass press">
+                <ArrowLeft className="size-4" />
+              </button>
+              <div className="flex-1">
+                <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright">Review</div>
+                <div className="text-sm font-medium">{chapter?.title}</div>
+              </div>
+              <div className="text-xs font-mono text-muted-foreground">{final}/{qs.length}</div>
+            </header>
+            <div className="mt-6 space-y-4">
+              {qs.map((q, i) => {
+                const userAns = answers[i];
+                const correct = userAns === q.correct_answer;
+                return (
+                  <div key={q.id} className="glass rounded-2xl p-4">
+                    <div className="flex items-start gap-2 mb-2">
+                      <div className={`size-6 rounded-md grid place-items-center text-[10px] font-mono shrink-0 ${correct ? "bg-success text-background" : "bg-danger text-background"}`}>
+                        {correct ? <Check className="size-3" strokeWidth={3} /> : <X className="size-3" strokeWidth={3} />}
+                      </div>
+                      <div className="text-sm font-medium flex-1">{q.question}</div>
+                    </div>
+                    <div className="space-y-1.5 mt-3">
+                      {q.options.map((opt, j) => (
+                        <div key={j} className={`text-xs rounded-lg px-3 py-2 border ${
+                          j === q.correct_answer ? "bg-success/10 border-success/40 text-foreground"
+                          : j === userAns ? "bg-danger/10 border-danger/40 text-foreground"
+                          : "border-border/40 text-muted-foreground"
+                        }`}>
+                          <span className="font-mono mr-2">{String.fromCharCode(65 + j)}.</span>{opt}
+                        </div>
+                      ))}
+                    </div>
+                    {q.explanation && (
+                      <p className="text-xs text-muted-foreground mt-3 italic leading-relaxed">{q.explanation}</p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <Button onClick={() => nav("/library")} className="mt-6 h-14 rounded-2xl gold-fill press shadow-glow">
+              Done
+            </Button>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="min-h-[100dvh] vault-bg grid place-items-center px-6">
         <div className="text-center animate-fade-up max-w-sm">
@@ -104,13 +156,16 @@ export default function Quiz() {
             {final} of {qs.length} correct
           </p>
           <div className="flex gap-2 mt-8">
-            <Button onClick={() => nav(`/read/${chapterId}`)} variant="outline" className="flex-1 h-12 rounded-xl border-border-strong">
-              Re-read
+            <Button onClick={() => setReview(true)} variant="outline" className="flex-1 h-12 rounded-xl border-border-strong">
+              Review answers
             </Button>
             <Button onClick={() => nav("/library")} className="flex-1 h-12 rounded-xl gold-fill press shadow-glow">
               Next chapter
             </Button>
           </div>
+          <button onClick={() => nav(`/read/${chapterId}`)} className="mt-4 text-xs text-muted-foreground press">
+            Re-read chapter
+          </button>
         </div>
       </div>
     );

@@ -57,10 +57,22 @@ export default function Vault() {
     ? Math.round(quizzes.reduce((s, q) => s + (q.score / q.total_questions) * 100, 0) / quizzes.length)
     : 0;
 
-  const lastTouched = [...progress].sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at))[0];
-  const continueChapter = lastTouched
-    ? chapters.find((c) => c.id === lastTouched.chapter_id) ?? chapters[0]
-    : chapters[0];
+  // Most recent INCOMPLETE chapter the user touched; fall back to next chapter after
+  // the latest completed one; finally first chapter.
+  const continueChapter = (() => {
+    const sorted = [...progress].sort((a, b) => +new Date(b.updated_at) - +new Date(a.updated_at));
+    const incomplete = sorted.find((p) => !p.completed);
+    if (incomplete) {
+      const ch = chapters.find((c) => c.id === incomplete.chapter_id);
+      if (ch) return ch;
+    }
+    const lastDone = sorted.find((p) => p.completed);
+    if (lastDone) {
+      const i = chapters.findIndex((c) => c.id === lastDone.chapter_id);
+      if (i >= 0 && chapters[i + 1]) return chapters[i + 1];
+    }
+    return chapters[0];
+  })();
 
   // Real day-streak: consecutive days with activity counting back from today.
   const streak = (() => {

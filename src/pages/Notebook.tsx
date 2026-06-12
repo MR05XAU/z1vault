@@ -103,7 +103,10 @@ export default function Notebook() {
         <TabsContent value="bookmarks" className="mt-4 space-y-3">
           {filter(bookmarks).length === 0 && <Empty label="No bookmarks yet. Tap the bookmark icon while reading." />}
           {filter(bookmarks).map((b) => (
-            <Card key={b.id} chapter={chapters[b.chapter_id]} onOpen={() => nav(`/read/${b.chapter_id}`)} onDelete={() => del("bookmarks", b.id)}>
+            <Card key={b.id} chapter={chapters[b.chapter_id]} onOpen={() => {
+              const pct = (b.page_reference || "").match(/^(\d+)%/)?.[1];
+              nav(pct ? `/read/${b.chapter_id}?pct=${pct}` : `/read/${b.chapter_id}`);
+            }} onDelete={() => del("bookmarks", b.id)}>
               <p className="text-sm text-foreground/90">Bookmark at {b.page_reference || "—"}</p>
               {b.note && <p className="text-xs text-muted-foreground mt-1">{b.note}</p>}
             </Card>
