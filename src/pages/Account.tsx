@@ -50,7 +50,7 @@ export default function Account() {
     const { error } = await supabase.auth.updateUser({ email: newEmail });
     setBusy(null);
     if (error) return toast.error(error.message);
-    toast.success("Confirmation sent to your new email.");
+    toast.success("Confirmation links sent to BOTH your old and new email. Click the link in each to complete the change.");
     setNewEmail("");
   };
 
@@ -160,6 +160,10 @@ export default function Account() {
               variant="outline" className="w-full h-11 rounded-xl">
               {busy === "email" ? <Loader2 className="size-4 animate-spin" /> : "Send confirmation"}
             </Button>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              For your security we send a confirmation to both your current and new email.
+              The change only takes effect after you click the link in each.
+            </p>
           </div>
         </section>
 
