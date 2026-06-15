@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useChapters } from "@/hooks/useChapters";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -17,19 +18,16 @@ export default function Notebook() {
   const [q, setQ] = useState("");
   const [highlights, setHighlights] = useState<any[]>([]);
   const [bookmarks, setBookmarks] = useState<any[]>([]);
-  const [chapters, setChapters] = useState<Record<string, any>>({});
+  const { data: chList = [] } = useChapters();
+  const chapters = chList.reduce<Record<string, any>>((acc, c) => { acc[c.id] = c; return acc; }, {});
 
   const refresh = async () => {
-    const [h, b, c] = await Promise.all([
+    const [h, b] = await Promise.all([
       supabase.from("highlights").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
       supabase.from("bookmarks").select("*").eq("user_id", user!.id).order("created_at", { ascending: false }),
-      supabase.from("book_chapters").select("id,chapter_number,title"),
     ]);
     setHighlights(h.data ?? []);
     setBookmarks(b.data ?? []);
-    const map: Record<string, any> = {};
-    (c.data ?? []).forEach((x: any) => (map[x.id] = x));
-    setChapters(map);
   };
 
   useEffect(() => { refresh(); }, [user]);
