@@ -18,6 +18,7 @@ export default function Admin() {
   const [tab, setTab] = useState<Tab>("chapters");
   const [bootstrapping, setBootstrapping] = useState(false);
   const [seeding, setSeeding] = useState(false);
+  const [regenQuiz, setRegenQuiz] = useState(false);
 
   if (accessLoading) return <FullSpinner />;
   if (!user) return <Navigate to="/auth" replace />;
@@ -49,6 +50,26 @@ export default function Admin() {
       if (!res.ok) toast.error(j.error || "Seed failed");
       else toast.success(`Loaded ${j.inserted} chapters from PDF.`);
     } finally { setSeeding(false); }
+  };
+
+  const regenerateQuizzes = async () => {
+    if (!confirm("Regenerate ALL quizzes via AI (4 harder questions per chapter)? This replaces existing questions and may take 1-2 minutes.")) return;
+    setRegenQuiz(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-regenerate-quizzes`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({}),
+      });
+      const j = await res.json();
+      if (!res.ok) toast.error(j.error || "Regenerate failed");
+      else {
+        const fails = j.failures?.length ? ` (${j.failures.length} chapters failed)` : "";
+        toast.success(`Generated ${j.totalGenerated} questions across ${j.chapters} chapters${fails}.`);
+      }
+    } finally { setRegenQuiz(false); }
   };
 
   if (!isAdmin) {
@@ -85,6 +106,10 @@ export default function Admin() {
             <Button size="sm" onClick={seedBook} disabled={seeding} variant="outline" className="rounded-xl border-border-strong">
               {seeding ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <Upload className="size-3 mr-1.5" />}
               Reseed from PDF
+            </Button>
+            <Button size="sm" onClick={regenerateQuizzes} disabled={regenQuiz} variant="outline" className="rounded-xl border-border-strong">
+              {regenQuiz ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <BrainCircuit className="size-3 mr-1.5" />}
+              Regenerate quizzes
             </Button>
             <Button size="sm" onClick={() => nav("/vault")} variant="ghost" className="rounded-xl text-xs">Exit</Button>
           </div>
