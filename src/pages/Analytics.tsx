@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useChapters } from "@/hooks/useChapters";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { ProgressRing } from "@/components/ProgressRing";
@@ -10,6 +11,7 @@ import { Trophy, Highlighter, Bookmark, BookOpen, TrendingUp, LogOut } from "luc
 export default function Analytics() {
   const { user, signOut } = useAuth();
   const nav = useNavigate();
+  const { data: chList = [] } = useChapters();
   const [stats, setStats] = useState({
     chapters: 0,
     done: 0,
@@ -20,21 +22,17 @@ export default function Analytics() {
     bookmarks: 0,
   });
   const [recent, setRecent] = useState<any[]>([]);
-  const [chapters, setChapters] = useState<Record<string, any>>({});
+  const chapters = chList.reduce<Record<string, any>>((acc, c) => { acc[c.id] = c; return acc; }, {});
 
   useEffect(() => {
     (async () => {
-      const [c, p, qr, hl, bm] = await Promise.all([
-        supabase.from("book_chapters").select("id,chapter_number,title"),
+      const [p, qr, hl, bm] = await Promise.all([
         supabase.from("user_progress").select("*").eq("user_id", user!.id),
         supabase.from("quiz_results").select("score,total_questions,chapter_id,completed_at").eq("user_id", user!.id).order("completed_at", { ascending: false }).limit(8),
         supabase.from("highlights").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
         supabase.from("bookmarks").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
       ]);
-      const chMap: Record<string, any> = {};
-      (c.data ?? []).forEach((x: any) => (chMap[x.id] = x));
-      setChapters(chMap);
-      const total = c.data?.length ?? 0;
+      const total = chList.length;
       const done = (p.data ?? []).filter((x: any) => x.completed).length;
       const pct = total ? Math.round((p.data ?? []).reduce((s: number, x: any) => s + Number(x.progress_percentage), 0) / total) : 0;
       const quizAvg = qr.data?.length
@@ -51,7 +49,7 @@ export default function Analytics() {
       });
       setRecent(qr.data ?? []);
     })();
-  }, [user]);
+  }, [user, chList.length]);
 
   return (
     <MobileShell
