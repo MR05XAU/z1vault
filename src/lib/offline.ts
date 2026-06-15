@@ -5,6 +5,10 @@ const DB_NAME = "z1-offline";
 const STORE = "chapters";
 const AUDIO_CACHE = "z1-chapter-audio-v1";
 
+// Cached chapters auto-expire after 30 days unless re-downloaded. Prevents
+// stale content lingering on devices indefinitely if a user never refreshes.
+const TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
 function openDB(): Promise<IDBDatabase> {
   return new Promise((res, rej) => {
     const r = indexedDB.open(DB_NAME, 1);
@@ -38,11 +42,27 @@ export interface OfflineChapter {
 }
 
 export async function getOffline(id: string): Promise<OfflineChapter | undefined> {
-  return tx<OfflineChapter>("readonly", (s) => s.get(id));
+  const rec = await tx<OfflineChapter | undefined>("readonly", (s) => s.get(id));
+  if (!rec) return undefined;
+  const age = Date.now() - new Date(rec.downloaded_at).getTime();
+  if (age > TTL_MS) {
+    // Stale — purge in the background, return undefined so caller refetches.
+    void removeChapter(rec.id, rec.audio_url);
+    return undefined;
+  }
+  return rec;
 }
 
 export async function listOffline(): Promise<OfflineChapter[]> {
-  return tx<OfflineChapter[]>("readonly", (s) => s.getAll());
+  const all = await tx<OfflineChapter[]>("readonly", (s) => s.getAll());
+  const now = Date.now();
+  const fresh: OfflineChapter[] = [];
+  for (const rec of all) {
+    if (now - new Date(rec.downloaded_at).getTime() > TTL_MS) {
+      void removeChapter(rec.id, rec.audio_url);
+    } else fresh.push(rec);
+  }
+  return fresh;
 }
 
 export async function saveOffline(c: OfflineChapter): Promise<void> {

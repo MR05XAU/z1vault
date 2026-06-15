@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useChapters } from "@/hooks/useChapters";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { ChevronRight, Check, Clock } from "lucide-react";
@@ -10,18 +11,17 @@ import { useMemo } from "react";
 export default function Library() {
   const nav = useNavigate();
   const { user } = useAuth();
-  const [chapters, setChapters] = useState<any[]>([]);
+  const { data: chapters = [] } = useChapters();
   const [progress, setProgress] = useState<Record<string, { pct: number; done: boolean }>>({});
 
   useEffect(() => {
     (async () => {
-      const [c, p] = await Promise.all([
-        supabase.from("book_chapters").select("*").order("order_index"),
-        supabase.from("user_progress").select("chapter_id,progress_percentage,completed").eq("user_id", user!.id),
-      ]);
-      setChapters(c.data ?? []);
+      const { data: p } = await supabase
+        .from("user_progress")
+        .select("chapter_id,progress_percentage,completed")
+        .eq("user_id", user!.id);
       const map: Record<string, any> = {};
-      (p.data ?? []).forEach((x: any) => {
+      (p ?? []).forEach((x: any) => {
         map[x.chapter_id] = { pct: Number(x.progress_percentage), done: x.completed };
       });
       setProgress(map);

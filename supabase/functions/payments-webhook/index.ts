@@ -74,6 +74,28 @@ Deno.serve(async (req) => {
             },
             { onConflict: "user_id" }
           );
+
+        // Send welcome email — once per user. Idempotency key prevents duplicate sends
+        // on webhook retries.
+        try {
+          const { data: userData } = await supabase.auth.admin.getUserById(userId);
+          const recipientEmail = userData?.user?.email;
+          const name =
+            (userData?.user?.user_metadata?.full_name as string | undefined)?.split(" ")[0] ||
+            recipientEmail?.split("@")[0];
+          if (recipientEmail) {
+            await supabase.functions.invoke("send-transactional-email", {
+              body: {
+                templateName: "welcome",
+                recipientEmail,
+                idempotencyKey: `welcome-${userId}`,
+                templateData: { name },
+              },
+            });
+          }
+        } catch (e) {
+          console.warn("welcome email send failed (non-fatal)", e);
+        }
       } else {
         console.warn("No userId on session; cannot grant access", session.id);
       }

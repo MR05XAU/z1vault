@@ -61,21 +61,70 @@ Deno.serve(async (req) => {
 
     const { messages, chapterId, highlightedText } = await req.json();
 
-    // Build BOOK CONTEXT — always include every chapter title so the tutor can route,
-    // and the FULL TEXT of the current chapter (if any) plus the most relevant other chapters
-    // chosen by simple keyword overlap with the latest user message.
-    let contextBlock = "\n\n=== BOOK CONTEXT (the full Z1 INSIGHTS book) ===\n";
-
+    // Build BOOK CONTEXT — chapter titles always shown for routing; FULL TEXT
+    // only for the current chapter and the top-N chapters scored by keyword
+    // overlap with the latest user message. Cuts token usage ~90% vs whole book.
     const { data: allChapters } = await supabase
       .from("book_chapters")
-      .select("id, chapter_number, title, content")
+      .select("id, chapter_number, title, subtitle, content")
       .order("order_index");
 
-    let currentChap: any = null;
-    if (chapterId) currentChap = (allChapters ?? []).find((c) => c.id === chapterId);
+    const chapters = allChapters ?? [];
+    const currentChap = chapterId ? chapters.find((c) => c.id === chapterId) : null;
+    const latestUserMsg: string =
+      [...messages].reverse().find((m: any) => m.role === "user")?.content ?? "";
+    const query = `${latestUserMsg} ${highlightedText ?? ""}`.toLowerCase();
 
-    // The whole book is small enough to include in full.
-    for (const c of allChapters ?? []) {
+    const STOP = new Set([
+      "the","a","an","and","or","but","is","are","was","were","be","been","being","of","to","in","on",
+      "at","by","for","with","from","as","it","its","this","that","these","those","i","you","we","they",
+      "me","my","your","our","their","do","does","did","what","why","how","when","where","which","who",
+      "can","could","should","would","will","just","like","about","into","over","than","then","so","not",
+      "no","yes","more","most","some","any","all","one","two","very","really","mean","explain","tell",
+    ]);
+    const tokens = Array.from(
+      new Set(
+        query
+          .replace(/[^a-z0-9\s']/g, " ")
+          .split(/\s+/)
+          .filter((w) => w.length > 2 && !STOP.has(w)),
+      ),
+    );
+
+    // Score chapters: keyword hits in title (x5) + body (x1).
+    const scored = chapters.map((c) => {
+      const titleLc = (c.title + " " + (c.subtitle ?? "")).toLowerCase();
+      const bodyLc = (c.content ?? "").toLowerCase();
+      let score = 0;
+      for (const t of tokens) {
+        if (titleLc.includes(t)) score += 5;
+        const m = bodyLc.match(new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "g"));
+        if (m) score += m.length;
+      }
+      return { c, score };
+    });
+
+    // Selection: current chapter (if any) + top 2 scored chapters (excluding current).
+    const picked = new Map<string, any>();
+    if (currentChap) picked.set(currentChap.id, currentChap);
+    scored
+      .filter((s) => s.score > 0 && !picked.has(s.c.id))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 2)
+      .forEach((s) => picked.set(s.c.id, s.c));
+
+    // Fallback: if nothing matched and no current chapter, include first 2 chapters
+    // so the tutor isn't blind.
+    if (picked.size === 0) {
+      chapters.slice(0, 2).forEach((c) => picked.set(c.id, c));
+    }
+
+    let contextBlock = "\n\n=== BOOK CHAPTERS (titles only — full text below for selected) ===\n";
+    for (const c of chapters) {
+      contextBlock += `Ch ${c.chapter_number}: ${c.title}${c.subtitle ? ` — ${c.subtitle}` : ""}\n`;
+    }
+    contextBlock += "\n=== RELEVANT CHAPTER TEXT ===\n";
+    for (const c of picked.values()) {
       contextBlock += `\n--- Ch ${c.chapter_number}: ${c.title} ---\n${c.content || ""}\n`;
     }
     contextBlock += "\n=== END BOOK CONTEXT ===\n";
@@ -86,6 +135,7 @@ Deno.serve(async (req) => {
     if (highlightedText) {
       contextBlock += `\n\nUSER HIGHLIGHTED THIS PASSAGE FROM THE CURRENT CHAPTER:\n"""${highlightedText}"""\nExplain this passage using only the book context above.`;
     }
+    contextBlock += `\n\nNOTE: If the question asks about a chapter whose full text is NOT included above, say so briefly and suggest the user open that chapter, then answer from the chapter titles you can see.`;
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
