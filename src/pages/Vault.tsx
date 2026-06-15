@@ -2,19 +2,14 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
+import { useChapters } from "@/hooks/useChapters";
+import { toast } from "sonner";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Z1Wordmark } from "@/components/Z1Logo";
 import { ProgressRing } from "@/components/ProgressRing";
 import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock } from "lucide-react";
 
-interface Chapter {
-  id: string;
-  chapter_number: number;
-  title: string;
-  subtitle: string | null;
-  estimated_minutes: number | null;
-}
 interface Progress { chapter_id: string; progress_percentage: number; completed: boolean; updated_at: string }
 interface QuizResult { score: number; total_questions: number }
 
@@ -30,19 +25,17 @@ const modules = [
 export default function Vault() {
   const nav = useNavigate();
   const { user } = useAuth();
-  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const { data: chapters = [] } = useChapters();
   const [progress, setProgress] = useState<Progress[]>([]);
   const [quizzes, setQuizzes] = useState<QuizResult[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [c, p, q] = await Promise.all([
-        supabase.from("book_chapters").select("id,chapter_number,title,subtitle,estimated_minutes").order("order_index"),
+      const [p, q] = await Promise.all([
         supabase.from("user_progress").select("chapter_id,progress_percentage,completed,updated_at").eq("user_id", user!.id),
         supabase.from("quiz_results").select("score,total_questions").eq("user_id", user!.id),
       ]);
-      setChapters(c.data ?? []);
       setProgress(p.data ?? []);
       setQuizzes(q.data ?? []);
       setLoading(false);
@@ -87,6 +80,23 @@ export default function Vault() {
     }
     return n;
   })();
+
+  // Milestone toasts at 3 / 7 / 30 days. Show once per milestone per user.
+  useEffect(() => {
+    if (!user || streak === 0) return;
+    const milestones = [3, 7, 30];
+    const hit = milestones.find((m) => streak === m);
+    if (!hit) return;
+    const key = `z1.streakToast.${user.id}.${hit}`;
+    if (localStorage.getItem(key)) return;
+    localStorage.setItem(key, "1");
+    const copy: Record<number, string> = {
+      3: "🔥 3-day streak. The habit is forming.",
+      7: "🏆 7 days straight. You're locking it in.",
+      30: "👑 30 days. You're operating like a pro.",
+    };
+    toast.success(copy[hit]);
+  }, [streak, user]);
 
   return (
     <MobileShell
