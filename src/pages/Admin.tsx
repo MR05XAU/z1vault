@@ -443,3 +443,83 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
+
+/* ---------- EMAIL LOGS ---------- */
+function EmailLogsPanel() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    (async () => {
+      const { data } = await sb.from("email_send_log").select("*").order("created_at", { ascending: false }).limit(100);
+      setRows(data ?? []);
+      setLoading(false);
+    })();
+  }, []);
+  if (loading) return <FullSpinner />;
+  return (
+    <div className="px-5 space-y-2">
+      {rows.length === 0 && <div className="text-xs text-muted-foreground text-center py-8">No emails sent yet.</div>}
+      {rows.map((r) => (
+        <div key={r.id} className="glass rounded-xl p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium truncate">{r.template_name || r.subject || "—"}</div>
+            <div className={`text-[10px] px-2 py-0.5 rounded-full ${r.status === "sent" ? "bg-success/20 text-success" : r.status === "failed" || r.status === "dlq" ? "bg-danger/20 text-danger" : "bg-secondary text-muted-foreground"}`}>{r.status}</div>
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-1 truncate">{r.recipient_email}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">{new Date(r.created_at).toLocaleString()}</div>
+          {r.error_message && <div className="text-[11px] text-danger mt-1">{r.error_message}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- USERS / ENTITLEMENTS ---------- */
+function UsersPanel() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const refresh = async () => {
+    const { data } = await sb
+      .from("profiles")
+      .select("id, email, full_name, created_at, entitlements(has_access, granted_by_admin)")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    setRows(data ?? []);
+    setLoading(false);
+  };
+  useEffect(() => { refresh(); }, []);
+  const toggle = async (userId: string, grant: boolean) => {
+    const { error } = await sb.from("entitlements").upsert(
+      { user_id: userId, has_access: grant, granted_by_admin: grant },
+      { onConflict: "user_id" }
+    );
+    if (error) toast.error(error.message); else { toast.success(grant ? "Access granted" : "Access revoked"); refresh(); }
+  };
+  if (loading) return <FullSpinner />;
+  return (
+    <div className="px-5 space-y-2">
+      <p className="text-[11px] text-muted-foreground">Toggle to comp test access. Paid users show with the dot.</p>
+      {rows.map((r) => {
+        const ent = Array.isArray(r.entitlements) ? r.entitlements[0] : r.entitlements;
+        const hasAccess = ent?.has_access;
+        const comped = ent?.granted_by_admin;
+        return (
+          <div key={r.id} className="glass rounded-xl p-3 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{r.full_name || r.email}</div>
+              <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5">
+                {r.email}
+                {hasAccess && <span className={`size-1.5 rounded-full ${comped ? "bg-gold-bright" : "bg-success"}`} />}
+              </div>
+            </div>
+            <Button size="sm" variant={hasAccess ? "outline" : "default"}
+              className={hasAccess ? "rounded-lg border-border-strong" : "rounded-lg gold-fill"}
+              onClick={() => toggle(r.id, !hasAccess)}>
+              {hasAccess ? "Revoke" : "Grant"}
+            </Button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
