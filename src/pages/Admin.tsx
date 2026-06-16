@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2, Upload, BookOpen, BrainCircuit, NotebookPen, FileAudio, ShieldCheck, Loader2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Upload, BookOpen, BrainCircuit, NotebookPen, FileAudio, ShieldCheck, Loader2, Mail, Users, Home } from "lucide-react";
 
-type Tab = "chapters" | "quizzes" | "notebook";
+type Tab = "chapters" | "quizzes" | "notebook" | "emails" | "users";
 
 export default function Admin() {
   const { user, isAdmin, accessLoading } = useAuth();
