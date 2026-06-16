@@ -24,6 +24,8 @@ import Quiz from "./pages/Quiz";
 import Notebook from "./pages/Notebook";
 import Analytics from "./pages/Analytics";
 import Admin from "./pages/Admin";
+import Journal from "./pages/Journal";
+import Calculators from "./pages/Calculators";
 import PaymentsCheck from "./pages/PaymentsCheck";
 import GoLive from "./pages/GoLive";
 import Unsubscribe from "./pages/Unsubscribe";
@@ -77,6 +79,8 @@ const App = () => (
             <Route path="/quiz/:chapterId" element={<Protected><Quiz /></Protected>} />
             <Route path="/notebook" element={<Protected><Notebook /></Protected>} />
             <Route path="/analytics" element={<Protected><Analytics /></Protected>} />
+            <Route path="/journal" element={<Protected><Journal /></Protected>} />
+            <Route path="/calculators" element={<Protected><Calculators /></Protected>} />
             <Route path="/admin" element={<AuthOnly><Admin /></AuthOnly>} />
             <Route path="/admin/payments-check" element={<AuthOnly><PaymentsCheck /></AuthOnly>} />
             <Route path="/admin/go-live" element={<AuthOnly><GoLive /></AuthOnly>} />
