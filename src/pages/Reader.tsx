@@ -465,6 +465,15 @@ export default function Reader() {
           </SheetContent>
         </Sheet>
       </div>
+      {wordLookup && (
+        <WordPopover
+          word={wordLookup.word}
+          x={wordLookup.x}
+          y={wordLookup.y}
+          chapterId={chapter.id}
+          onClose={() => setWordLookup(null)}
+        />
+      )}
     </div>
   );
 }
