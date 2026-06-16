@@ -23,3 +23,5 @@ project_id = "cqauyygqjyxtnthasjzj"
     verify_jwt = false
   [functions.admin-regenerate-quizzes]
     verify_jwt = false
+  [functions.word-lookup]
+    verify_jwt = true
