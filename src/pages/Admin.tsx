@@ -111,21 +111,25 @@ export default function Admin() {
               {regenQuiz ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <BrainCircuit className="size-3 mr-1.5" />}
               Regenerate quizzes
             </Button>
-            <Button size="sm" onClick={() => nav("/vault")} variant="ghost" className="rounded-xl text-xs">Exit</Button>
+            <Button size="sm" onClick={() => nav("/vault")} variant="ghost" className="rounded-xl text-xs">
+              <Home className="size-3 mr-1" /> Home
+            </Button>
           </div>
 
-          <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
-            {(["chapters", "quizzes", "notebook"] as Tab[]).map((t) => (
+          <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1 overflow-x-auto">
+            {(["chapters", "quizzes", "notebook", "emails", "users"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 text-xs font-medium py-2 rounded-lg press capitalize ${
+                className={`flex-1 text-xs font-medium py-2 rounded-lg press capitalize whitespace-nowrap ${
                   tab === t ? "bg-gold text-gold-foreground" : "text-muted-foreground"
                 }`}
               >
                 {t === "chapters" && <BookOpen className="size-3 inline mr-1" />}
                 {t === "quizzes" && <BrainCircuit className="size-3 inline mr-1" />}
                 {t === "notebook" && <NotebookPen className="size-3 inline mr-1" />}
+                {t === "emails" && <Mail className="size-3 inline mr-1" />}
+                {t === "users" && <Users className="size-3 inline mr-1" />}
                 {t}
               </button>
             ))}
@@ -137,6 +141,8 @@ export default function Admin() {
         {tab === "chapters" && <ChaptersPanel />}
         {tab === "quizzes" && <QuizzesPanel />}
         {tab === "notebook" && <NotebookPanel />}
+        {tab === "emails" && <EmailLogsPanel />}
+        {tab === "users" && <UsersPanel />}
       </div>
     </MobileShell>
   );
