@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { Home, BookOpen, Sparkles, BookMarked, BarChart3, ShieldCheck } from "lucide-react";
+import { Home, BookOpen, Sparkles, BookMarked, BarChart3, ShieldCheck, LineChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -7,8 +7,8 @@ const baseItems = [
   { to: "/vault", label: "Vault", icon: Home },
   { to: "/library", label: "Book", icon: BookOpen },
   { to: "/tutor", label: "Tutor", icon: Sparkles },
+  { to: "/journal", label: "Journal", icon: LineChart },
   { to: "/notebook", label: "Notes", icon: BookMarked },
-  { to: "/analytics", label: "Stats", icon: BarChart3 },
 ];
 
 export function BottomNav() {
