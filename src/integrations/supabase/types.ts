@@ -24,6 +24,7 @@ export type Database = {
           is_background: boolean
           order_index: number
           subtitle: string | null
+          summary: string | null
           title: string
           updated_at: string
         }
@@ -36,6 +37,7 @@ export type Database = {
           is_background?: boolean
           order_index: number
           subtitle?: string | null
+          summary?: string | null
           title: string
           updated_at?: string
         }
@@ -48,6 +50,7 @@ export type Database = {
           is_background?: boolean
           order_index?: number
           subtitle?: string | null
+          summary?: string | null
           title?: string
           updated_at?: string
         }
@@ -87,6 +90,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      definitions_cache: {
+        Row: {
+          created_at: string
+          definition: string
+          source: string
+          word: string
+        }
+        Insert: {
+          created_at?: string
+          definition: string
+          source: string
+          word: string
+        }
+        Update: {
+          created_at?: string
+          definition?: string
+          source?: string
+          word?: string
+        }
+        Relationships: []
       }
       email_send_log: {
         Row: {
@@ -179,6 +203,7 @@ export type Database = {
         Row: {
           created_at: string
           granted_at: string | null
+          granted_by_admin: boolean
           has_access: boolean
           source: string | null
           updated_at: string
@@ -187,6 +212,7 @@ export type Database = {
         Insert: {
           created_at?: string
           granted_at?: string | null
+          granted_by_admin?: boolean
           has_access?: boolean
           source?: string | null
           updated_at?: string
@@ -195,6 +221,7 @@ export type Database = {
         Update: {
           created_at?: string
           granted_at?: string | null
+          granted_by_admin?: boolean
           has_access?: boolean
           source?: string | null
           updated_at?: string
@@ -348,6 +375,7 @@ export type Database = {
           created_at: string
           explanation: string | null
           id: string
+          is_recap: boolean
           options: Json
           order_index: number
           question: string
@@ -358,6 +386,7 @@ export type Database = {
           created_at?: string
           explanation?: string | null
           id?: string
+          is_recap?: boolean
           options: Json
           order_index?: number
           question: string
@@ -368,6 +397,7 @@ export type Database = {
           created_at?: string
           explanation?: string | null
           id?: string
+          is_recap?: boolean
           options?: Json
           order_index?: number
           question?: string
@@ -381,6 +411,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      strategies: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       suppressed_emails: {
         Row: {
@@ -405,6 +462,71 @@ export type Database = {
           reason?: string
         }
         Relationships: []
+      }
+      trades: {
+        Row: {
+          closed_at: string | null
+          created_at: string
+          direction: string
+          entry_price: number
+          exit_price: number | null
+          fees: number | null
+          id: string
+          notes: string | null
+          opened_at: string
+          pair: string
+          pnl: number | null
+          screenshot_url: string | null
+          size: number
+          strategy_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          closed_at?: string | null
+          created_at?: string
+          direction: string
+          entry_price: number
+          exit_price?: number | null
+          fees?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          pair: string
+          pnl?: number | null
+          screenshot_url?: string | null
+          size: number
+          strategy_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          closed_at?: string | null
+          created_at?: string
+          direction?: string
+          entry_price?: number
+          exit_price?: number | null
+          fees?: number | null
+          id?: string
+          notes?: string | null
+          opened_at?: string
+          pair?: string
+          pnl?: number | null
+          screenshot_url?: string | null
+          size?: number
+          strategy_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trades_strategy_id_fkey"
+            columns: ["strategy_id"]
+            isOneToOne: false
+            referencedRelation: "strategies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_progress: {
         Row: {
@@ -464,6 +586,44 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      vocab: {
+        Row: {
+          chapter_id: string | null
+          created_at: string
+          definition: string
+          id: string
+          source: string
+          user_id: string
+          word: string
+        }
+        Insert: {
+          chapter_id?: string | null
+          created_at?: string
+          definition: string
+          id?: string
+          source?: string
+          user_id: string
+          word: string
+        }
+        Update: {
+          chapter_id?: string | null
+          created_at?: string
+          definition?: string
+          id?: string
+          source?: string
+          user_id?: string
+          word?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vocab_chapter_id_fkey"
+            columns: ["chapter_id"]
+            isOneToOne: false
+            referencedRelation: "book_chapters"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

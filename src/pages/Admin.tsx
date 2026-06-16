@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2, Upload, BookOpen, BrainCircuit, NotebookPen, FileAudio, ShieldCheck, Loader2 } from "lucide-react";
+import { Pencil, Plus, Trash2, Upload, BookOpen, BrainCircuit, NotebookPen, FileAudio, ShieldCheck, Loader2, Mail, Users, Home } from "lucide-react";
 
-type Tab = "chapters" | "quizzes" | "notebook";
+type Tab = "chapters" | "quizzes" | "notebook" | "emails" | "users";
 
 export default function Admin() {
   const { user, isAdmin, accessLoading } = useAuth();
@@ -111,21 +111,25 @@ export default function Admin() {
               {regenQuiz ? <Loader2 className="size-3 animate-spin mr-1.5" /> : <BrainCircuit className="size-3 mr-1.5" />}
               Regenerate quizzes
             </Button>
-            <Button size="sm" onClick={() => nav("/vault")} variant="ghost" className="rounded-xl text-xs">Exit</Button>
+            <Button size="sm" onClick={() => nav("/vault")} variant="ghost" className="rounded-xl text-xs">
+              <Home className="size-3 mr-1" /> Home
+            </Button>
           </div>
 
-          <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
-            {(["chapters", "quizzes", "notebook"] as Tab[]).map((t) => (
+          <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1 overflow-x-auto">
+            {(["chapters", "quizzes", "notebook", "emails", "users"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 text-xs font-medium py-2 rounded-lg press capitalize ${
+                className={`flex-1 text-xs font-medium py-2 rounded-lg press capitalize whitespace-nowrap ${
                   tab === t ? "bg-gold text-gold-foreground" : "text-muted-foreground"
                 }`}
               >
                 {t === "chapters" && <BookOpen className="size-3 inline mr-1" />}
                 {t === "quizzes" && <BrainCircuit className="size-3 inline mr-1" />}
                 {t === "notebook" && <NotebookPen className="size-3 inline mr-1" />}
+                {t === "emails" && <Mail className="size-3 inline mr-1" />}
+                {t === "users" && <Users className="size-3 inline mr-1" />}
                 {t}
               </button>
             ))}
@@ -137,6 +141,8 @@ export default function Admin() {
         {tab === "chapters" && <ChaptersPanel />}
         {tab === "quizzes" && <QuizzesPanel />}
         {tab === "notebook" && <NotebookPanel />}
+        {tab === "emails" && <EmailLogsPanel />}
+        {tab === "users" && <UsersPanel />}
       </div>
     </MobileShell>
   );
@@ -434,6 +440,86 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <label className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground">{label}</label>
       <div className="mt-1">{children}</div>
+    </div>
+  );
+}
+
+/* ---------- EMAIL LOGS ---------- */
+function EmailLogsPanel() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    (async () => {
+      const { data } = await sb.from("email_send_log").select("*").order("created_at", { ascending: false }).limit(100);
+      setRows(data ?? []);
+      setLoading(false);
+    })();
+  }, []);
+  if (loading) return <FullSpinner />;
+  return (
+    <div className="px-5 space-y-2">
+      {rows.length === 0 && <div className="text-xs text-muted-foreground text-center py-8">No emails sent yet.</div>}
+      {rows.map((r) => (
+        <div key={r.id} className="glass rounded-xl p-3">
+          <div className="flex items-center justify-between">
+            <div className="text-sm font-medium truncate">{r.template_name || r.subject || "—"}</div>
+            <div className={`text-[10px] px-2 py-0.5 rounded-full ${r.status === "sent" ? "bg-success/20 text-success" : r.status === "failed" || r.status === "dlq" ? "bg-danger/20 text-danger" : "bg-secondary text-muted-foreground"}`}>{r.status}</div>
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-1 truncate">{r.recipient_email}</div>
+          <div className="text-[10px] text-muted-foreground mt-0.5">{new Date(r.created_at).toLocaleString()}</div>
+          {r.error_message && <div className="text-[11px] text-danger mt-1">{r.error_message}</div>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ---------- USERS / ENTITLEMENTS ---------- */
+function UsersPanel() {
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const refresh = async () => {
+    const { data } = await sb
+      .from("profiles")
+      .select("id, email, full_name, created_at, entitlements(has_access, granted_by_admin)")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    setRows(data ?? []);
+    setLoading(false);
+  };
+  useEffect(() => { refresh(); }, []);
+  const toggle = async (userId: string, grant: boolean) => {
+    const { error } = await sb.from("entitlements").upsert(
+      { user_id: userId, has_access: grant, granted_by_admin: grant },
+      { onConflict: "user_id" }
+    );
+    if (error) toast.error(error.message); else { toast.success(grant ? "Access granted" : "Access revoked"); refresh(); }
+  };
+  if (loading) return <FullSpinner />;
+  return (
+    <div className="px-5 space-y-2">
+      <p className="text-[11px] text-muted-foreground">Toggle to comp test access. Paid users show with the dot.</p>
+      {rows.map((r) => {
+        const ent = Array.isArray(r.entitlements) ? r.entitlements[0] : r.entitlements;
+        const hasAccess = ent?.has_access;
+        const comped = ent?.granted_by_admin;
+        return (
+          <div key={r.id} className="glass rounded-xl p-3 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">{r.full_name || r.email}</div>
+              <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5">
+                {r.email}
+                {hasAccess && <span className={`size-1.5 rounded-full ${comped ? "bg-gold-bright" : "bg-success"}`} />}
+              </div>
+            </div>
+            <Button size="sm" variant={hasAccess ? "outline" : "default"}
+              className={hasAccess ? "rounded-lg border-border-strong" : "rounded-lg gold-fill"}
+              onClick={() => toggle(r.id, !hasAccess)}>
+              {hasAccess ? "Revoke" : "Grant"}
+            </Button>
+          </div>
+        );
+      })}
     </div>
   );
 }

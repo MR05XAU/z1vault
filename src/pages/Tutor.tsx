@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Z1Logo } from "@/components/Z1Logo";
@@ -19,6 +20,7 @@ const DEFAULT_STARTERS = [
 
 export default function Tutor() {
   const { user } = useAuth();
+  const nav = useNavigate();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -159,7 +161,11 @@ export default function Tutor() {
                 ) : (
                   <div className="max-w-[92%] prose-z1 text-sm">
                     {m.content ? (
-                      <ReactMarkdown>{m.content}</ReactMarkdown>
+                      <CitedMarkdown text={m.content} onCite={async (n) => {
+                        const { data } = await supabase.from("book_chapters")
+                          .select("id").eq("chapter_number", n).maybeSingle();
+                        if (data?.id) nav(`/read/${data.id}`);
+                      }} />
                     ) : (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <div className="size-2 rounded-full bg-gold animate-pulse" />
@@ -195,5 +201,34 @@ export default function Tutor() {
         </form>
       </div>
     </MobileShell>
+  );
+}
+
+/**
+ * Renders the assistant markdown with [Ch.N] citations replaced by inline buttons
+ * that navigate to the matching chapter.
+ */
+function CitedMarkdown({ text, onCite }: { text: string; onCite: (n: number) => void }) {
+  // Split on [Ch.N] tokens, keep the matches
+  const parts = text.split(/(\[Ch\.\d+\])/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const m = /^\[Ch\.(\d+)\]$/.exec(part);
+        if (m) {
+          const n = Number(m[1]);
+          return (
+            <button
+              key={i}
+              onClick={() => onCite(n)}
+              className="inline-flex items-center gap-1 mx-0.5 px-2 py-0.5 rounded-full text-[11px] gold-fill press align-baseline"
+            >
+              Ch {n}
+            </button>
+          );
+        }
+        return <ReactMarkdown key={i} components={{ p: ({ children }) => <span>{children}</span> }}>{part}</ReactMarkdown>;
+      })}
+    </>
   );
 }

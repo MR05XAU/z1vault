@@ -137,6 +137,8 @@ Deno.serve(async (req) => {
     }
     contextBlock += `\n\nNOTE: If the question asks about a chapter whose full text is NOT included above, say so briefly and suggest the user open that chapter, then answer from the chapter titles you can see.`;
 
+    // Slim the conversation: only keep the last 6 turns so the prompt stays small.
+    const trimmedMessages = messages.slice(-6);
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -145,11 +147,12 @@ Deno.serve(async (req) => {
         "X-Lovable-AIG-SDK": "raw",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash-lite",
         stream: true,
+        max_tokens: 600,
         messages: [
-          { role: "system", content: SYSTEM_PROMPT + contextBlock },
-          ...messages,
+          { role: "system", content: SYSTEM_PROMPT + contextBlock + "\n\nIMPORTANT: When you reference a chapter, format the citation EXACTLY as [Ch.N] (e.g. [Ch.3]) so the UI can render it as a tappable link." },
+          ...trimmedMessages,
         ],
       }),
     });

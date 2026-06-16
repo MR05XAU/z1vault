@@ -9,6 +9,7 @@ import { ArrowLeft, Bookmark, Highlighter, Sparkles, ChevronLeft, ChevronRight, 
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { downloadChapter, getOffline, isOnline, offlineAudioUrl, removeChapter, type DownloadProgress } from "@/lib/offline";
+import { WordPopover } from "@/components/WordPopover";
 
 export default function Reader() {
   const { chapterId } = useParams();
@@ -27,6 +28,7 @@ export default function Reader() {
   const [dlProgress, setDlProgress] = useState<DownloadProgress | null>(null);
   const [online, setOnline] = useState<boolean>(isOnline());
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
+  const [wordLookup, setWordLookup] = useState<{ word: string; x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!chapterId) return;
@@ -199,6 +201,19 @@ export default function Reader() {
     setSelectedText(sel.length > 3 ? sel : "");
   };
 
+  // Double-tap / double-click a single word -> definition popover
+  const onDoubleClick = (e: React.MouseEvent | React.TouchEvent) => {
+    const sel = window.getSelection()?.toString().trim() ?? "";
+    // Single-word selection only (no spaces, alpha/hyphen, 2-30 chars)
+    if (/^[A-Za-z][A-Za-z\-']{1,29}$/.test(sel)) {
+      const touch = "touches" in e ? (e as any).changedTouches?.[0] : null;
+      const x = touch?.clientX ?? (e as any).clientX ?? window.innerWidth / 2;
+      const y = (touch?.clientY ?? (e as any).clientY ?? window.innerHeight / 2) - 12;
+      setWordLookup({ word: sel, x, y });
+      setSelectedText("");
+    }
+  };
+
   const saveHighlight = async (note?: string) => {
     if (!selectedText || !chapter) return;
     const { error } = await supabase.from("highlights").insert({
@@ -336,6 +351,7 @@ export default function Reader() {
           ref={scrollRef}
           onMouseUp={onMouseUp}
           onTouchEnd={onMouseUp}
+          onDoubleClick={onDoubleClick}
           className="flex-1 overflow-y-auto px-6 py-8 pb-40 prose-z1"
         >
           <div className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground mb-2">
@@ -449,6 +465,15 @@ export default function Reader() {
           </SheetContent>
         </Sheet>
       </div>
+      {wordLookup && (
+        <WordPopover
+          word={wordLookup.word}
+          x={wordLookup.x}
+          y={wordLookup.y}
+          chapterId={chapter.id}
+          onClose={() => setWordLookup(null)}
+        />
+      )}
     </div>
   );
 }
