@@ -25,3 +25,5 @@ project_id = "cqauyygqjyxtnthasjzj"
     verify_jwt = false
   [functions.word-lookup]
     verify_jwt = true
+  [functions.send-push]
+    verify_jwt = true

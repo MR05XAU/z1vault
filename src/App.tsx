@@ -6,7 +6,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
+import { initPushNotifications } from "@/lib/push";
 
 import Splash from "./pages/Splash";
 import Onboarding from "./pages/Onboarding";
@@ -52,6 +53,7 @@ function Protected({ children }: { children: ReactNode }) {
 
 function AuthOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
+  useEffect(() => { if (user) initPushNotifications(); }, [user]);
   if (loading) return <GateLoading />;
   if (!user) return <Navigate to="/auth" replace />;
   return <>{children}</>;
