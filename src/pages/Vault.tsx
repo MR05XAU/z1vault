@@ -9,7 +9,9 @@ import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Z1Wordmark } from "@/components/Z1Logo";
 import { ProgressRing } from "@/components/ProgressRing";
-import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock } from "lucide-react";
+import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, ChevronRight } from "lucide-react";
+import { CandleGlyph } from "@/components/CandleGlyph";
+import { PATTERNS } from "@/data/patterns";
 
 interface Progress { chapter_id: string; progress_percentage: number; completed: boolean; updated_at: string }
 interface QuizResult { score: number; total_questions: number }
@@ -110,7 +112,16 @@ export default function Vault() {
               {user?.user_metadata?.full_name?.split(" ")[0] || user?.email?.split("@")[0] || "Trader"}
             </div>
           </div>
-          <Z1Wordmark />
+          <div className="flex items-center gap-2">
+            <Z1Wordmark />
+            <button
+              onClick={() => nav("/account")}
+              aria-label="Account settings"
+              className="size-9 grid place-items-center rounded-xl glass press hover:shadow-glow"
+            >
+              <Settings className="size-4 text-foreground/80" />
+            </button>
+          </div>
         </header>
       }
     >
@@ -189,6 +200,30 @@ export default function Vault() {
             )
           )}
         </div>
+      </section>
+
+      <section className="mt-2 mb-10 animate-fade-up" style={{ animationDelay: "340ms" }}>
+        <div className="flex items-baseline justify-between mb-3">
+          <h2 className="display text-xl font-medium">Candlestick patterns</h2>
+          <button onClick={() => nav("/patterns")} className="text-xs text-gold-bright press">View all</button>
+        </div>
+        <button
+          onClick={() => nav("/patterns")}
+          className="w-full glass-strong rounded-3xl p-4 press hover:shadow-glow text-left gold-border"
+        >
+          <div className="grid grid-cols-3 gap-2">
+            {PATTERNS.slice(0, 6).map((p) => (
+              <div key={p.name} className="rounded-xl bg-surface-elevated/60 border border-border-strong p-2 flex flex-col items-center gap-1.5">
+                <CandleGlyph candles={p.glyph} height={48} />
+                <div className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-2">{p.name}</div>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 flex items-center justify-between text-xs">
+            <span className="text-muted-foreground">{PATTERNS.length} patterns · bullish, bearish, neutral</span>
+            <span className="text-gold-bright flex items-center gap-1">Explore <ChevronRight className="size-3" /></span>
+          </div>
+        </button>
       </section>
     </MobileShell>
   );
