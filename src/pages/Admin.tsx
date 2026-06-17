@@ -478,6 +478,12 @@ function EmailLogsPanel() {
 function UsersPanel() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [nu, setNu] = useState({ email: "", password: "", full_name: "", grant_access: true });
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [q, setQ] = useState("");
+
   const refresh = async () => {
     const { data } = await sb
       .from("profiles")
@@ -488,35 +494,126 @@ function UsersPanel() {
     setLoading(false);
   };
   useEffect(() => { refresh(); }, []);
-  const toggle = async (userId: string, grant: boolean) => {
-    const { error } = await sb.from("entitlements").upsert(
-      { user_id: userId, has_access: grant, granted_by_admin: grant },
-      { onConflict: "user_id" }
-    );
-    if (error) toast.error(error.message); else { toast.success(grant ? "Access granted" : "Access revoked"); refresh(); }
+
+  const callAdmin = async (body: any) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-create-user`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify(body),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+    return j;
   };
+
+  const toggle = async (userId: string, grant: boolean) => {
+    setBusyId(userId);
+    try {
+      await callAdmin({ action: grant ? "grant_access" : "revoke_access", user_id: userId });
+      toast.success(grant ? "Access granted" : "Access revoked");
+      refresh();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setBusyId(null); }
+  };
+
+  const createUser = async () => {
+    if (!nu.email || nu.password.length < 6) return toast.error("Email and 6+ char password required");
+    setCreating(true);
+    try {
+      await callAdmin({ action: "create", ...nu });
+      toast.success(`Created ${nu.email}`);
+      setNu({ email: "", password: "", full_name: "", grant_access: true });
+      setShowNew(false);
+      refresh();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setCreating(false); }
+  };
+
+  const resetPw = async (email: string) => {
+    if (!confirm(`Send a password-reset email to ${email}?`)) return;
+    try {
+      await callAdmin({ action: "reset_password", email, redirect_to: `${location.origin}/reset-password` });
+      toast.success("Reset email sent");
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const removeUser = async (id: string, email: string) => {
+    if (!confirm(`Delete user ${email}? This cannot be undone.`)) return;
+    setBusyId(id);
+    try {
+      await callAdmin({ action: "delete", user_id: id });
+      toast.success("User deleted");
+      refresh();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setBusyId(null); }
+  };
+
+  const filtered = rows.filter((r) => {
+    const needle = q.trim().toLowerCase();
+    if (!needle) return true;
+    return (r.email || "").toLowerCase().includes(needle) || (r.full_name || "").toLowerCase().includes(needle);
+  });
+
   if (loading) return <FullSpinner />;
   return (
     <div className="px-5 space-y-2">
-      <p className="text-[11px] text-muted-foreground">Toggle to comp test access. Paid users show with the dot.</p>
-      {rows.map((r) => {
+      <div className="flex gap-2">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or email" className="h-10 rounded-xl" />
+        <Button onClick={() => setShowNew((v) => !v)} className="rounded-xl gold-fill h-10 px-3">
+          <Plus className="size-4 mr-1" /> New
+        </Button>
+      </div>
+      {showNew && (
+        <div className="glass rounded-2xl p-3 space-y-2">
+          <Input placeholder="Email" value={nu.email} onChange={(e) => setNu({ ...nu, email: e.target.value })} />
+          <Input placeholder="Full name (optional)" value={nu.full_name} onChange={(e) => setNu({ ...nu, full_name: e.target.value })} />
+          <Input type="text" placeholder="Temporary password (6+ chars)" value={nu.password} onChange={(e) => setNu({ ...nu, password: e.target.value })} />
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={nu.grant_access} onChange={(e) => setNu({ ...nu, grant_access: e.target.checked })} />
+            Grant lifetime access immediately
+          </label>
+          <div className="flex gap-2">
+            <Button onClick={createUser} disabled={creating} className="flex-1 rounded-xl gold-fill h-10">
+              {creating ? <Loader2 className="size-4 animate-spin" /> : "Create user"}
+            </Button>
+            <Button variant="outline" onClick={() => setShowNew(false)} className="rounded-xl h-10">Cancel</Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">User is created with email already confirmed. Share the temp password with them; they can change it from Account.</p>
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground pt-2">{filtered.length} of {rows.length} users · gold dot = comped, green dot = paid.</p>
+      {filtered.map((r) => {
         const ent = Array.isArray(r.entitlements) ? r.entitlements[0] : r.entitlements;
         const hasAccess = ent?.has_access;
         const comped = ent?.granted_by_admin;
+        const busy = busyId === r.id;
         return (
-          <div key={r.id} className="glass rounded-xl p-3 flex items-center gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium truncate">{r.full_name || r.email}</div>
-              <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5">
-                {r.email}
-                {hasAccess && <span className={`size-1.5 rounded-full ${comped ? "bg-gold-bright" : "bg-success"}`} />}
+          <div key={r.id} className="glass rounded-xl p-3">
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">{r.full_name || r.email}</div>
+                <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5">
+                  {r.email}
+                  {hasAccess && <span className={`size-1.5 rounded-full ${comped ? "bg-gold-bright" : "bg-success"}`} />}
+                </div>
               </div>
+              <Button size="sm" variant={hasAccess ? "outline" : "default"}
+                disabled={busy}
+                className={hasAccess ? "rounded-lg border-border-strong" : "rounded-lg gold-fill"}
+                onClick={() => toggle(r.id, !hasAccess)}>
+                {busy ? <Loader2 className="size-3 animate-spin" /> : hasAccess ? "Revoke" : "Grant"}
+              </Button>
             </div>
-            <Button size="sm" variant={hasAccess ? "outline" : "default"}
-              className={hasAccess ? "rounded-lg border-border-strong" : "rounded-lg gold-fill"}
-              onClick={() => toggle(r.id, !hasAccess)}>
-              {hasAccess ? "Revoke" : "Grant"}
-            </Button>
+            <div className="flex gap-2 mt-2">
+              <Button size="sm" variant="outline" onClick={() => resetPw(r.email)} className="rounded-lg text-[11px] h-8">
+                Send reset email
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => removeUser(r.id, r.email)} disabled={busy} className="rounded-lg text-[11px] h-8 text-danger border-danger/40 ml-auto">
+                <Trash2 className="size-3 mr-1" /> Delete
+              </Button>
+            </div>
           </div>
         );
       })}
