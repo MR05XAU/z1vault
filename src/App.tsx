@@ -26,6 +26,8 @@ import Analytics from "./pages/Analytics";
 import Admin from "./pages/Admin";
 import Journal from "./pages/Journal";
 import Calculators from "./pages/Calculators";
+import Patterns from "./pages/Patterns";
+import Legal from "./pages/Legal";
 import PaymentsCheck from "./pages/PaymentsCheck";
 import GoLive from "./pages/GoLive";
 import Unsubscribe from "./pages/Unsubscribe";
@@ -81,6 +83,8 @@ const App = () => (
             <Route path="/analytics" element={<Protected><Analytics /></Protected>} />
             <Route path="/journal" element={<Protected><Journal /></Protected>} />
             <Route path="/calculators" element={<Protected><Calculators /></Protected>} />
+            <Route path="/patterns" element={<Protected><Patterns /></Protected>} />
+            <Route path="/legal" element={<Legal />} />
             <Route path="/admin" element={<AuthOnly><Admin /></AuthOnly>} />
             <Route path="/admin/payments-check" element={<AuthOnly><PaymentsCheck /></AuthOnly>} />
             <Route path="/admin/go-live" element={<AuthOnly><GoLive /></AuthOnly>} />

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2 } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 
 type Trade = {
@@ -72,9 +72,34 @@ export default function Journal() {
               <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Journal</div>
               <h1 className="display text-3xl font-medium mt-1">Trade log.</h1>
             </div>
-            <button onClick={() => nav("/calculators")} className="size-10 grid place-items-center rounded-xl glass press" title="Calculators">
-              <Calculator className="size-4" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (!trades.length) { toast.info("No trades to export"); return; }
+                  const stratMap = new Map(strats.map((s) => [s.id, s.name]));
+                  const head = ["pair","direction","entry_price","exit_price","size","pnl","fees","strategy","opened_at","closed_at","notes"];
+                  const esc = (v: any) => {
+                    if (v == null) return "";
+                    const s = String(v).replace(/"/g, '""');
+                    return /[",\n]/.test(s) ? `"${s}"` : s;
+                  };
+                  const rows = trades.map((t) => [t.pair,t.direction,t.entry_price,t.exit_price,t.size,t.pnl,t.fees,stratMap.get(t.strategy_id ?? "") ?? "",t.opened_at,t.closed_at,t.notes].map(esc).join(","));
+                  const csv = [head.join(","), ...rows].join("\n");
+                  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url; a.download = `trades-${new Date().toISOString().slice(0,10)}.csv`;
+                  a.click(); URL.revokeObjectURL(url);
+                }}
+                className="size-10 grid place-items-center rounded-xl glass press"
+                title="Export CSV"
+              >
+                <Download className="size-4" />
+              </button>
+              <button onClick={() => nav("/calculators")} className="size-10 grid place-items-center rounded-xl glass press" title="Calculators">
+                <Calculator className="size-4" />
+              </button>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground italic mt-1">Educational record-keeping. Not financial advice.</p>
 
