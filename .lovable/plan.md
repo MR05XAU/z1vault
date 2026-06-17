@@ -1,64 +1,34 @@
-Big scope. I'm splitting into **Auto** (I do now, no signoff) and **Signoff** (you confirm before I touch). Token usage is minimised throughout (keyword routing, caching, cheapest models, no re-fetching).
+## Go-live execution plan
 
-## A. Auto — I do these immediately
+### 1. Enable Leaked Password Protection (HIBP)
+Call `supabase--configure_auth` with `password_hibp_enabled: true` (other flags unchanged: `disable_signup: false`, `external_anonymous_users_enabled: false`, `auto_confirm_email: false`). New/changed passwords will be checked against the HaveIBeenPwned database.
 
-### Bug fixes & polish
-1. **Tutor citations** — model returns chapter refs `[Ch.3]`; UI renders them as tap-to-jump pills to Reader.
-2. **Token minimisation pass** — switch tutor to `google/gemini-2.5-flash-lite` (cheapest), tighten system prompt, cap response tokens, dedupe chapter context, drop the "answer not covered" fallback bloat.
-3. **Loading bugginess** — add proper Suspense + skeleton fallbacks on Vault/Reader/Library/Notebook; fix the race where chapters render before auth resolves (caused blank screens); add retry on transient supabase failures.
-4. **Admin page** — back-to-home button + breadcrumb; tidy layout; add **Email Logs** tab (reads `email_send_log`).
-5. **Payments webhook error** — I'll pull logs, identify the failure, fix it.
-6. **Offline downloads improvement** — show download progress per chapter, "Download all" button, storage-used indicator, clear-cache button, fix the 30-day TTL silently dropping chapters without notice.
-7. **Recap questions** — at chapter end, 2 quick recap MCQs auto-generated from that chapter; random "did you remember?" prompt every 3rd chapter open from previously-read material.
-8. **Word lookup (highlight + double-tap)** — hybrid: free `dictionaryapi.dev` first, AI Gateway fallback for trading jargon. Popover with definition + "save to vocab" button. New `vocab` table.
-9. **More quiz questions** — bump to 6 per chapter when regenerated.
-10. **Test accounts (both modes)** — admin toggle on /admin user list to grant/revoke entitlement on any user, + hardcoded allowlist env var `TEST_ACCOUNT_EMAILS` for auto-grant on signup.
+### 2. Tighten `/legal` copy for live payments
+`src/pages/Legal.tsx` is solid (Privacy / Terms / Risk, dated 17 June 2026, UK GDPR, contact, processors). Two small fixes:
+- Replace processor name **"Resend"** with **"Lovable Cloud"** (we use Lovable Email, not Resend).
+- Add an explicit **Refund policy** paragraph under Terms covering live Stripe payments (e.g. 14-day UK consumer right to cancel for unused digital access, statement on lifetime-access non-refundability once consumed, how to request a refund via `support@mr05xau.co.uk`).
 
-### Trading journal (full scope)
-11. **`trades` table** — pair, direction, entry/exit price, size, PnL (auto-calc), strategy tag, notes, screenshot URL, opened_at, closed_at.
-12. **`strategies` table** — user-defined tags with colour.
-13. **Storage bucket `trade-screenshots`** — private, RLS to owner.
-14. **/journal page** — list view, add/edit trade form, filter by tag/date/win-loss.
-15. **/journal/calendar** — heatmap (day/week/month/year toggles) coloured by daily PnL.
-16. **/calculators page** — RR calculator + position-size calculator (account %, stop distance → size).
-17. **Win-rate widget** — auto on /journal: rolling 30-day, lifetime, per-strategy.
-18. **BottomNav** — add "Journal" tab.
+### 3. SEO / share metadata
+`index.html` already has title, description, OG/Twitter title+description+url+image (`/og-image.jpg`), favicon, apple-touch-icon, theme-color, manifest. No template defaults remain. **No code change needed** — I'll verify `/public/og-image.jpg` and `/public/favicon.ico` exist, and flag if either is missing so you can replace them.
 
-### Diagnostics
-19. End-to-end click-through every route via the browser tools; capture console + network errors; fix what I find. Will report what I touched.
+### 4. Trigger SEO scan
+Run `seo_chat--trigger_scan` (with your approval) so the SEO & AI search tab shows a fresh report after publish.
 
-## B. Signoff required — confirm and I'll execute
+### 5. Publish the frontend
+Call `preview_ui--publish` (`website_info_status: already_relevant`) to push the latest frontend to `https://z1vault.lovable.app` and `https://mr05xau.co.uk`. Backend (edge functions, migrations, security lockdown) is already live.
 
-### Auth
-- **S1. Disable Lovable-managed Google, enable BYO Google OAuth.** I'll wire the code (`@supabase/supabase-js` `signInWithOAuth`) and disable email if you want. **You need to:** create OAuth credentials in Google Cloud Console (I'll give exact steps + the callback URL), then I add `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` as secrets. **Confirm: Y/N + keep email/password? Y/N.**
+### 6. Smoke-test checklist (you run this on the live domain)
+I can't perform real payments, send real OTP emails, or sign in with your Google account, so you drive this after publish. Suggested order:
+1. Open `https://mr05xau.co.uk` in a private window.
+2. **Email signup** → check inbox for verification email → confirm → land in app.
+3. **Password reset** → request from `/auth` → check inbox → set new password → sign in.
+4. **Google sign-in** → only works once you've corrected the Client ID (the `apps.-googleusercontent.com` typo from earlier).
+5. **Stripe live checkout** → buy lifetime access with a real card (small amount or your own) → confirm redirect to `/checkout-return` → verify in Backend → Users that your profile flipped to paid → verify in Backend → Edge Functions logs that `payments-webhook` returned 200.
+6. **Refund test row** → optionally refund the test charge from your Stripe dashboard to confirm the webhook downgrades access.
 
-### Email
-- **S2. Email templates branding pass** — I'll style the 6 auth templates + welcome email to your brand colours. **Need from you:** logo URL or upload, primary colour hex, brand name to use in copy.
-- **S3. New transactional emails** to add: streak-broken (already declined → skip), purchase receipt, password-changed confirmation, weekly digest. **Confirm which to ship.**
+If any step fails, share the screen/console/network output and I'll debug.
 
-### Go-live checklist (you must do)
-- **S4. Stripe go-live** — you said you'll test soon. Once live keys are populated I'll flip the env detection.
-- **S5. Custom domain** — point your domain at the app + verify in Lovable settings.
-- **S6. Privacy policy + ToS pages** — I can draft from a template; you review legal copy.
-- **S7. App store assets** (if Capacitor build) — icon 1024², splash, screenshots. I can generate drafts.
-- **S8. Legal disclaimer for trading content** — required for journal/PnL features. I'll draft; you sign off.
-
-### Bigger product calls
-- **S9. Push notifications** for streak reminders / recap nudges — requires Capacitor + APNs/FCM setup. Skip for v1?
-- **S10. Multi-device sync conflict resolution** — currently last-write-wins on highlights. Fine for v1?
-- **S11. Export trade journal to CSV** — easy add, want it?
-
-## Technical notes
-- Word lookup uses `definitionsCache` table to avoid re-calling AI for the same word twice.
-- Recap questions reuse existing `quizzes` table with a `is_recap` flag (migration).
-- Calendar uses pure CSS grid — no chart lib needed.
-- Tutor moves from full-chapter context to: current chapter + top-2 keyword-scored chapters + chapter summaries (new `summary` column, generated once by admin button). ~95% token reduction vs current.
-- All new tables: GRANT + RLS scoped to `auth.uid()`.
-
-## What I need from you to start
-1. Confirm **A is approved to execute** (yes/no — default yes).
-2. Answer **S1** (Google OAuth: proceed? keep email?).
-3. Answer **S2** (logo + brand colour + brand name).
-4. Answer **S3, S8, S9, S10, S11** with quick yes/no.
-
-I'll start on **A** the moment you say go. S items wait for your answers.
+### What I will NOT touch
+- `src/integrations/supabase/client.ts`, `types.ts`, `.env*` (auto-generated)
+- Google Client ID (you must paste it in the backend; I can't read it)
+- Stripe dashboard (you already completed all 5 go-live steps)

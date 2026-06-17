@@ -68,7 +68,7 @@ function Privacy() {
       <h2>4. Legal basis (UK GDPR)</h2>
       <p>Contract (to deliver the app), legitimate interests (security, product improvement), and consent where required (marketing).</p>
       <h2>5. Sharing</h2>
-      <p>Processors: Supabase (hosting/database), Stripe (payments), Resend (email), Google Cloud (AI inference). We do not sell personal data.</p>
+      <p>Processors: Lovable Cloud (hosting, database, authentication, transactional email), Stripe (payments), Google Cloud (AI inference). We do not sell personal data.</p>
       <h2>6. Retention</h2>
       <p>Account data is kept while your account is active. Delete your account from Settings to remove your data within 30 days, except where retention is required by law (e.g. tax records).</p>
       <h2>7. Your rights</h2>
@@ -94,8 +94,11 @@ function Terms() {
       <p>We grant you a personal, non-transferable, revocable licence to access the content and tools for your own educational use. No resale, scraping, or redistribution.</p>
       <h2>4. Account</h2>
       <p>You are responsible for keeping your credentials secure and for activity under your account.</p>
-      <h2>5. Payments</h2>
-      <p>Subscriptions/one-off purchases are processed by Stripe. Prices include VAT where applicable. Statutory refund rights apply; digital content delivered immediately may waive the 14-day cooling-off period where you explicitly consent at checkout.</p>
+      <h2>5. Payments & refunds</h2>
+      <p>Purchases are processed by Stripe in GBP. Prices include VAT where applicable. {BRAND} sells lifetime access to digital educational content delivered immediately on payment.</p>
+      <p><strong>UK / EU consumer cooling-off:</strong> Under the Consumer Contracts Regulations 2013 you normally have 14 days to cancel a distance purchase. By starting to use the content (opening a chapter, the AI tutor, quizzes, or any premium feature) before the 14 days expire, you expressly consent to immediate performance and acknowledge that you lose the right to cancel once delivery has begun.</p>
+      <p><strong>Discretionary refunds:</strong> If you have not used any premium feature, email {CONTACT} within 14 days of purchase and we will refund in full. Refunds outside this window are at our discretion. Refunds for technical issues we cannot resolve within a reasonable time are always available.</p>
+      <p><strong>How to request:</strong> email {CONTACT} from the address on the account. Refunds are returned to the original payment method via Stripe, typically within 5–10 business days.</p>
       <h2>6. AI features</h2>
       <p>AI tutor and word lookup responses are generated automatically and may contain errors. Do not rely on them as financial, legal, or professional advice.</p>
       <h2>7. Acceptable use</h2>
