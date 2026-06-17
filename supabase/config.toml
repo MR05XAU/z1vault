@@ -27,3 +27,5 @@ project_id = "cqauyygqjyxtnthasjzj"
     verify_jwt = true
   [functions.send-push]
     verify_jwt = true
+  [functions.admin-create-user]
+    verify_jwt = false
