@@ -185,11 +185,16 @@ export default function Account() {
 
         {/* Support */}
         <section className="mt-6">
-          <a href="mailto:support@z1insights.com?subject=Z1%20INSIGHTS%20support"
+          <a href="mailto:support@mr05xau.co.uk?subject=Z1%20INSIGHTS%20support"
             className="glass rounded-2xl p-4 flex items-center gap-3 press">
             <LifeBuoy className="size-4 text-gold-bright" />
             <div className="text-sm">Contact support</div>
           </a>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+            <Link to="/legal?tab=privacy" className="glass rounded-xl py-2 text-center press text-muted-foreground hover:text-foreground">Privacy</Link>
+            <Link to="/legal?tab=terms" className="glass rounded-xl py-2 text-center press text-muted-foreground hover:text-foreground">Terms</Link>
+            <Link to="/legal?tab=disclaimer" className="glass rounded-xl py-2 text-center press text-muted-foreground hover:text-foreground">Risk</Link>
+          </div>
         </section>
 
         {/* Delete */}

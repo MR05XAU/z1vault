@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Input } from "@/components/ui/input";
-import { ArrowLeft, Calculator } from "lucide-react";
+import { ArrowLeft, Calculator, CandlestickChart } from "lucide-react";
 
 export default function Calculators() {
   const nav = useNavigate();
@@ -26,6 +26,10 @@ export default function Calculators() {
             <button onClick={() => setTab("rr")} className={`flex-1 text-xs py-2 rounded-lg press ${tab==="rr"?"bg-gold text-gold-foreground":"text-muted-foreground"}`}>Risk / Reward</button>
             <button onClick={() => setTab("size")} className={`flex-1 text-xs py-2 rounded-lg press ${tab==="size"?"bg-gold text-gold-foreground":"text-muted-foreground"}`}>Position size</button>
           </div>
+          <button onClick={() => nav("/patterns")} className="mt-3 w-full glass rounded-xl py-2.5 flex items-center justify-center gap-2 text-xs press">
+            <CandlestickChart className="size-4 text-gold-bright" />
+            Candlestick patterns reference
+          </button>
         </header>
       }
     >
