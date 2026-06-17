@@ -25,7 +25,7 @@ export async function initPushNotifications() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       const platform = Capacitor.getPlatform() as "ios" | "android";
-      await supabase.from("push_tokens").upsert(
+      await (supabase as any).from("push_tokens").upsert(
         { user_id: user.id, token: t.value, platform, last_seen_at: new Date().toISOString() },
         { onConflict: "user_id,token" }
       );
