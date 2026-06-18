@@ -8,14 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2, Upload, BookOpen, BrainCircuit, NotebookPen, FileAudio, ShieldCheck, Loader2, Mail, Users, Home } from "lucide-react";
+import { Pencil, Plus, Trash2, Upload, BookOpen, BrainCircuit, NotebookPen, FileAudio, ShieldCheck, Loader2, Mail, Users, Home, BarChart3, Megaphone, Ticket, Copy } from "lucide-react";
 
-type Tab = "chapters" | "quizzes" | "notebook" | "emails" | "users";
+type Tab = "stats" | "chapters" | "quizzes" | "notebook" | "emails" | "users" | "broadcast" | "discounts";
 
 export default function Admin() {
   const { user, isAdmin, accessLoading } = useAuth();
   const nav = useNavigate();
-  const [tab, setTab] = useState<Tab>("chapters");
+  const [tab, setTab] = useState<Tab>("stats");
   const [bootstrapping, setBootstrapping] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [regenQuiz, setRegenQuiz] = useState(false);
@@ -117,7 +117,7 @@ export default function Admin() {
           </div>
 
           <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1 overflow-x-auto">
-            {(["chapters", "quizzes", "notebook", "emails", "users"] as Tab[]).map((t) => (
+            {(["stats", "users", "broadcast", "discounts", "emails", "chapters", "quizzes", "notebook"] as Tab[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -125,11 +125,14 @@ export default function Admin() {
                   tab === t ? "bg-gold text-gold-foreground" : "text-muted-foreground"
                 }`}
               >
+                {t === "stats" && <BarChart3 className="size-3 inline mr-1" />}
                 {t === "chapters" && <BookOpen className="size-3 inline mr-1" />}
                 {t === "quizzes" && <BrainCircuit className="size-3 inline mr-1" />}
                 {t === "notebook" && <NotebookPen className="size-3 inline mr-1" />}
                 {t === "emails" && <Mail className="size-3 inline mr-1" />}
                 {t === "users" && <Users className="size-3 inline mr-1" />}
+                {t === "broadcast" && <Megaphone className="size-3 inline mr-1" />}
+                {t === "discounts" && <Ticket className="size-3 inline mr-1" />}
                 {t}
               </button>
             ))}
@@ -138,11 +141,14 @@ export default function Admin() {
       }
     >
       <div className="mt-4 pb-12">
+        {tab === "stats" && <StatsPanel />}
         {tab === "chapters" && <ChaptersPanel />}
         {tab === "quizzes" && <QuizzesPanel />}
         {tab === "notebook" && <NotebookPanel />}
         {tab === "emails" && <EmailLogsPanel />}
         {tab === "users" && <UsersPanel />}
+        {tab === "broadcast" && <BroadcastPanel />}
+        {tab === "discounts" && <DiscountsPanel />}
       </div>
     </MobileShell>
   );
