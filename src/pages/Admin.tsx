@@ -626,3 +626,387 @@ function UsersPanel() {
     </div>
   );
 }
+
+/* ---------- STATS ---------- */
+function StatsPanel() {
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<any>({});
+  const [recent, setRecent] = useState<any[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      const since7 = new Date(Date.now() - 7 * 24 * 3600_000).toISOString();
+      const since30 = new Date(Date.now() - 30 * 24 * 3600_000).toISOString();
+      const [
+        usersTotal,
+        usersNew7,
+        paid,
+        comped,
+        purchases30,
+        emails7,
+        latestUsers,
+      ] = await Promise.all([
+        sb.from("profiles").select("id", { count: "exact", head: true }),
+        sb.from("profiles").select("id", { count: "exact", head: true }).gte("created_at", since7),
+        sb.from("entitlements").select("user_id", { count: "exact", head: true }).eq("has_access", true),
+        sb.from("entitlements").select("user_id", { count: "exact", head: true }).eq("has_access", true).eq("granted_by_admin", true),
+        sb.from("purchases").select("amount, currency, created_at").gte("created_at", since30),
+        sb.from("email_send_log").select("status, message_id, created_at").gte("created_at", since7),
+        sb.from("profiles").select("id, email, full_name, created_at").order("created_at", { ascending: false }).limit(8),
+      ]);
+      const revenue30 = (purchases30.data ?? []).reduce(
+        (acc: Record<string, number>, p: any) => {
+          const cur = (p.currency ?? "usd").toUpperCase();
+          acc[cur] = (acc[cur] ?? 0) + Number(p.amount ?? 0);
+          return acc;
+        }, {} as Record<string, number>);
+      // dedupe email_send_log by message_id, keep latest status
+      const byMsg = new Map<string, string>();
+      (emails7.data ?? []).forEach((r: any) => {
+        if (r.message_id) byMsg.set(r.message_id, r.status);
+      });
+      const emailStatusCounts: Record<string, number> = {};
+      byMsg.forEach((s) => { emailStatusCounts[s] = (emailStatusCounts[s] ?? 0) + 1; });
+      setStats({
+        usersTotal: usersTotal.count ?? 0,
+        usersNew7: usersNew7.count ?? 0,
+        paid: paid.count ?? 0,
+        comped: comped.count ?? 0,
+        purchases30Count: (purchases30.data ?? []).length,
+        revenue30,
+        emailStatusCounts,
+      });
+      setRecent(latestUsers.data ?? []);
+      setLoading(false);
+    })();
+  }, []);
+
+  if (loading) return <FullSpinner />;
+  const conv = stats.usersTotal ? ((stats.paid / stats.usersTotal) * 100).toFixed(1) : "0";
+  const fmt = (cur: string, minor: number) => {
+    try {
+      return new Intl.NumberFormat("en-GB", { style: "currency", currency: cur }).format(minor / 100);
+    } catch { return `${(minor / 100).toFixed(2)} ${cur}`; }
+  };
+
+  return (
+    <div className="px-5 space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <Stat label="Total users" value={stats.usersTotal} />
+        <Stat label="New (7d)" value={stats.usersNew7} />
+        <Stat label="Paid users" value={stats.paid} sub={`${conv}% conversion`} />
+        <Stat label="Comped" value={stats.comped} />
+      </div>
+      <div className="glass rounded-2xl p-4">
+        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Revenue · 30d</div>
+        <div className="text-2xl font-medium mt-1 display">
+          {Object.keys(stats.revenue30).length === 0 ? "—" :
+            Object.entries(stats.revenue30).map(([cur, v]: any) => fmt(cur, v)).join(" · ")}
+        </div>
+        <div className="text-xs text-muted-foreground mt-1">{stats.purchases30Count} purchase{stats.purchases30Count === 1 ? "" : "s"}</div>
+      </div>
+      <div className="glass rounded-2xl p-4">
+        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Email delivery · 7d</div>
+        <div className="flex gap-3 mt-2 flex-wrap text-sm">
+          {Object.keys(stats.emailStatusCounts).length === 0 && <span className="text-muted-foreground text-xs">No emails yet.</span>}
+          {Object.entries(stats.emailStatusCounts).map(([s, n]: any) => (
+            <span key={s} className={`px-2 py-1 rounded-lg ${s === "sent" ? "bg-success/20 text-success" : s === "dlq" || s === "failed" ? "bg-danger/20 text-danger" : "bg-secondary text-muted-foreground"}`}>
+              {s}: {n}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="glass rounded-2xl p-4">
+        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright mb-2">Latest signups</div>
+        {recent.length === 0 && <div className="text-xs text-muted-foreground">No users yet.</div>}
+        {recent.map((u) => (
+          <div key={u.id} className="flex items-center justify-between py-1.5 border-b border-border-strong/40 last:border-0">
+            <div className="min-w-0">
+              <div className="text-sm truncate">{u.full_name || u.email}</div>
+              <div className="text-[10px] text-muted-foreground truncate">{u.email}</div>
+            </div>
+            <div className="text-[10px] text-muted-foreground">{new Date(u.created_at).toLocaleDateString()}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, sub }: { label: string; value: any; sub?: string }) {
+  return (
+    <div className="glass rounded-2xl p-4">
+      <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">{label}</div>
+      <div className="text-2xl font-medium display mt-1">{value ?? 0}</div>
+      {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
+    </div>
+  );
+}
+
+/* ---------- BROADCAST ---------- */
+function BroadcastPanel() {
+  const [audience, setAudience] = useState<"all" | "paid" | "free">("all");
+  const [subject, setSubject] = useState("");
+  const [heading, setHeading] = useState("");
+  const [bodyText, setBodyText] = useState("");
+  const [ctaLabel, setCtaLabel] = useState("");
+  const [ctaUrl, setCtaUrl] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [promoNote, setPromoNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [audienceCount, setAudienceCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await sb
+        .from("profiles")
+        .select("id, entitlements(has_access)")
+        .not("email", "is", null);
+      const rows = data ?? [];
+      const n = rows.filter((p: any) => {
+        const ent = Array.isArray(p.entitlements) ? p.entitlements[0] : p.entitlements;
+        const paid = !!ent?.has_access;
+        if (audience === "paid") return paid;
+        if (audience === "free") return !paid;
+        return true;
+      }).length;
+      setAudienceCount(n);
+    })();
+  }, [audience]);
+
+  const call = async (test: boolean | string) => {
+    if (!subject.trim() || !heading.trim() || !bodyText.trim()) {
+      toast.error("Subject, heading, and body are all required.");
+      return;
+    }
+    const realRecipients = audienceCount ?? 0;
+    if (test === false && realRecipients > 0) {
+      if (!confirm(`Send to ${realRecipients} ${audience} user${realRecipients === 1 ? "" : "s"}? This cannot be undone.`)) return;
+    }
+    setBusy(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-broadcast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          audience, subject, heading, body: bodyText,
+          ctaLabel: ctaLabel || undefined, ctaUrl: ctaUrl || undefined,
+          promoCode: promoCode || undefined, promoNote: promoNote || undefined,
+          test,
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) toast.error(j.error || "Send failed");
+      else toast.success(`${j.queued}/${j.total} email${j.total === 1 ? "" : "s"} queued${j.failed ? ` · ${j.failed} failed` : ""}.`);
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="px-5 space-y-3 pb-24">
+      <div className="glass rounded-2xl p-3">
+        <Field label="Audience">
+          <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
+            {(["all", "paid", "free"] as const).map((a) => (
+              <button key={a} onClick={() => setAudience(a)} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${audience === a ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>
+                {a}
+              </button>
+            ))}
+          </div>
+          <div className="text-[10px] text-muted-foreground mt-1.5">
+            {audienceCount === null ? "…" : `${audienceCount} recipient${audienceCount === 1 ? "" : "s"} will receive this`}
+          </div>
+        </Field>
+      </div>
+      <Field label="Subject (inbox preview)"><Input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="A gift for you — 20% off lifetime" /></Field>
+      <Field label="Heading (top of email)"><Input value={heading} onChange={(e) => setHeading(e.target.value)} placeholder="A gift for you." /></Field>
+      <Field label="Body (blank lines = paragraphs)">
+        <Textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} className="min-h-[160px]" placeholder={"Hi there,\n\nUse the code below for 20% off lifetime access.\n\nValid for 7 days."} />
+      </Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="CTA label (optional)"><Input value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} placeholder="Claim your vault" /></Field>
+        <Field label="CTA URL (optional)"><Input value={ctaUrl} onChange={(e) => setCtaUrl(e.target.value)} placeholder="https://mr05xau.co.uk/paywall" /></Field>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="Promo code (optional)"><Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="VIP20" /></Field>
+        <Field label="Promo note (optional)"><Input value={promoNote} onChange={(e) => setPromoNote(e.target.value)} placeholder="Apply at checkout. 7 days." /></Field>
+      </div>
+      <div className="flex gap-2 pt-2">
+        <Button onClick={() => call(true)} disabled={busy} variant="outline" className="flex-1 rounded-xl h-11 border-border-strong">
+          {busy ? <Loader2 className="size-4 animate-spin" /> : "Send test to me"}
+        </Button>
+        <Button onClick={() => call(false)} disabled={busy || !audienceCount} className="flex-1 rounded-xl gold-fill h-11">
+          {busy ? <Loader2 className="size-4 animate-spin" /> : `Send to ${audienceCount ?? 0}`}
+        </Button>
+      </div>
+      <p className="text-[10px] text-muted-foreground">
+        Sends use the branded "Announcement" template. Suppressed/unsubscribed addresses are skipped automatically.
+      </p>
+    </div>
+  );
+}
+
+/* ---------- DISCOUNTS / STRIPE PROMOS ---------- */
+function DiscountsPanel() {
+  const [env, setEnv] = useState<"live" | "sandbox">("live");
+  const [promos, setPromos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showNew, setShowNew] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [f, setF] = useState({
+    code: "", name: "", percent_off: 20, amount_off: "", currency: "gbp",
+    duration: "once" as "once" | "forever" | "repeating",
+    duration_in_months: 3,
+    max_redemptions: "", expires_in_days: 7,
+    mode: "percent" as "percent" | "amount",
+  });
+
+  const call = async (payload: any) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-stripe-promo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ environment: env, ...payload }),
+    });
+    const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || `HTTP ${res.status}`);
+    return j;
+  };
+
+  const refresh = async () => {
+    setLoading(true);
+    try {
+      const j = await call({ action: "list" });
+      setPromos(j.promos ?? []);
+    } catch (e: any) {
+      toast.error(e.message);
+      setPromos([]);
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { refresh(); }, [env]);
+
+  const create = async () => {
+    if (!f.code.trim()) return toast.error("Code required");
+    setBusy(true);
+    try {
+      const payload: any = {
+        action: "create",
+        code: f.code,
+        name: f.name || undefined,
+        duration: f.duration,
+        max_redemptions: f.max_redemptions ? Number(f.max_redemptions) : undefined,
+        expires_in_days: f.expires_in_days ? Number(f.expires_in_days) : undefined,
+      };
+      if (f.mode === "percent") payload.percent_off = Number(f.percent_off);
+      else { payload.amount_off = Math.round(Number(f.amount_off) * 100); payload.currency = f.currency; }
+      if (f.duration === "repeating") payload.duration_in_months = Number(f.duration_in_months);
+      await call(payload);
+      toast.success(`Created code ${f.code.toUpperCase()}`);
+      setShowNew(false);
+      setF({ ...f, code: "", name: "" });
+      refresh();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setBusy(false); }
+  };
+
+  const deactivate = async (id: string, code: string) => {
+    if (!confirm(`Deactivate code ${code}? Customers can no longer use it.`)) return;
+    try { await call({ action: "deactivate", promo_id: id }); toast.success("Deactivated"); refresh(); }
+    catch (e: any) { toast.error(e.message); }
+  };
+
+  const copy = (code: string) => {
+    navigator.clipboard.writeText(code).then(() => toast.success(`Copied ${code}`));
+  };
+
+  return (
+    <div className="px-5 space-y-3 pb-24">
+      <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
+        {(["live", "sandbox"] as const).map((e) => (
+          <button key={e} onClick={() => setEnv(e)} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${env === e ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>
+            {e}
+          </button>
+        ))}
+      </div>
+      <Button onClick={() => setShowNew((v) => !v)} className="w-full gold-fill h-11 rounded-xl">
+        <Plus className="size-4 mr-1.5" /> {showNew ? "Cancel" : "New promo code"}
+      </Button>
+
+      {showNew && (
+        <div className="glass rounded-2xl p-3 space-y-3">
+          <Field label="Customer-facing code"><Input value={f.code} onChange={(e) => setF({ ...f, code: e.target.value.toUpperCase() })} placeholder="VIP20" /></Field>
+          <Field label="Internal name (optional)"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Launch week 20% off" /></Field>
+          <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
+            {(["percent", "amount"] as const).map((m) => (
+              <button key={m} onClick={() => setF({ ...f, mode: m })} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${f.mode === m ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>
+                {m === "percent" ? "% off" : "Fixed amount off"}
+              </button>
+            ))}
+          </div>
+          {f.mode === "percent" ? (
+            <Field label="Percent off (1-100)"><Input type="number" min={1} max={100} value={f.percent_off} onChange={(e) => setF({ ...f, percent_off: Number(e.target.value) })} /></Field>
+          ) : (
+            <div className="grid grid-cols-2 gap-2">
+              <Field label="Amount off (major units)"><Input type="number" step="0.01" value={f.amount_off} onChange={(e) => setF({ ...f, amount_off: e.target.value })} placeholder="20.00" /></Field>
+              <Field label="Currency"><Input value={f.currency} onChange={(e) => setF({ ...f, currency: e.target.value.toLowerCase() })} placeholder="gbp" /></Field>
+            </div>
+          )}
+          <Field label="Duration">
+            <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
+              {(["once", "repeating", "forever"] as const).map((d) => (
+                <button key={d} onClick={() => setF({ ...f, duration: d })} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${f.duration === d ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>{d}</button>
+              ))}
+            </div>
+          </Field>
+          {f.duration === "repeating" && (
+            <Field label="Repeats for N months"><Input type="number" min={1} value={f.duration_in_months} onChange={(e) => setF({ ...f, duration_in_months: Number(e.target.value) })} /></Field>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="Max redemptions (blank = unlimited)"><Input type="number" value={f.max_redemptions} onChange={(e) => setF({ ...f, max_redemptions: e.target.value })} /></Field>
+            <Field label="Expires in N days (blank = never)"><Input type="number" value={f.expires_in_days} onChange={(e) => setF({ ...f, expires_in_days: Number(e.target.value) })} /></Field>
+          </div>
+          <Button onClick={create} disabled={busy} className="w-full gold-fill h-11 rounded-xl">
+            {busy ? <Loader2 className="size-4 animate-spin mr-2" /> : null}Create on Stripe ({env})
+          </Button>
+          <p className="text-[10px] text-muted-foreground">
+            Customers enter the code at Stripe checkout. The code becomes active immediately on the {env} account.
+          </p>
+        </div>
+      )}
+
+      {loading ? <FullSpinner /> : (
+        <>
+          {promos.length === 0 && <div className="text-xs text-muted-foreground text-center py-6">No promo codes on the {env} account yet.</div>}
+          {promos.map((p) => {
+            const c = p.coupon ?? {};
+            const value = c.percent_off ? `${c.percent_off}% off` :
+              c.amount_off ? `${(c.amount_off / 100).toFixed(2)} ${(c.currency ?? "").toUpperCase()} off` : "—";
+            return (
+              <div key={p.id} className={`glass rounded-2xl p-3 ${!p.active ? "opacity-50" : ""}`}>
+                <div className="flex items-center gap-2">
+                  <div className="font-mono text-sm font-medium tracking-wider">{p.code}</div>
+                  <button onClick={() => copy(p.code)} className="size-6 grid place-items-center rounded-md glass press"><Copy className="size-3" /></button>
+                  <div className={`ml-auto text-[10px] px-2 py-0.5 rounded-full ${p.active ? "bg-success/20 text-success" : "bg-secondary text-muted-foreground"}`}>
+                    {p.active ? "active" : "inactive"}
+                  </div>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">
+                  {value} · {c.duration}{c.duration === "repeating" ? ` (${c.duration_in_months}mo)` : ""}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-0.5">
+                  Redeemed {p.times_redeemed}{p.max_redemptions ? `/${p.max_redemptions}` : ""}
+                  {p.expires_at ? ` · expires ${new Date(p.expires_at * 1000).toLocaleDateString()}` : ""}
+                </div>
+                {p.active && (
+                  <Button size="sm" variant="outline" onClick={() => deactivate(p.id, p.code)} className="mt-2 rounded-lg text-[11px] h-8 text-danger border-danger/40">
+                    Deactivate
+                  </Button>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+}
