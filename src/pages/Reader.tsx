@@ -303,8 +303,8 @@ export default function Reader() {
   }
 
   return (
-    <div className="min-h-[100dvh] vault-bg flex justify-center">
-      <div className="w-full max-w-md flex flex-col relative">
+    <div className="h-[100dvh] vault-bg flex justify-center">
+      <div className="w-full max-w-md flex flex-col relative h-full">
         <header className="sticky top-0 z-20 glass-strong px-4 py-3 safe-top flex items-center gap-3 border-b border-border/60">
           <button onClick={() => nav("/library")} className="size-9 grid place-items-center rounded-full glass press">
             <ArrowLeft className="size-4" />
@@ -352,7 +352,7 @@ export default function Reader() {
           onMouseUp={onMouseUp}
           onTouchEnd={onMouseUp}
           onDoubleClick={onDoubleClick}
-          className="flex-1 overflow-y-auto px-6 py-8 pb-40 prose-z1"
+          className="flex-1 overflow-y-auto px-6 py-8 pb-[max(env(safe-area-inset-bottom),2rem)] prose-z1"
         >
           <div className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground mb-2">
             {chapter.subtitle}
