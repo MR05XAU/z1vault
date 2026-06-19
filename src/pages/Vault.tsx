@@ -9,7 +9,7 @@ import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Z1Wordmark } from "@/components/Z1Logo";
 import { ProgressRing } from "@/components/ProgressRing";
-import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, ChevronRight } from "lucide-react";
+import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, ChevronRight, CalendarDays } from "lucide-react";
 import { CandleGlyph } from "@/components/CandleGlyph";
 import { PATTERNS } from "@/data/patterns";
 
@@ -23,6 +23,7 @@ const modules = [
   { to: "/notebook?tab=highlights", label: "Highlights", icon: Highlighter },
   { to: "/notebook?tab=bookmarks", label: "Bookmarks", icon: Trophy },
   { to: "/analytics", label: "Stats", icon: BarChart3 },
+  { to: "/news", label: "Calendar", icon: CalendarDays },
 ];
 
 export default function Vault() {
