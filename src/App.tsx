@@ -28,6 +28,7 @@ import Admin from "./pages/Admin";
 import Journal from "./pages/Journal";
 import Calculators from "./pages/Calculators";
 import Patterns from "./pages/Patterns";
+import News from "./pages/News";
 import Legal from "./pages/Legal";
 import PaymentsCheck from "./pages/PaymentsCheck";
 import GoLive from "./pages/GoLive";
@@ -86,6 +87,7 @@ const App = () => (
             <Route path="/journal" element={<Protected><Journal /></Protected>} />
             <Route path="/calculators" element={<Protected><Calculators /></Protected>} />
             <Route path="/patterns" element={<Protected><Patterns /></Protected>} />
+            <Route path="/news" element={<Protected><News /></Protected>} />
             <Route path="/legal" element={<Legal />} />
             <Route path="/admin" element={<AuthOnly><Admin /></AuthOnly>} />
             <Route path="/admin/payments-check" element={<AuthOnly><PaymentsCheck /></AuthOnly>} />

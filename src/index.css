@@ -170,7 +170,10 @@
     animation: shimmer 1.8s infinite;
   }
   .safe-top { padding-top: max(env(safe-area-inset-top), 1rem); }
-  .safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 1rem); }
+  .safe-bottom { padding-bottom: max(env(safe-area-inset-bottom), 0.5rem); }
+  /* Bottom padding for any scroll surface above the floating tab bar.
+     Tab bar (~64px) + breathing room + iOS home indicator. */
+  .pb-nav { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
   .hide-scrollbar::-webkit-scrollbar { display: none; }
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
   .prose-z1 p { @apply mb-4 text-[15px] leading-[1.75] text-foreground/85; }

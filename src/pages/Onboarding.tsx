@@ -67,7 +67,7 @@ export default function Onboarding() {
 
   return (
     <div className="min-h-[100dvh] vault-bg flex justify-center">
-      <div className="w-full max-w-md flex flex-col safe-top px-6 pb-8">
+      <div className="w-full max-w-md min-h-[100dvh] flex flex-col safe-top px-6 pb-[max(env(safe-area-inset-bottom),1.25rem)]">
         <div className="flex items-center justify-between pt-4">
           <div className="flex gap-1.5">
             {slides.map((_, idx) => (
@@ -87,7 +87,7 @@ export default function Onboarding() {
           </button>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center text-center">
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-6">
           <AnimatePresence mode="wait">
             <motion.div
               key={i}
@@ -97,7 +97,7 @@ export default function Onboarding() {
               transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
               className="flex flex-col items-center"
             >
-              <div className="my-10">{slide.visual}</div>
+              <div className="my-6">{slide.visual}</div>
               <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright mb-3">
                 {slide.badge}
               </div>
