@@ -155,6 +155,11 @@ export default function Quiz() {
           <p className="text-sm text-muted-foreground mt-2">
             {final} of {qs.length} correct
           </p>
+          {pct < 70 && (
+            <div className="mt-6 text-left">
+              <MindsetCard mode="after-quiz-fail" compact />
+            </div>
+          )}
           <div className="flex gap-2 mt-8">
             <Button onClick={() => setReview(true)} variant="outline" className="flex-1 h-12 rounded-xl border-border-strong">
               Review answers
