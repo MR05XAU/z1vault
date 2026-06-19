@@ -9,6 +9,7 @@ import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Z1Wordmark } from "@/components/Z1Logo";
 import { ProgressRing } from "@/components/ProgressRing";
+import { MindsetCard } from "@/components/MindsetCard";
 import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, ChevronRight, CalendarDays } from "lucide-react";
 import { CandleGlyph } from "@/components/CandleGlyph";
 import { PATTERNS } from "@/data/patterns";
@@ -152,6 +153,10 @@ export default function Vault() {
             </div>
           </div>
         </div>
+      </section>
+
+      <section className="mt-4 animate-fade-up" style={{ animationDelay: "60ms" }}>
+        <MindsetCard mode="daily" />
       </section>
 
       <section className="mt-5 grid grid-cols-3 gap-3 animate-fade-up" style={{ animationDelay: "100ms" }}>
