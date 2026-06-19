@@ -117,7 +117,7 @@ export default function Journal() {
         </header>
       }
     >
-      <div className="px-5 mt-4 pb-32">
+      <div className="px-5 mt-4 pb-nav">
         {loading ? <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-gold" /></div>
          : tab === "list" ? (
           <>

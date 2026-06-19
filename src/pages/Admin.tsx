@@ -240,7 +240,7 @@ function ChapterEditor({ chapter, onDone }: { chapter: any; onDone: () => void }
   };
 
   return (
-    <div className="px-5 space-y-3 pb-24">
+    <div className="px-5 space-y-3 pb-nav">
       <Button variant="ghost" onClick={onDone} className="text-xs">← Back</Button>
       <div className="grid grid-cols-2 gap-2">
         <Field label="Chapter #"><Input type="number" value={c.chapter_number} onChange={(e) => setC({ ...c, chapter_number: e.target.value })} /></Field>
@@ -346,7 +346,7 @@ function QuizEditor({ q, onDone }: { q: any; onDone: () => void }) {
   };
 
   return (
-    <div className="px-5 space-y-3 pb-24">
+    <div className="px-5 space-y-3 pb-nav">
       <Button variant="ghost" onClick={onDone} className="text-xs">← Back</Button>
       <Field label="Question"><Textarea value={v.question} onChange={(e) => setV({ ...v, question: e.target.value })} className="min-h-20" /></Field>
       {v.options.map((opt: string, i: number) => (
@@ -427,7 +427,7 @@ function NotebookEditor({ page, onDone }: { page: any; onDone: () => void }) {
   };
 
   return (
-    <div className="px-5 space-y-3 pb-24">
+    <div className="px-5 space-y-3 pb-nav">
       <Button variant="ghost" onClick={onDone} className="text-xs">← Back</Button>
       <Field label="Slug"><Input value={p.slug} onChange={(e) => setP({ ...p, slug: e.target.value })} /></Field>
       <Field label="Title"><Input value={p.title} onChange={(e) => setP({ ...p, title: e.target.value })} /></Field>
@@ -803,7 +803,7 @@ function BroadcastPanel() {
   };
 
   return (
-    <div className="px-5 space-y-3 pb-24">
+    <div className="px-5 space-y-3 pb-nav">
       <div className="glass rounded-2xl p-3">
         <Field label="Audience">
           <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
@@ -920,7 +920,7 @@ function DiscountsPanel() {
   };
 
   return (
-    <div className="px-5 space-y-3 pb-24">
+    <div className="px-5 space-y-3 pb-nav">
       <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
         {(["live", "sandbox"] as const).map((e) => (
           <button key={e} onClick={() => setEnv(e)} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${env === e ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>

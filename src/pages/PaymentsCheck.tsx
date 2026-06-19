@@ -104,7 +104,7 @@ export default function PaymentsCheck() {
   );
 
   return (
-    <div className="min-h-[100dvh] vault-bg text-foreground px-5 pt-[max(env(safe-area-inset-top),1rem)] pb-24 max-w-2xl mx-auto">
+    <div className="min-h-[100dvh] vault-bg text-foreground px-5 pt-[max(env(safe-area-inset-top),1rem)] pb-nav max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-display text-2xl text-gold">Webhook & Entitlement Check</h1>

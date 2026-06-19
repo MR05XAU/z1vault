@@ -33,7 +33,7 @@ export default function Calculators() {
         </header>
       }
     >
-      <div className="px-5 mt-4 pb-32">
+      <div className="px-5 mt-4 pb-nav">
         {tab === "rr" ? <RRCalc /> : <SizeCalc />}
         <p className="text-[10px] text-muted-foreground italic mt-6 text-center">Educational tool only. Not financial advice.</p>
       </div>
