@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Check, X, Trophy, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { MindsetCard } from "@/components/MindsetCard";
 
 interface Q {
   id: string;
