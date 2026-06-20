@@ -29,3 +29,9 @@ project_id = "cqauyygqjyxtnthasjzj"
     verify_jwt = true
   [functions.admin-create-user]
     verify_jwt = false
+  [functions.daily-mindset]
+    verify_jwt = true
+  [functions.daily-mindset-broadcast]
+    verify_jwt = true
+  [functions.create-checkout]
+    verify_jwt = true
