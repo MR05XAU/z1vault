@@ -1,5 +1,6 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createStripeClient, type StripeEnv } from "../_shared/stripe.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 async function resolveOrCreateCustomer(
   stripe: ReturnType<typeof createStripeClient>,
@@ -37,7 +38,36 @@ async function resolveOrCreateCustomer(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const { priceId, customerEmail, userId, returnUrl, environment } = await req.json();
+    // Require an authenticated caller and derive the userId from the verified
+    // JWT — never trust a userId supplied in the body.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    if (!authHeader.startsWith("Bearer ")) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const supa = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: claimsData, error: claimsErr } = await supa.auth.getClaims(
+      authHeader.slice(7),
+    );
+    if (claimsErr || !claimsData?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const userId = String(claimsData.claims.sub);
+    const customerEmailFromJwt = typeof claimsData.claims.email === "string"
+      ? claimsData.claims.email
+      : undefined;
+
+    const { priceId, customerEmail: bodyEmail, returnUrl, environment } = await req.json();
+    const customerEmail = customerEmailFromJwt ?? bodyEmail;
     if (!priceId || !/^[a-zA-Z0-9_-]+$/.test(priceId)) {
       return new Response(JSON.stringify({ error: "Invalid priceId" }), {
         status: 400,
