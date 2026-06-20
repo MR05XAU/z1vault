@@ -489,6 +489,8 @@ function UsersPanel() {
   const [nu, setNu] = useState({ email: "", password: "", full_name: "", grant_access: true });
   const [busyId, setBusyId] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState<"all" | "paid" | "abandoned">("all");
+  const [emailingUser, setEmailingUser] = useState<any | null>(null);
 
   const refresh = async () => {
     const { data } = await sb
@@ -558,11 +560,23 @@ function UsersPanel() {
 
   const filtered = rows.filter((r) => {
     const needle = q.trim().toLowerCase();
+    const ent = Array.isArray(r.entitlements) ? r.entitlements[0] : r.entitlements;
+    const paid = !!ent?.has_access;
+    if (filter === "paid" && !paid) return false;
+    if (filter === "abandoned" && paid) return false;
     if (!needle) return true;
     return (r.email || "").toLowerCase().includes(needle) || (r.full_name || "").toLowerCase().includes(needle);
   });
 
+  const abandonedCount = rows.filter((r) => {
+    const ent = Array.isArray(r.entitlements) ? r.entitlements[0] : r.entitlements;
+    return !ent?.has_access;
+  }).length;
+
   if (loading) return <FullSpinner />;
+  if (emailingUser) {
+    return <SingleEmailComposer user={emailingUser} onDone={() => setEmailingUser(null)} />;
+  }
   return (
     <div className="px-5 space-y-2">
       <div className="flex gap-2">
@@ -570,6 +584,14 @@ function UsersPanel() {
         <Button onClick={() => setShowNew((v) => !v)} className="rounded-xl gold-fill h-10 px-3">
           <Plus className="size-4 mr-1" /> New
         </Button>
+      </div>
+      <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
+        {(["all", "paid", "abandoned"] as const).map((t) => (
+          <button key={t} onClick={() => setFilter(t)}
+            className={`flex-1 text-xs py-2 rounded-lg press capitalize ${filter === t ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>
+            {t}{t === "abandoned" && abandonedCount ? ` (${abandonedCount})` : ""}
+          </button>
+        ))}
       </div>
       {showNew && (
         <div className="glass rounded-2xl p-3 space-y-2">
@@ -604,6 +626,9 @@ function UsersPanel() {
                   {r.email}
                   {hasAccess && <span className={`size-1.5 rounded-full ${comped ? "bg-gold-bright" : "bg-success"}`} />}
                 </div>
+                <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                  Joined {new Date(r.created_at).toLocaleDateString()}
+                </div>
               </div>
               <Button size="sm" variant={hasAccess ? "outline" : "default"}
                 disabled={busy}
@@ -613,8 +638,11 @@ function UsersPanel() {
               </Button>
             </div>
             <div className="flex gap-2 mt-2">
+              <Button size="sm" variant="outline" onClick={() => setEmailingUser(r)} className="rounded-lg text-[11px] h-8">
+                <Mail className="size-3 mr-1" /> Email
+              </Button>
               <Button size="sm" variant="outline" onClick={() => resetPw(r.email)} className="rounded-lg text-[11px] h-8">
-                Send reset email
+                Reset PW
               </Button>
               <Button size="sm" variant="outline" onClick={() => removeUser(r.id, r.email)} disabled={busy} className="rounded-lg text-[11px] h-8 text-danger border-danger/40 ml-auto">
                 <Trash2 className="size-3 mr-1" /> Delete
@@ -623,6 +651,66 @@ function UsersPanel() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ---------- SINGLE-USER EMAIL COMPOSER ---------- */
+function SingleEmailComposer({ user, onDone }: { user: any; onDone: () => void }) {
+  const ent = Array.isArray(user.entitlements) ? user.entitlements[0] : user.entitlements;
+  const paid = !!ent?.has_access;
+  const preset = paid
+    ? { subject: "A quick note from Z1", heading: `Hi ${user.full_name?.split(" ")[0] || "there"},`, body: "Just checking in — is there anything I can help with inside the vault?\n\nReply to this email any time." }
+    : { subject: "Still thinking it over?", heading: `Hi ${user.full_name?.split(" ")[0] || "there"},`, body: "Noticed you signed up but haven't unlocked the vault yet.\n\nIf price is the blocker, reply to this email and I'll send you a discount code.\n\nOtherwise — what's holding you back? Genuinely curious." };
+  const [subject, setSubject] = useState(preset.subject);
+  const [heading, setHeading] = useState(preset.heading);
+  const [bodyText, setBodyText] = useState(preset.body);
+  const [ctaLabel, setCtaLabel] = useState(paid ? "" : "Unlock the vault");
+  const [ctaUrl, setCtaUrl] = useState(paid ? "" : "https://mr05xau.co.uk/paywall");
+  const [promoCode, setPromoCode] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const send = async () => {
+    if (!subject.trim() || !heading.trim() || !bodyText.trim()) return toast.error("Subject, heading and body required");
+    setBusy(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-broadcast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          audience: "all", subject, heading, body: bodyText,
+          ctaLabel: ctaLabel || undefined, ctaUrl: ctaUrl || undefined,
+          promoCode: promoCode || undefined,
+          test: user.email, // single-recipient mode
+        }),
+      });
+      const j = await res.json();
+      if (!res.ok) toast.error(j.error || "Send failed");
+      else { toast.success(`Email sent to ${user.email}`); onDone(); }
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="px-5 space-y-3 pb-nav">
+      <Button variant="ghost" onClick={onDone} className="text-xs">← Back to users</Button>
+      <div className="glass rounded-2xl p-3">
+        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Sending to</div>
+        <div className="text-sm font-medium mt-1">{user.full_name || user.email}</div>
+        <div className="text-[11px] text-muted-foreground">{user.email} · {paid ? "paid user" : "abandoned signup"}</div>
+      </div>
+      <Field label="Subject"><Input value={subject} onChange={(e) => setSubject(e.target.value)} /></Field>
+      <Field label="Heading"><Input value={heading} onChange={(e) => setHeading(e.target.value)} /></Field>
+      <Field label="Body"><Textarea value={bodyText} onChange={(e) => setBodyText(e.target.value)} className="min-h-[180px]" /></Field>
+      <div className="grid grid-cols-2 gap-2">
+        <Field label="CTA label"><Input value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} /></Field>
+        <Field label="CTA URL"><Input value={ctaUrl} onChange={(e) => setCtaUrl(e.target.value)} /></Field>
+      </div>
+      <Field label="Promo code (optional)"><Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="VIP20" /></Field>
+      <Button onClick={send} disabled={busy} className="w-full gold-fill h-12 rounded-xl">
+        {busy ? <Loader2 className="size-4 animate-spin mr-2" /> : <Mail className="size-4 mr-2" />}
+        Send to {user.email}
+      </Button>
     </div>
   );
 }
