@@ -25,5 +25,5 @@ export function getStripeEnvironment(): StripeEnv {
   return paymentsEnvironment();
 }
 
-export const Z1_PRICE_ID = "z1_lifetime_197";
-export const Z1_PRICE_DISPLAY = "$197";
+export const Z1_PRICE_ID = "z1_lifetime_199_gbp";
+export const Z1_PRICE_DISPLAY = "£199";
