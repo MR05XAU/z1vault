@@ -41,17 +41,16 @@ export async function loadDictionary(
     const total = Number(response.headers.get("content-length")) || 0;
     if (onProgress && total && response.body) {
       const reader = response.body.getReader();
-      const chunks: Uint8Array[] = [];
+      const chunks: BlobPart[] = [];
       let loaded = 0;
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
-        chunks.push(value);
+        chunks.push(new Uint8Array(value).buffer);
         loaded += value.length;
         onProgress(loaded, total);
       }
-      const blob = new Blob(chunks);
-      mem = JSON.parse(await blob.text());
+      mem = JSON.parse(await new Blob(chunks).text());
     } else {
       mem = await response.json();
     }
