@@ -6,7 +6,7 @@ project_id = "cqauyygqjyxtnthasjzj"
   [functions.auth-email-hook]
     verify_jwt = false
   [functions.create-checkout]
-    verify_jwt = false
+    verify_jwt = true
   [functions.delete-account]
     verify_jwt = false
   [functions.payments-webhook]
@@ -29,3 +29,7 @@ project_id = "cqauyygqjyxtnthasjzj"
     verify_jwt = true
   [functions.admin-create-user]
     verify_jwt = false
+  [functions.daily-mindset]
+    verify_jwt = true
+  [functions.daily-mindset-broadcast]
+    verify_jwt = true

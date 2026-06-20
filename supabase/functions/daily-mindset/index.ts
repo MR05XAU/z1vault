@@ -8,6 +8,18 @@ const cors = {
 const MODES = ["daily", "after-loss", "after-quiz-fail", "before-session"] as const;
 type Mode = typeof MODES[number];
 
+function getRoleFromAuth(header: string | null): string | null {
+  if (!header?.startsWith("Bearer ")) return null;
+  const parts = header.slice(7).split(".");
+  if (parts.length < 2) return null;
+  try {
+    const payload = parts[1].replaceAll("-", "+").replaceAll("_", "/")
+      .padEnd(Math.ceil(parts[1].length / 4) * 4, "=");
+    const claims = JSON.parse(atob(payload)) as { role?: string; sub?: string };
+    return claims.role ?? null;
+  } catch { return null; }
+}
+
 const SYSTEM = `You are the Z1 INSIGHTS mindset coach for serious traders.
 Voice: short, sharp, premium. No corny gym-bro clichés. No "rise and grind".
 Think Mark Douglas / Jesse Livermore meets a private-banking advisor.
@@ -24,6 +36,14 @@ const PROMPTS: Record<Mode, string> = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
+    // Auth: require a signed-in user or service_role. Without this any
+    // anonymous caller could burn AI credits at will.
+    const role = getRoleFromAuth(req.headers.get("Authorization"));
+    if (role !== "authenticated" && role !== "service_role") {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
     const key = Deno.env.get("LOVABLE_API_KEY");
     if (!key) return new Response(JSON.stringify({ error: "AI not configured" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
 
