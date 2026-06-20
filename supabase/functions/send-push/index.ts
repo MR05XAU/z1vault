@@ -9,6 +9,17 @@ const cors = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function parseJwt(header: string | null): { role?: string; sub?: string } | null {
+  if (!header?.startsWith("Bearer ")) return null;
+  const parts = header.slice(7).split(".");
+  if (parts.length < 2) return null;
+  try {
+    const payload = parts[1].replaceAll("-", "+").replaceAll("_", "/")
+      .padEnd(Math.ceil(parts[1].length / 4) * 4, "=");
+    return JSON.parse(atob(payload));
+  } catch { return null; }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: cors });
   try {
@@ -16,6 +27,19 @@ Deno.serve(async (req) => {
     if (!user_id || !title) {
       return new Response(JSON.stringify({ error: "user_id and title required" }), {
         status: 400, headers: { ...cors, "Content-Type": "application/json" },
+      });
+    }
+
+    // Auth: caller must either be service_role (server-side broadcasts) or
+    // a signed-in user targeting their own user_id. Without this any
+    // authenticated user could push arbitrary notifications to any other
+    // user and enumerate their push tokens.
+    const claims = parseJwt(req.headers.get("Authorization"));
+    const isService = claims?.role === "service_role";
+    const isSelf = claims?.role === "authenticated" && claims?.sub === user_id;
+    if (!isService && !isSelf) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
 
