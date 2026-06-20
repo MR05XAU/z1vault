@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { BookmarkPlus, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
+import { lookup } from "@/lib/dictionary";
 
 interface Props {
   word: string;
@@ -20,17 +21,10 @@ export function WordPopover({ word, x, y, chapterId, onClose }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/word-lookup`;
-        const r = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-          body: JSON.stringify({ word }),
-        });
-        const j = await r.json();
+        const def = await lookup(word);
         if (cancelled) return;
-        if (!r.ok) setError(j.error || "Not found");
-        else setDefinition(j.definition);
+        if (!def) setError("Not in dictionary");
+        else setDefinition(def);
       } catch (e: any) {
         if (!cancelled) setError(e.message || "Lookup failed");
       } finally {
