@@ -6,6 +6,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { Z1Logo } from "@/components/Z1Logo";
 import { BookOpen, Search, Loader2, Download } from "lucide-react";
 import { isLoaded, loadDictionary, lookup, search } from "@/lib/dictionary";
+import { TUTOR_FAQ, matchFaq, type FaqEntry } from "@/data/tutorFaq";
 
 interface Chapter {
   id: string;
@@ -31,6 +32,7 @@ export default function Tutor() {
   const [chapters, setChapters] = useState<Chapter[]>([]);
   const [bookHits, setBookHits] = useState<BookHit[]>([]);
   const [searching, setSearching] = useState(false);
+  const [faqHit, setFaqHit] = useState<FaqEntry | null>(null);
 
   // Load chapters once for offline book search
   useEffect(() => {
@@ -57,13 +59,14 @@ export default function Tutor() {
   useEffect(() => {
     const q = query.trim();
     if (!q || !dictReady) {
-      setDefinition(null); setMatches([]); setBookHits([]); return;
+      setDefinition(null); setMatches([]); setBookHits([]); setFaqHit(null); return;
     }
     setSearching(true);
     const t = setTimeout(async () => {
       const [def, near] = await Promise.all([lookup(q), search(q, 12)]);
       setDefinition(def);
       setMatches(near.filter((w) => w !== q.toLowerCase()).slice(0, 8));
+      setFaqHit(matchFaq(q));
 
       // Book-content search (case-insensitive, first 5 chapters that match)
       const needle = q.toLowerCase();
@@ -135,19 +138,50 @@ export default function Tutor() {
         )}
 
         {dictReady && !query.trim() && (
-          <div className="text-center pt-10 animate-fade-up">
-            <div className="size-16 rounded-2xl gold-fill grid place-items-center mx-auto mb-4 shadow-glow">
-              <BookOpen className="size-7" />
+          <div className="pt-6 animate-fade-up">
+            <div className="text-center">
+              <div className="size-14 rounded-2xl gold-fill grid place-items-center mx-auto mb-3 shadow-glow">
+                <BookOpen className="size-6" />
+              </div>
+              <h2 className="display text-xl font-medium">Ask anything from the book.</h2>
+              <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto">
+                Curated answers below, plus an offline dictionary and full-text book search.
+              </p>
             </div>
-            <h2 className="display text-2xl font-medium">Tap a word, search a term.</h2>
-            <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto">
-              Definitions come from an offline dictionary. Passages are searched across every Z1 chapter on your device.
-            </p>
+            <div className="mt-6 text-[10px] uppercase tracking-[0.28em] text-gold-bright mb-2">
+              Common questions
+            </div>
+            <div className="space-y-2">
+              {TUTOR_FAQ.map((f) => (
+                <button
+                  key={f.q}
+                  onClick={() => setQuery(f.q)}
+                  className="w-full text-left glass rounded-2xl px-4 py-3 press hover:shadow-glow"
+                >
+                  <div className="text-sm font-medium">{f.q}</div>
+                  {f.ref && (
+                    <div className="text-[10px] text-gold-bright/80 mt-0.5">{f.ref}</div>
+                  )}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
         {dictReady && query.trim() && (
           <div className="mt-6 space-y-5">
+            {faqHit && (
+              <section className="glass-strong rounded-2xl p-4 gold-border animate-fade-up">
+                <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">
+                  Answer {faqHit.ref ? `· ${faqHit.ref}` : ""}
+                </div>
+                <div className="text-base font-medium mt-1">{faqHit.q}</div>
+                <p className="text-sm text-foreground/90 mt-2 leading-relaxed whitespace-pre-line">
+                  {faqHit.a}
+                </p>
+              </section>
+            )}
+
             {definition && (
               <section className="glass rounded-2xl p-4 animate-fade-up">
                 <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Definition</div>

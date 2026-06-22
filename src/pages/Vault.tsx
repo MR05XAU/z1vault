@@ -3,23 +3,22 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useChapters } from "@/hooks/useChapters";
-import type { Chapter } from "@/hooks/useChapters";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Z1Wordmark } from "@/components/Z1Logo";
 import { ProgressRing } from "@/components/ProgressRing";
 import { MindsetCard } from "@/components/MindsetCard";
-import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, ChevronRight, CalendarDays } from "lucide-react";
-import { CandleGlyph } from "@/components/CandleGlyph";
-import { PATTERNS } from "@/data/patterns";
+import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, CalendarDays, LineChart, CandlestickChart } from "lucide-react";
 
 interface Progress { chapter_id: string; progress_percentage: number; completed: boolean; updated_at: string }
 interface QuizResult { score: number; total_questions: number }
 
 const modules = [
   { to: "/library", label: "Book", icon: BookOpen },
-  { to: "/tutor", label: "AI Tutor", icon: Sparkles },
+  { to: "/tutor", label: "Tutor", icon: Sparkles },
+  { to: "/journal", label: "Journal", icon: LineChart },
+  { to: "/patterns", label: "Candles", icon: CandlestickChart },
   { to: "/notebook?tab=notes", label: "Notes", icon: BookMarked },
   { to: "/notebook?tab=highlights", label: "Highlights", icon: Highlighter },
   { to: "/notebook?tab=bookmarks", label: "Bookmarks", icon: Trophy },
@@ -33,7 +32,7 @@ export default function Vault() {
   const { data: chapters = [] } = useChapters();
   const [progress, setProgress] = useState<Progress[]>([]);
   const [quizzes, setQuizzes] = useState<QuizResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -186,51 +185,7 @@ export default function Vault() {
           ))}
         </div>
       </section>
-
-      <section className="mt-8 mb-6 animate-fade-up" style={{ animationDelay: "280ms" }}>
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="display text-xl font-medium">All chapters</h2>
-          <button
-            onClick={() => nav("/library")}
-            className="text-xs text-gold-bright press"
-          >
-            View all
-          </button>
-        </div>
-        <div className="space-y-2.5">
-          {(loading ? Array(3).fill(null) : chapters.slice(0, 4)).map((c, i) =>
-            c ? (
-              <ChapterRow key={c.id} chapter={c} progress={progress.find((p) => p.chapter_id === c.id)} onClick={() => nav(`/read/${c.id}`)} />
-            ) : (
-              <div key={i} className="h-16 rounded-2xl shimmer" />
-            )
-          )}
-        </div>
-      </section>
-
-      <section className="mt-2 mb-10 animate-fade-up" style={{ animationDelay: "340ms" }}>
-        <div className="flex items-baseline justify-between mb-3">
-          <h2 className="display text-xl font-medium">Candlestick patterns</h2>
-          <button onClick={() => nav("/patterns")} className="text-xs text-gold-bright press">View all</button>
-        </div>
-        <button
-          onClick={() => nav("/patterns")}
-          className="w-full glass-strong rounded-3xl p-4 press hover:shadow-glow text-left gold-border"
-        >
-          <div className="grid grid-cols-3 gap-2">
-            {PATTERNS.slice(0, 6).map((p) => (
-              <div key={p.name} className="rounded-xl bg-surface-elevated/60 border border-border-strong p-2 flex flex-col items-center gap-1.5">
-                <CandleGlyph candles={p.glyph} height={48} />
-                <div className="text-[10px] text-muted-foreground text-center leading-tight line-clamp-2">{p.name}</div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">{PATTERNS.length} patterns · bullish, bearish, neutral</span>
-            <span className="text-gold-bright flex items-center gap-1">Explore <ChevronRight className="size-3" /></span>
-          </div>
-        </button>
-      </section>
+      <div className="h-8" />
     </MobileShell>
   );
 }
@@ -242,24 +197,5 @@ function StatTile({ icon: Icon, label, value }: any) {
       <div className="display text-xl font-medium gold-text leading-none">{value}</div>
       <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
     </div>
-  );
-}
-
-function ChapterRow({ chapter, progress, onClick }: { chapter: Chapter; progress?: Progress; onClick: () => void }) {
-  const pct = Math.round(Number(progress?.progress_percentage ?? 0));
-  return (
-    <button onClick={onClick} className="w-full glass rounded-2xl p-4 flex items-center gap-4 press hover:shadow-glow text-left">
-      <div className="size-11 rounded-xl bg-surface-elevated grid place-items-center display gold-text font-medium">
-        {String(chapter.chapter_number).padStart(2, "0")}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium truncate">{chapter.title}</div>
-        <div className="text-xs text-muted-foreground truncate mt-0.5">{chapter.subtitle}</div>
-        <div className="h-0.5 mt-2 bg-foreground/10 rounded-full overflow-hidden">
-          <div className="h-full bg-gold transition-all" style={{ width: `${pct}%` }} />
-        </div>
-      </div>
-      <div className="text-xs text-muted-foreground font-mono">{pct}%</div>
-    </button>
   );
 }
