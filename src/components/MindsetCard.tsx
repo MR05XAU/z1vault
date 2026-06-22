@@ -1,65 +1,21 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { Sparkles, Loader2, RefreshCw } from "lucide-react";
+import { Sparkles, RefreshCw } from "lucide-react";
+import { pickMindset } from "@/data/mindset";
 
 type Mode = "daily" | "after-loss" | "after-quiz-fail" | "before-session";
-interface Mindset { tip: string; quote: string; tag: string }
 
-const cacheKey = (mode: Mode, dateStr: string) => `z1.mindset.${mode}.${dateStr}`;
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function MindsetCard({ mode = "daily", compact = false }: { mode?: Mode; compact?: boolean }) {
-  const [data, setData] = useState<Mindset | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
-
-  async function load(force = false) {
-    setErr(null);
-    const k = cacheKey(mode, today());
-    if (!force) {
-      try {
-        const cached = localStorage.getItem(k);
-        if (cached) {
-          setData(JSON.parse(cached));
-          setLoading(false);
-          // Daily card: keep cache for the whole day. Contextual modes always refresh.
-          if (mode === "daily") return;
-        }
-      } catch { /* ignore */ }
-    }
-    setLoading(true);
-    const { data: res, error } = await supabase.functions.invoke("daily-mindset", {
-      body: { mode, seed: force ? Date.now() : today() },
-    });
-    if (error || !res?.tip) {
-      setErr("Couldn't reach the mindset coach. Try again.");
-      setLoading(false);
-      return;
-    }
-    setData(res as Mindset);
-    try { localStorage.setItem(k, JSON.stringify(res)); } catch { /* ignore */ }
-    setLoading(false);
-  }
-
-  useEffect(() => { load(false); /* eslint-disable-next-line */ }, [mode]);
-
-  if (loading && !data) {
-    return (
-      <div className={`glass rounded-2xl p-4 flex items-center gap-3 ${compact ? "" : "min-h-[112px]"}`}>
-        <Loader2 className="size-4 text-gold-bright animate-spin" />
-        <span className="text-xs text-muted-foreground">Drawing today's edge…</span>
-      </div>
-    );
-  }
-
-  if (err && !data) {
-    return (
-      <button onClick={() => load(true)} className="glass rounded-2xl p-4 w-full text-left press">
-        <div className="text-xs text-muted-foreground">{err}</div>
-      </button>
-    );
-  }
-  if (!data) return null;
+  // Curated, offline rotation — no AI call, no credits, never fails.
+  // Daily mode = stable per calendar day. Other modes rotate on each mount /
+  // refresh tap so contextual nudges feel fresh.
+  const [seed, setSeed] = useState(() => mode === "daily" ? today() : `${mode}-${Date.now()}`);
+  useEffect(() => {
+    if (mode === "daily") setSeed(today());
+    else setSeed(`${mode}-${Date.now()}`);
+  }, [mode]);
+  const data = pickMindset(mode, seed);
 
   return (
     <div className={`glass rounded-2xl ${compact ? "p-4" : "p-5"} gold-border relative overflow-hidden`}>
@@ -71,8 +27,12 @@ export function MindsetCard({ mode = "daily", compact = false }: { mode?: Mode; 
             {data.tag} · {mode === "daily" ? "Today" : "Mindset"}
           </div>
           {mode === "daily" && (
-            <button onClick={() => load(true)} aria-label="New tip" className="size-7 grid place-items-center rounded-full glass press">
-              {loading ? <Loader2 className="size-3 animate-spin" /> : <RefreshCw className="size-3 text-muted-foreground" />}
+            <button
+              onClick={() => setSeed(`${today()}-${Date.now()}`)}
+              aria-label="New tip"
+              className="size-7 grid place-items-center rounded-full glass press"
+            >
+              <RefreshCw className="size-3 text-muted-foreground" />
             </button>
           )}
         </div>
