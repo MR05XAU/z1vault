@@ -3,7 +3,6 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useChapters } from "@/hooks/useChapters";
-import type { Chapter } from "@/hooks/useChapters";
 import { toast } from "sonner";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
@@ -33,7 +32,7 @@ export default function Vault() {
   const { data: chapters = [] } = useChapters();
   const [progress, setProgress] = useState<Progress[]>([]);
   const [quizzes, setQuizzes] = useState<QuizResult[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
