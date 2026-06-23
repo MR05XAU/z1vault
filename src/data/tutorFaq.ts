@@ -253,7 +253,6 @@ export const TUTOR_FAQ: FaqEntry[] = [
 export function allFaq(): FaqEntry[] {
   return TUTOR_FAQ;
 }
-];
 
 export function matchFaq(query: string): FaqEntry | null {
   const q = query.toLowerCase().trim();
