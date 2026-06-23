@@ -941,6 +941,8 @@ function DiscountsPanel() {
   const [loading, setLoading] = useState(true);
   const [showNew, setShowNew] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [emailingId, setEmailingId] = useState<string | null>(null);
+  const [emailAudience, setEmailAudience] = useState<"all" | "paid" | "free">("free");
   const [f, setF] = useState({
     code: "", name: "", percent_off: 20, amount_off: "", currency: "gbp",
     duration: "once" as "once" | "forever" | "repeating",
@@ -1007,6 +1009,49 @@ function DiscountsPanel() {
     navigator.clipboard.writeText(code).then(() => toast.success(`Copied ${code}`));
   };
 
+  /**
+   * One-tap "email this code" — sends a short branded blast to the chosen
+   * audience with a fixed, friendly body. No copywriting required.
+   */
+  const emailCode = async (p: any) => {
+    const c = p.coupon ?? {};
+    const value = c.percent_off
+      ? `${c.percent_off}% off`
+      : c.amount_off
+      ? `${(c.amount_off / 100).toFixed(2)} ${(c.currency ?? "").toUpperCase()} off`
+      : "a discount";
+    const code = p.code as string;
+    if (!confirm(`Email code ${code} (${value}) to all ${emailAudience} users?`)) return;
+    setEmailingId(p.id);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-broadcast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({
+          audience: emailAudience,
+          subject: `Here's ${value} 🎁`,
+          heading: `Hi — here's ${value}.`,
+          body: `Use the code below at checkout to claim ${value} on your vault.`,
+          ctaLabel: "Claim your vault",
+          ctaUrl: "https://mr05xau.co.uk/paywall",
+          promoCode: code,
+          promoNote: p.expires_at
+            ? `Expires ${new Date(p.expires_at * 1000).toLocaleDateString()}.`
+            : "Apply at checkout.",
+          test: false,
+        }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) toast.error(j.error || "Send failed");
+      else toast.success(`${j.queued}/${j.total} email${j.total === 1 ? "" : "s"} queued`);
+    } catch (e: any) {
+      toast.error(e.message || "Send failed");
+    } finally {
+      setEmailingId(null);
+    }
+  };
+
   return (
     <div className="px-5 space-y-3 pb-nav">
       <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
@@ -1015,6 +1060,23 @@ function DiscountsPanel() {
             {e}
           </button>
         ))}
+      </div>
+      <div className="glass rounded-2xl p-3">
+        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground mb-1.5">Email audience</div>
+        <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
+          {(["all", "paid", "free"] as const).map((a) => (
+            <button
+              key={a}
+              onClick={() => setEmailAudience(a)}
+              className={`flex-1 text-xs py-2 rounded-lg press capitalize ${emailAudience === a ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}
+            >
+              {a}
+            </button>
+          ))}
+        </div>
+        <div className="text-[10px] text-muted-foreground mt-1.5">
+          "Email code" on any promo sends a short branded blast with a fixed "Hi — here's X% off" message.
+        </div>
       </div>
       <Button onClick={() => setShowNew((v) => !v)} className="w-full gold-fill h-11 rounded-xl">
         <Plus className="size-4 mr-1.5" /> {showNew ? "Cancel" : "New promo code"}
@@ -1086,9 +1148,29 @@ function DiscountsPanel() {
                   {p.expires_at ? ` · expires ${new Date(p.expires_at * 1000).toLocaleDateString()}` : ""}
                 </div>
                 {p.active && (
-                  <Button size="sm" variant="outline" onClick={() => deactivate(p.id, p.code)} className="mt-2 rounded-lg text-[11px] h-8 text-danger border-danger/40">
-                    Deactivate
-                  </Button>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      size="sm"
+                      onClick={() => emailCode(p)}
+                      disabled={emailingId === p.id}
+                      className="flex-1 rounded-lg text-[11px] h-8 gold-fill"
+                    >
+                      {emailingId === p.id ? (
+                        <Loader2 className="size-3 animate-spin mr-1" />
+                      ) : (
+                        <Mail className="size-3 mr-1" />
+                      )}
+                      Email code
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => deactivate(p.id, p.code)}
+                      className="rounded-lg text-[11px] h-8 text-danger border-danger/40"
+                    >
+                      Deactivate
+                    </Button>
+                  </div>
                 )}
               </div>
             );
