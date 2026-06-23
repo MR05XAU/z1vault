@@ -90,7 +90,7 @@ export default function OfflineSync() {
     const todo = rows.filter((c) => !current.has(c.id));
 
     if (todo.length === 0) {
-      setBook({ status: "ok", progress: 100, detail: `${data.length} chapters ready` });
+      setBook({ status: "ok", progress: 100, detail: `${rows.length} chapters ready` });
     } else {
       let done = 0;
       for (const ch of todo) {
