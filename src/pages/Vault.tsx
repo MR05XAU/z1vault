@@ -9,7 +9,7 @@ import { BottomNav } from "@/components/BottomNav";
 import { Z1Wordmark } from "@/components/Z1Logo";
 import { ProgressRing } from "@/components/ProgressRing";
 import { MindsetCard } from "@/components/MindsetCard";
-import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, CalendarDays, LineChart, CandlestickChart } from "lucide-react";
+import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, CalendarDays, LineChart, CandlestickChart, Download } from "lucide-react";
 
 interface Progress { chapter_id: string; progress_percentage: number; completed: boolean; updated_at: string }
 interface QuizResult { score: number; total_questions: number }
@@ -24,6 +24,7 @@ const modules = [
   { to: "/notebook?tab=bookmarks", label: "Bookmarks", icon: Trophy },
   { to: "/analytics", label: "Stats", icon: BarChart3 },
   { to: "/news", label: "Calendar", icon: CalendarDays },
+  { to: "/offline", label: "Sync", icon: Download },
 ];
 
 export default function Vault() {
