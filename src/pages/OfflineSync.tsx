@@ -77,7 +77,7 @@ export default function OfflineSync() {
     setBook({ status: "running", progress: 0, detail: "Preparing chapters…" });
     const { data, error } = await supabase
       .from("book_chapters")
-      .select("id,chapter_number,title,subtitle,content,estimated_minutes,audio_url,cover_image_url,order_index")
+      .select("*")
       .order("order_index");
     if (error || !data) {
       setBook({ status: "error", progress: 0, detail: error?.message || "Could not load chapters" });
@@ -86,7 +86,8 @@ export default function OfflineSync() {
     }
 
     const current = new Set((await listOffline()).map((c) => c.id));
-    const todo = data.filter((c) => !current.has(c.id));
+    const rows = data as any[];
+    const todo = rows.filter((c) => !current.has(c.id));
 
     if (todo.length === 0) {
       setBook({ status: "ok", progress: 100, detail: `${data.length} chapters ready` });
@@ -107,7 +108,7 @@ export default function OfflineSync() {
             content: ch.content ?? "",
             estimated_minutes: ch.estimated_minutes ?? null,
             audio_url: ch.audio_url ?? null,
-            cover_image_url: (ch as any).cover_image_url ?? null,
+            cover_image_url: ch.cover_image_url ?? null,
           });
           done++;
         } catch (e) {
@@ -117,7 +118,7 @@ export default function OfflineSync() {
       setBook({
         status: "ok",
         progress: 100,
-        detail: `${data.length} chapters ready`,
+        detail: `${rows.length} chapters ready`,
       });
     }
 
