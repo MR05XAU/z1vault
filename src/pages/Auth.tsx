@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Z1Logo } from "@/components/Z1Logo";
@@ -47,19 +46,19 @@ export default function Auth() {
   const google = async () => {
     setBusy(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-        extraParams: {
-          prompt: "select_account",
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: `${window.location.origin}/`,
+          queryParams: { prompt: "select_account" },
         },
       });
-      if (result.error) {
+      if (error) {
         toast.error("Google sign-in failed");
         setBusy(false);
         return;
       }
-      if (result.redirected) return;
-      nav("/");
+      // Supabase redirects the browser to Google; nothing more to do here.
     } catch (e: any) {
       toast.error(e.message);
       setBusy(false);
