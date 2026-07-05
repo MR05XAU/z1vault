@@ -68,7 +68,7 @@ function Privacy() {
       <h2>4. Legal basis (UK GDPR)</h2>
       <p>Contract (to deliver the app), legitimate interests (security, product improvement), and consent where required (marketing).</p>
       <h2>5. Sharing</h2>
-      <p>Processors: Lovable Cloud (hosting, database, authentication, transactional email), Stripe (payments), Google Cloud (AI inference). We do not sell personal data.</p>
+      <p>Processors: Vercel (hosting), Supabase (database, authentication), Stripe (payments), Google (sign-in). We do not sell personal data.</p>
       <h2>6. Retention</h2>
       <p>Account data is kept while your account is active. Delete your account from Settings to remove your data within 30 days, except where retention is required by law (e.g. tax records).</p>
       <h2>7. Your rights</h2>

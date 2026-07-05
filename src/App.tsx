@@ -6,35 +6,35 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { ReactNode, useEffect } from "react";
+import { ReactNode, Suspense, lazy, useEffect } from "react";
 import { initPushNotifications } from "@/lib/push";
 
 import Splash from "./pages/Splash";
 import Onboarding from "./pages/Onboarding";
 import Auth from "./pages/Auth";
-import ForgotPassword from "./pages/ForgotPassword";
-import ResetPassword from "./pages/ResetPassword";
-import Account from "./pages/Account";
-import Paywall from "./pages/Paywall";
-import CheckoutReturn from "./pages/CheckoutReturn";
-import Vault from "./pages/Vault";
-import Library from "./pages/Library";
-import Reader from "./pages/Reader";
-import Tutor from "./pages/Tutor";
-import Quiz from "./pages/Quiz";
-import Notebook from "./pages/Notebook";
-import Analytics from "./pages/Analytics";
-import Admin from "./pages/Admin";
-import Journal from "./pages/Journal";
-import Calculators from "./pages/Calculators";
-import Patterns from "./pages/Patterns";
-import News from "./pages/News";
-import OfflineSync from "./pages/OfflineSync";
-import Legal from "./pages/Legal";
-import PaymentsCheck from "./pages/PaymentsCheck";
-import GoLive from "./pages/GoLive";
-import Unsubscribe from "./pages/Unsubscribe";
-import NotFound from "./pages/NotFound";
+
+const ForgotPassword = lazy(() => import("./pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("./pages/ResetPassword"));
+const Account = lazy(() => import("./pages/Account"));
+const Paywall = lazy(() => import("./pages/Paywall"));
+const CheckoutReturn = lazy(() => import("./pages/CheckoutReturn"));
+const Vault = lazy(() => import("./pages/Vault"));
+const Library = lazy(() => import("./pages/Library"));
+const Reader = lazy(() => import("./pages/Reader"));
+const Tutor = lazy(() => import("./pages/Tutor"));
+const Quiz = lazy(() => import("./pages/Quiz"));
+const Notebook = lazy(() => import("./pages/Notebook"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const Admin = lazy(() => import("./pages/Admin"));
+const Journal = lazy(() => import("./pages/Journal"));
+const Calculators = lazy(() => import("./pages/Calculators"));
+const Patterns = lazy(() => import("./pages/Patterns"));
+const News = lazy(() => import("./pages/News"));
+const OfflineSync = lazy(() => import("./pages/OfflineSync"));
+const Legal = lazy(() => import("./pages/Legal"));
+const PaymentsCheck = lazy(() => import("./pages/PaymentsCheck"));
+const Unsubscribe = lazy(() => import("./pages/Unsubscribe"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 function GateLoading() {
   return (
@@ -69,6 +69,7 @@ const App = () => (
       <Sonner theme="dark" />
       <BrowserRouter>
         <AuthProvider>
+          <Suspense fallback={<GateLoading />}>
           <Routes>
             <Route path="/" element={<Splash />} />
             <Route path="/onboarding" element={<Onboarding />} />
@@ -93,10 +94,10 @@ const App = () => (
             <Route path="/legal" element={<Legal />} />
             <Route path="/admin" element={<AuthOnly><Admin /></AuthOnly>} />
             <Route path="/admin/payments-check" element={<AuthOnly><PaymentsCheck /></AuthOnly>} />
-            <Route path="/admin/go-live" element={<AuthOnly><GoLive /></AuthOnly>} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
