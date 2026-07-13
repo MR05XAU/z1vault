@@ -7,7 +7,7 @@ const baseItems = [
   { to: "/vault", label: "Vault", icon: Home },
   { to: "/library", label: "Book", icon: BookOpen },
   { to: "/tutor", label: "Tutor", icon: Sparkles },
-  { to: "/journal", label: "Journal", icon: LineChart },
+  { to: "/journal", label: "Edgebook", icon: LineChart },
   { to: "/notebook", label: "Notes", icon: BookMarked },
 ];
 

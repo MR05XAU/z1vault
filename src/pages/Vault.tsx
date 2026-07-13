@@ -18,7 +18,7 @@ const modules = [
   { to: "/shop", label: "Shop", icon: ShoppingBag },
   { to: "/library", label: "Book", icon: BookOpen },
   { to: "/tutor", label: "Tutor", icon: Sparkles },
-  { to: "/journal", label: "Journal", icon: LineChart },
+  { to: "/journal", label: "Edgebook", icon: LineChart },
   { to: "/patterns", label: "Candles", icon: CandlestickChart },
   { to: "/notebook?tab=notes", label: "Notes", icon: BookMarked },
   { to: "/notebook?tab=highlights", label: "Highlights", icon: Highlighter },

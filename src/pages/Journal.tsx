@@ -187,7 +187,7 @@ export default function Journal() {
         <header className="px-5 pt-6 safe-top">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Journal</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Edgebook</div>
               <h1 className="display text-3xl font-medium mt-1">Trade log.</h1>
             </div>
             <div className="flex items-center gap-2">
