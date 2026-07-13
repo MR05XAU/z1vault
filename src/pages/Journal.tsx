@@ -33,6 +33,7 @@ export default function Journal() {
   const [filter, setFilter] = useState<"all" | "win" | "loss" | "open">("all");
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [pendingImport, setPendingImport] = useState<{ trades: ReturnType<typeof parseTradesCsv>["trades"]; errors: string[] } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
@@ -56,12 +57,13 @@ export default function Journal() {
       toast.error(errors[0] ?? "No valid rows found in that file.");
       return;
     }
-    const proceed = confirm(
-      `Import ${parsed.length} trade${parsed.length === 1 ? "" : "s"}?` +
-      (errors.length ? `\n${errors.length} row(s) skipped due to errors.` : "")
-    );
-    if (!proceed) return;
+    setPendingImport({ trades: parsed, errors });
+  };
 
+  const confirmImport = async () => {
+    if (!pendingImport || !user) return;
+    const parsed = pendingImport.trades;
+    setPendingImport(null);
     setImporting(true);
     try {
       // Resolve strategy names to ids, creating any new tags found in the file.
@@ -245,6 +247,28 @@ export default function Journal() {
         <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl">
           <SheetHeader><SheetTitle className="display gold-text">Strategy tags</SheetTitle></SheetHeader>
           <StrategiesEditor strats={strats} onChange={refresh} />
+        </SheetContent>
+      </Sheet>
+      <Sheet open={pendingImport != null} onOpenChange={(o) => !o && setPendingImport(null)}>
+        <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl">
+          <SheetHeader><SheetTitle className="display gold-text">Import trades</SheetTitle></SheetHeader>
+          {pendingImport && (
+            <div className="space-y-4 mt-3 pb-6">
+              <p className="text-sm">
+                Import {pendingImport.trades.length} trade{pendingImport.trades.length === 1 ? "" : "s"}?
+              </p>
+              {pendingImport.errors.length > 0 && (
+                <div className="glass rounded-xl p-3 text-xs text-muted-foreground max-h-32 overflow-y-auto space-y-1">
+                  <div className="text-danger font-medium">{pendingImport.errors.length} row(s) skipped:</div>
+                  {pendingImport.errors.map((e, i) => <div key={i}>{e}</div>)}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button onClick={() => setPendingImport(null)} variant="outline" className="flex-1 h-11 rounded-xl">Cancel</Button>
+                <Button onClick={confirmImport} className="flex-1 gold-fill h-11 rounded-xl">Import</Button>
+              </div>
+            </div>
+          )}
         </SheetContent>
       </Sheet>
     </MobileShell>
