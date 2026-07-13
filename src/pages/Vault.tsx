@@ -9,12 +9,13 @@ import { BottomNav } from "@/components/BottomNav";
 import { Z1Wordmark } from "@/components/Z1Logo";
 import { ProgressRing } from "@/components/ProgressRing";
 import { MindsetCard } from "@/components/MindsetCard";
-import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, CalendarDays, LineChart, CandlestickChart, Download } from "lucide-react";
+import { BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Flame, Clock, Settings, CalendarDays, LineChart, CandlestickChart, Download, ShoppingBag } from "lucide-react";
 
 interface Progress { chapter_id: string; progress_percentage: number; completed: boolean; updated_at: string }
 interface QuizResult { score: number; total_questions: number }
 
 const modules = [
+  { to: "/shop", label: "Shop", icon: ShoppingBag },
   { to: "/library", label: "Book", icon: BookOpen },
   { to: "/tutor", label: "Tutor", icon: Sparkles },
   { to: "/journal", label: "Journal", icon: LineChart },

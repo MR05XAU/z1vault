@@ -26,6 +26,8 @@ const Quiz = lazy(() => import("./pages/Quiz"));
 const Notebook = lazy(() => import("./pages/Notebook"));
 const Analytics = lazy(() => import("./pages/Analytics"));
 const Admin = lazy(() => import("./pages/Admin"));
+const Shop = lazy(() => import("./pages/Shop"));
+const ShopProduct = lazy(() => import("./pages/ShopProduct"));
 const Journal = lazy(() => import("./pages/Journal"));
 const Calculators = lazy(() => import("./pages/Calculators"));
 const Patterns = lazy(() => import("./pages/Patterns"));
@@ -79,6 +81,8 @@ const App = () => (
             <Route path="/account" element={<AuthOnly><Account /></AuthOnly>} />
             <Route path="/paywall" element={<AuthOnly><Paywall /></AuthOnly>} />
             <Route path="/checkout/return" element={<AuthOnly><CheckoutReturn /></AuthOnly>} />
+            <Route path="/shop" element={<AuthOnly><Shop /></AuthOnly>} />
+            <Route path="/shop/:handle" element={<AuthOnly><ShopProduct /></AuthOnly>} />
             <Route path="/vault" element={<Protected><Vault /></Protected>} />
             <Route path="/library" element={<Protected><Library /></Protected>} />
             <Route path="/read/:chapterId" element={<Protected><Reader /></Protected>} />
