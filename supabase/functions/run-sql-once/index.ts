@@ -14,7 +14,8 @@ Deno.serve(async (req) => {
   // Use the pg meta endpoint via a security-definer function? We don't have one.
   // Instead, use the Postgres HTTP API by proxying through a raw fetch to
   // `postgres` via the pooler is complex. Simpler: use the `pg` npm client.
-  const { Client } = await import("npm:pg@8.11.5");
+  const pg = await import("npm:pg@8.11.5");
+  const Client = (pg as any).default?.Client ?? (pg as any).Client;
   const conn = Deno.env.get("SUPABASE_DB_URL");
   if (!conn) return new Response("missing SUPABASE_DB_URL", { status: 500 });
   const client = new Client({ connectionString: conn, ssl: { rejectUnauthorized: false } });
