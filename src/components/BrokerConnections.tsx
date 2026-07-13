@@ -89,7 +89,7 @@ export function BrokerConnections() {
     }
   };
 
-  if (loading) return <div className="grid place-items-center py-8"><Loader2 className="size-5 animate-spin text-gold" /></div>;
+  if (loading) return <div className="grid place-items-center py-8"><Loader2 className="size-5 animate-spin text-mint" /></div>;
 
   return (
     <div className="space-y-4 mt-3 pb-6">
@@ -98,7 +98,7 @@ export function BrokerConnections() {
       {accounts.length === 0 ? (
         <div className="glass rounded-xl p-4 text-center">
           <p className="text-xs text-muted-foreground mb-3">No accounts connected yet.</p>
-          <Button onClick={connect} disabled={connecting} className="gold-fill rounded-xl">
+          <Button onClick={connect} disabled={connecting} className="mint-fill rounded-xl">
             {connecting ? <Loader2 className="size-4 animate-spin mr-2" /> : <Link2 className="size-4 mr-2" />}Connect broker
           </Button>
         </div>

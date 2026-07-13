@@ -187,7 +187,12 @@ export default function Journal() {
         <header className="px-5 pt-6 safe-top">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Edgebook</div>
+              <div className="flex items-center gap-1.5">
+                <span className="size-4 rounded-[5px] mint-fill grid place-items-center">
+                  <TrendingUp className="size-2.5" strokeWidth={3} />
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Edgebook</span>
+              </div>
               <h1 className="display text-3xl font-medium mt-1">Trade log.</h1>
             </div>
             <div className="flex items-center gap-2">
@@ -260,7 +265,7 @@ export default function Journal() {
       }
     >
       <div className="px-5 mt-4 pb-nav">
-        {loading ? <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-gold" /></div>
+        {loading ? <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-mint" /></div>
          : tab === "list" ? (
           <>
             <div className="flex gap-2 mb-3">
@@ -281,7 +286,7 @@ export default function Journal() {
             <div className="flex gap-2 mb-3 overflow-x-auto -mx-1 px-1">
               {(["all", "open", "win", "loss"] as const).map((f) => (
                 <button key={f} onClick={() => setFilter(f)}
-                  className={`text-[11px] px-3 py-1.5 rounded-full press capitalize whitespace-nowrap ${filter === f ? "bg-gold text-gold-foreground" : "glass text-muted-foreground"}`}>{f}</button>
+                  className={`text-[11px] px-3 py-1.5 rounded-full press capitalize whitespace-nowrap ${filter === f ? "bg-mint text-mint-foreground" : "glass text-muted-foreground"}`}>{f}</button>
               ))}
               <button onClick={() => setSheet("strats")} className="text-[11px] px-3 py-1.5 rounded-full glass text-muted-foreground press whitespace-nowrap ml-auto flex items-center gap-1">
                 <Tag className="size-3" /> Tags
@@ -309,19 +314,19 @@ export default function Journal() {
       </div>
 
       <button onClick={() => setSheet("new")}
-        className="fixed bottom-24 right-5 size-14 rounded-full gold-fill grid place-items-center shadow-glow press z-20">
+        className="fixed bottom-24 right-5 size-14 rounded-full mint-fill grid place-items-center shadow-glow press z-20">
         <Plus className="size-5" />
       </button>
 
       <Sheet open={sheet === "new"} onOpenChange={(o) => !o && setSheet(null)}>
         <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl max-h-[92dvh] overflow-y-auto">
-          <SheetHeader><SheetTitle className="display gold-text">New trade</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle className="display mint-text">New trade</SheetTitle></SheetHeader>
           <TradeForm strats={strats} onSaved={() => { setSheet(null); refresh(); }} />
         </SheetContent>
       </Sheet>
       <Sheet open={detailTrade != null} onOpenChange={(o) => !o && setDetailTrade(null)}>
         <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl max-h-[92dvh] overflow-y-auto">
-          <SheetHeader><SheetTitle className="display gold-text">{detailTrade?.pair}</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle className="display mint-text">{detailTrade?.pair}</SheetTitle></SheetHeader>
           {detailTrade && (
             <TradeDetail
               trade={detailTrade}
@@ -334,19 +339,19 @@ export default function Journal() {
       </Sheet>
       <Sheet open={sheet === "strats"} onOpenChange={(o) => !o && setSheet(null)}>
         <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl">
-          <SheetHeader><SheetTitle className="display gold-text">Strategy tags</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle className="display mint-text">Strategy tags</SheetTitle></SheetHeader>
           <StrategiesEditor strats={strats} onChange={refresh} />
         </SheetContent>
       </Sheet>
       <Sheet open={sheet === "broker"} onOpenChange={(o) => !o && setSheet(null)}>
         <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl max-h-[92dvh] overflow-y-auto">
-          <SheetHeader><SheetTitle className="display gold-text">Broker sync</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle className="display mint-text">Broker sync</SheetTitle></SheetHeader>
           <BrokerConnections />
         </SheetContent>
       </Sheet>
       <Sheet open={pendingImport != null} onOpenChange={(o) => !o && setPendingImport(null)}>
         <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl">
-          <SheetHeader><SheetTitle className="display gold-text">Import trades</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle className="display mint-text">Import trades</SheetTitle></SheetHeader>
           {pendingImport && (
             <div className="space-y-4 mt-3 pb-6">
               <p className="text-sm">
@@ -360,7 +365,7 @@ export default function Journal() {
               )}
               <div className="flex gap-2">
                 <Button onClick={() => setPendingImport(null)} variant="outline" className="flex-1 h-11 rounded-xl">Cancel</Button>
-                <Button onClick={confirmImport} className="flex-1 gold-fill h-11 rounded-xl">Import</Button>
+                <Button onClick={confirmImport} className="flex-1 mint-fill h-11 rounded-xl">Import</Button>
               </div>
             </div>
           )}
@@ -368,7 +373,7 @@ export default function Journal() {
       </Sheet>
       <Sheet open={csvFallbackText != null} onOpenChange={(o) => !o && setCsvFallbackText(null)}>
         <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl max-h-[92dvh] overflow-y-auto">
-          <SheetHeader><SheetTitle className="display gold-text">Map CSV columns</SheetTitle></SheetHeader>
+          <SheetHeader><SheetTitle className="display mint-text">Map CSV columns</SheetTitle></SheetHeader>
           {csvFallbackText && (
             <AdvancedCsvImport text={csvFallbackText} onImport={importAdvancedTrades} onCancel={() => setCsvFallbackText(null)} />
           )}
@@ -382,7 +387,7 @@ export default function Journal() {
 
 function TabBtn({ active, onClick, icon: Icon, children }: any) {
   return (
-    <button onClick={onClick} className={`flex-1 text-xs font-medium py-2 rounded-lg press flex items-center justify-center gap-1.5 ${active ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>
+    <button onClick={onClick} className={`flex-1 text-xs font-medium py-2 rounded-lg press flex items-center justify-center gap-1.5 ${active ? "bg-mint text-mint-foreground" : "text-muted-foreground"}`}>
       <Icon className="size-3" />{children}
     </button>
   );
@@ -413,7 +418,7 @@ function TradeRow({ t, strats, onChange, onOpen }: { t: Trade; strats: Strategy[
   return (
     <div onClick={onOpen} className="glass rounded-2xl p-3 flex items-center gap-3 press cursor-pointer">
       <div className={`size-10 rounded-xl grid place-items-center ${open ? "bg-secondary" : win ? "bg-success/20" : "bg-danger/20"}`}>
-        {open ? <div className="size-2 rounded-full bg-gold animate-pulse" />
+        {open ? <div className="size-2 rounded-full bg-mint animate-pulse" />
               : win ? <TrendingUp className="size-4 text-success" />
               : <TrendingDown className="size-4 text-danger" />}
       </div>
@@ -439,12 +444,12 @@ function TradeRow({ t, strats, onChange, onOpen }: { t: Trade; strats: Strategy[
 function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div className="text-center py-16">
-      <div className="size-16 rounded-2xl gold-fill grid place-items-center mx-auto mb-4 shadow-glow">
+      <div className="size-16 rounded-2xl mint-fill grid place-items-center mx-auto mb-4 shadow-glow">
         <LineIcon />
       </div>
       <h3 className="display text-xl font-medium">Log your first trade.</h3>
       <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">Consistent journalling beats clever ideas. Track every entry, exit, and reason.</p>
-      <Button onClick={onAdd} className="mt-5 gold-fill h-11 px-5 rounded-xl"><Plus className="size-4 mr-1" />New trade</Button>
+      <Button onClick={onAdd} className="mt-5 mint-fill h-11 px-5 rounded-xl"><Plus className="size-4 mr-1" />New trade</Button>
     </div>
   );
 }
@@ -540,7 +545,7 @@ function TradeForm({ strats, onSaved }: { strats: Strategy[]; onSaved: () => voi
           <span className={pnlPreview >= 0 ? "text-success font-medium" : "text-danger font-medium"}>{fmtMoney(pnlPreview)}</span>
         </div>
       )}
-      <Button onClick={save} disabled={saving} className="w-full gold-fill h-12 rounded-xl">
+      <Button onClick={save} disabled={saving} className="w-full mint-fill h-12 rounded-xl">
         {saving && <Loader2 className="size-4 animate-spin mr-2" />}Save trade
       </Button>
     </div>
@@ -618,7 +623,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
         </div>
       </div>
 
-      <button onClick={() => setShowLive((s) => !s)} className="text-[11px] text-gold-bright press">
+      <button onClick={() => setShowLive((s) => !s)} className="text-[11px] text-mint-bright press">
         {showLive ? "Hide live chart" : "Show live chart"}
       </button>
       {showLive && (
@@ -626,7 +631,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
           <div className="flex gap-1 overflow-x-auto">
             {(["1", "5", "15", "60", "240", "D"] as const).map((i) => (
               <button key={i} onClick={() => setLiveInterval(i)}
-                className={`text-[11px] px-2.5 py-1 rounded-full press whitespace-nowrap ${liveInterval === i ? "bg-gold text-gold-foreground" : "glass text-muted-foreground"}`}>
+                className={`text-[11px] px-2.5 py-1 rounded-full press whitespace-nowrap ${liveInterval === i ? "bg-mint text-mint-foreground" : "glass text-muted-foreground"}`}>
                 {i === "D" ? "1D" : i === "60" ? "1h" : i === "240" ? "4h" : `${i}m`}
               </button>
             ))}
@@ -645,7 +650,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
 
       <div className="flex gap-2">
         <Button onClick={onClose} variant="outline" className="flex-1 h-11 rounded-xl">Close</Button>
-        <Button onClick={save} disabled={saving} className="flex-1 gold-fill h-11 rounded-xl">
+        <Button onClick={save} disabled={saving} className="flex-1 mint-fill h-11 rounded-xl">
           {saving && <Loader2 className="size-4 animate-spin mr-2" />}Save
         </Button>
       </div>
@@ -691,7 +696,7 @@ function JournalNotes() {
     else { toast.success("Journal saved."); refresh(); }
   };
 
-  if (loading) return <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-gold" /></div>;
+  if (loading) return <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-mint" /></div>;
 
   return (
     <div className="space-y-4">
@@ -700,20 +705,20 @@ function JournalNotes() {
         <Labeled label="Mood / conviction"><Input value={mood} onChange={(e) => setMood(e.target.value)} placeholder="Focused · patient · aggressive · tilted…" /></Labeled>
         <Labeled label="Market notes"><Textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What did the market do today? Levels, catalysts, plan…" /></Labeled>
         <Labeled label="Lessons"><Textarea rows={4} value={lessons} onChange={(e) => setLessons(e.target.value)} placeholder="What worked, what didn't, what to change tomorrow." /></Labeled>
-        <Button onClick={save} disabled={saving} className="w-full gold-fill h-11 rounded-xl">
+        <Button onClick={save} disabled={saving} className="w-full mint-fill h-11 rounded-xl">
           {saving && <Loader2 className="size-4 animate-spin mr-2" />}Save entry
         </Button>
       </div>
 
       <div>
-        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">Recent</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-mint-bright mb-2">Recent</div>
         {entries.length === 0 ? (
           <div className="text-xs text-muted-foreground text-center py-4">No journal entries yet.</div>
         ) : (
           <div className="space-y-1.5">
             {entries.slice(0, 20).map((e) => (
               <button key={e.id} onClick={() => loadDate(e.entry_date)}
-                className={`w-full text-left glass rounded-xl p-2.5 press ${date === e.entry_date ? "border border-gold" : ""}`}>
+                className={`w-full text-left glass rounded-xl p-2.5 press ${date === e.entry_date ? "border border-mint" : ""}`}>
                 <div className="text-sm font-medium">{new Date(e.entry_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
                 <div className="text-[11px] text-muted-foreground truncate">{e.mood || e.market_notes || "—"}</div>
               </button>
@@ -743,7 +748,7 @@ function StrategiesEditor({ strats, onChange }: { strats: Strategy[]; onChange: 
       <div className="flex gap-2">
         <Input placeholder="e.g. Breakout" value={name} onChange={(e) => setName(e.target.value)} className="flex-1" />
         <input type="color" value={color} onChange={(e) => setColor(e.target.value)} className="w-12 h-10 rounded-lg bg-transparent" />
-        <Button onClick={add} className="gold-fill rounded-xl">Add</Button>
+        <Button onClick={add} className="mint-fill rounded-xl">Add</Button>
       </div>
       <div className="space-y-1.5">
         {strats.map((s) => (
@@ -781,7 +786,7 @@ function PnlCalendar({ trades }: { trades: Trade[] }) {
     <div>
       <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1 mb-3">
         {(["week", "month", "year"] as const).map((v) => (
-          <button key={v} onClick={() => setView(v)} className={`flex-1 text-xs py-1.5 rounded-lg press capitalize ${view === v ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>{v}</button>
+          <button key={v} onClick={() => setView(v)} className={`flex-1 text-xs py-1.5 rounded-lg press capitalize ${view === v ? "bg-mint text-mint-foreground" : "text-muted-foreground"}`}>{v}</button>
         ))}
       </div>
       <div className="flex items-center justify-between mb-3">
@@ -1180,17 +1185,17 @@ function StatsPanel({ stats, trades, strats }: any) {
 
       {equity.length > 1 && (
         <div className="glass rounded-2xl p-3">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">Equity curve</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-mint-bright mb-2">Equity curve</div>
           <div className="h-32">
             <ResponsiveContainer>
               <AreaChart data={equity} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="equity-fill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--gold))" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="hsl(var(--gold))" stopOpacity={0} />
+                    <stop offset="0%" stopColor="hsl(var(--mint))" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="hsl(var(--mint))" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <Area type="monotone" dataKey="equity" stroke="hsl(var(--gold))" strokeWidth={1.5} fill="url(#equity-fill)" isAnimationActive={false} />
+                <Area type="monotone" dataKey="equity" stroke="hsl(var(--mint))" strokeWidth={1.5} fill="url(#equity-fill)" isAnimationActive={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -1201,7 +1206,7 @@ function StatsPanel({ stats, trades, strats }: any) {
 
       {bySymbol.length > 0 && (
         <div className="glass rounded-2xl p-3">
-          <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">P&L by symbol</div>
+          <div className="text-[10px] uppercase tracking-[0.2em] text-mint-bright mb-2">P&L by symbol</div>
           <div className="h-40">
             <ResponsiveContainer>
               <BarChart data={bySymbol} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
@@ -1219,7 +1224,7 @@ function StatsPanel({ stats, trades, strats }: any) {
       )}
 
       <div className="glass rounded-2xl p-3">
-        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">P&L by day of week</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-mint-bright mb-2">P&L by day of week</div>
         <div className="h-40">
           <ResponsiveContainer>
             <BarChart data={byDow} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
@@ -1236,7 +1241,7 @@ function StatsPanel({ stats, trades, strats }: any) {
       </div>
 
       <div className="glass rounded-2xl p-3">
-        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">By strategy</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-mint-bright mb-2">By strategy</div>
         {byStrat.length === 0 ? <div className="text-xs text-muted-foreground">No closed trades yet.</div> : (
           <div className="space-y-2">
             {byStrat.map((s) => (
@@ -1252,7 +1257,7 @@ function StatsPanel({ stats, trades, strats }: any) {
       </div>
 
       <div className="glass rounded-2xl p-3">
-        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">By setup</div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-mint-bright mb-2">By setup</div>
         {bySetup.length === 0 ? <div className="text-xs text-muted-foreground">No closed trades yet.</div> : (
           <div className="space-y-2">
             {bySetup.map((s) => (

@@ -51,7 +51,7 @@ export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entr
   }, [data]);
 
   if (isLoading) {
-    return <div className="grid place-items-center rounded-xl glass" style={{ height }}><Loader2 className="size-4 animate-spin text-gold" /></div>;
+    return <div className="grid place-items-center rounded-xl glass" style={{ height }}><Loader2 className="size-4 animate-spin text-mint" /></div>;
   }
   if (!data || data.error || rows.length === 0) {
     return (
@@ -105,11 +105,11 @@ export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entr
           <Bar dataKey="body" barSize={5} isAnimationActive={false}>
             {rows.map((r, i) => <Cell key={`b${i}`} fill={r.up ? "hsl(var(--success))" : "hsl(var(--danger))"} />)}
           </Bar>
-          <ReferenceLine y={entryPrice} stroke="hsl(var(--gold))" strokeDasharray="4 3" label={{ value: `Entry ${entryPrice}`, position: "insideLeft", fill: "hsl(var(--gold-bright))", fontSize: 9 }} />
+          <ReferenceLine y={entryPrice} stroke="hsl(var(--mint))" strokeDasharray="4 3" label={{ value: `Entry ${entryPrice}`, position: "insideLeft", fill: "hsl(var(--mint-bright))", fontSize: 9 }} />
           {exitPrice != null && (
             <ReferenceLine y={exitPrice} stroke={win ? "hsl(var(--success))" : "hsl(var(--danger))"} strokeDasharray="4 3" label={{ value: `Exit ${exitPrice}`, position: "insideLeft", fill: win ? "hsl(var(--success))" : "hsl(var(--danger))", fontSize: 9 }} />
           )}
-          <ReferenceDot x={entryMs} y={entryPrice} r={4} fill="hsl(var(--gold))" stroke="hsl(var(--surface))" strokeWidth={2} />
+          <ReferenceDot x={entryMs} y={entryPrice} r={4} fill="hsl(var(--mint))" stroke="hsl(var(--surface))" strokeWidth={2} />
           {exitMs != null && exitPrice != null && (
             <ReferenceDot x={exitMs} y={exitPrice} r={4} fill={win ? "hsl(var(--success))" : "hsl(var(--danger))"} stroke="hsl(var(--surface))" strokeWidth={2} />
           )}

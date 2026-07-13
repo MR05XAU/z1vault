@@ -185,7 +185,7 @@ export function AdvancedCsvImport({ text, onImport, onCancel }: { text: string; 
 
       <div className="flex gap-2">
         <Button onClick={onCancel} variant="outline" className="flex-1 h-11 rounded-xl">Cancel</Button>
-        <Button onClick={doImport} disabled={missing.length > 0} className="flex-1 gold-fill h-11 rounded-xl">
+        <Button onClick={doImport} disabled={missing.length > 0} className="flex-1 mint-fill h-11 rounded-xl">
           Import {parsed.records.length} trades
         </Button>
       </div>

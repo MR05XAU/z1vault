@@ -30,6 +30,12 @@ export default {
           deep: "hsl(var(--gold-deep))",
           foreground: "hsl(var(--gold-foreground))",
         },
+        mint: {
+          DEFAULT: "hsl(var(--mint))",
+          bright: "hsl(var(--mint-bright))",
+          deep: "hsl(var(--mint-deep))",
+          foreground: "hsl(var(--mint-foreground))",
+        },
         success: "hsl(var(--success))",
         danger: "hsl(var(--danger))",
         primary: { DEFAULT: "hsl(var(--primary))", foreground: "hsl(var(--primary-foreground))" },
