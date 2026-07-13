@@ -1,6 +1,18 @@
+// Excel on UK/EU locales often exports ";"-delimited CSVs (with a UTF-8 BOM)
+// instead of ",". Sniff the header line so both forms import cleanly.
+function detectDelimiter(firstLine: string): string {
+  let best = ",";
+  let bestCount = 0;
+  for (const c of [",", ";", "\t"]) {
+    const count = firstLine.split(c).length - 1;
+    if (count > bestCount) { bestCount = count; best = c; }
+  }
+  return best;
+}
+
 // Minimal RFC4180-ish CSV parser: handles quoted fields, escaped quotes ("")
-// and commas/newlines inside quotes. Good enough for spreadsheet exports.
-function parseCsvRows(text: string): string[][] {
+// and delimiters/newlines inside quotes. Good enough for spreadsheet exports.
+function parseCsvRows(text: string, delimiter: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -16,7 +28,7 @@ function parseCsvRows(text: string): string[][] {
       else field += c;
     } else if (c === '"') {
       inQuotes = true;
-    } else if (c === ",") {
+    } else if (c === delimiter) {
       pushField();
     } else if (c === "\n") {
       pushRow();
@@ -56,8 +68,10 @@ const REQUIRED = ["pair", "direction", "entry_price", "size", "opened_at"];
  * exit_price, size, fees, strategy, opened_at, closed_at, notes.
  * "pnl" and "id" columns, if present, are ignored — pnl is recomputed.
  */
-export function parseTradesCsv(text: string): CsvImportResult {
-  const rows = parseCsvRows(text);
+export function parseTradesCsv(rawText: string): CsvImportResult {
+  const text = rawText.charCodeAt(0) === 0xfeff ? rawText.slice(1) : rawText;
+  const firstLine = text.slice(0, text.search(/\r?\n/) === -1 ? text.length : text.search(/\r?\n/));
+  const rows = parseCsvRows(text, detectDelimiter(firstLine));
   if (rows.length === 0) return { trades: [], errors: ["File is empty."] };
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
