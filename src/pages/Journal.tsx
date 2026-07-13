@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
+import { parseTradesCsv } from "@/lib/csvImport";
 
 type Trade = {
   id: string; pair: string; direction: "long" | "short";
@@ -31,6 +32,8 @@ export default function Journal() {
   const [sheet, setSheet] = useState<null | "new" | "strats">(null);
   const [filter, setFilter] = useState<"all" | "win" | "loss" | "open">("all");
   const [loading, setLoading] = useState(true);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
     if (!user) return;
@@ -43,6 +46,69 @@ export default function Journal() {
     setLoading(false);
   };
   useEffect(() => { refresh(); }, [user]);
+
+  const importCsvFile = async (file: File) => {
+    if (!user) return;
+    const text = await file.text();
+    const { trades: parsed, errors } = parseTradesCsv(text);
+
+    if (parsed.length === 0) {
+      toast.error(errors[0] ?? "No valid rows found in that file.");
+      return;
+    }
+    const proceed = confirm(
+      `Import ${parsed.length} trade${parsed.length === 1 ? "" : "s"}?` +
+      (errors.length ? `\n${errors.length} row(s) skipped due to errors.` : "")
+    );
+    if (!proceed) return;
+
+    setImporting(true);
+    try {
+      // Resolve strategy names to ids, creating any new tags found in the file.
+      const stratByName = new Map(strats.map((s) => [s.name.toLowerCase(), s.id]));
+      const newNames = Array.from(
+        new Set(parsed.map((t) => t.strategy?.trim()).filter((n): n is string => !!n && !stratByName.has(n.toLowerCase())))
+      );
+      if (newNames.length) {
+        const palette = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4"];
+        const { data: created, error: stratErr } = await sb
+          .from("strategies")
+          .insert(newNames.map((name, i) => ({ user_id: user.id, name, color: palette[i % palette.length] })))
+          .select();
+        if (stratErr) throw stratErr;
+        (created ?? []).forEach((s: Strategy) => stratByName.set(s.name.toLowerCase(), s.id));
+      }
+
+      const payload = parsed.map((t) => {
+        const pnl = t.exit_price != null
+          ? (t.exit_price - t.entry_price) * t.size * (t.direction === "long" ? 1 : -1) - t.fees
+          : null;
+        return {
+          user_id: user.id,
+          pair: t.pair,
+          direction: t.direction,
+          entry_price: t.entry_price,
+          exit_price: t.exit_price,
+          size: t.size,
+          fees: t.fees,
+          pnl,
+          strategy_id: t.strategy ? stratByName.get(t.strategy.toLowerCase()) ?? null : null,
+          notes: t.notes,
+          opened_at: t.opened_at,
+          closed_at: t.closed_at,
+        };
+      });
+
+      const { error } = await sb.from("trades").insert(payload);
+      if (error) throw error;
+      toast.success(`Imported ${payload.length} trade${payload.length === 1 ? "" : "s"}.`);
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message || "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  };
 
   const filtered = useMemo(() => trades.filter((t) => {
     if (filter === "open") return t.closed_at == null;
@@ -73,6 +139,25 @@ export default function Journal() {
               <h1 className="display text-3xl font-medium mt-1">Trade log.</h1>
             </div>
             <div className="flex items-center gap-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) importCsvFile(file);
+                  e.target.value = "";
+                }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={importing}
+                className="size-10 grid place-items-center rounded-xl glass press disabled:opacity-50"
+                title="Import CSV"
+              >
+                {importing ? <Loader2 className="size-4 animate-spin" /> : <Upload className="size-4" />}
+              </button>
               <button
                 onClick={() => {
                   if (!trades.length) { toast.info("No trades to export"); return; }
