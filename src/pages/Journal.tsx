@@ -9,10 +9,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen, Link2, LineChart as LineChartIcon, ChevronRight } from "lucide-react";
-import { AreaChart, Area, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 import { parseTradesCsv } from "@/lib/csvImport";
 import { TradeSnapshotChart } from "@/components/TradeSnapshotChart";
+import { TradingViewChart } from "@/components/TradingViewChart";
 import { BrokerConnections } from "@/components/BrokerConnections";
 
 type Trade = {
@@ -37,6 +38,7 @@ export default function Journal() {
   const [sheet, setSheet] = useState<null | "new" | "strats" | "broker">(null);
   const [detailTrade, setDetailTrade] = useState<Trade | null>(null);
   const [filter, setFilter] = useState<"all" | "win" | "loss" | "open">("all");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [pendingImport, setPendingImport] = useState<{ trades: ReturnType<typeof parseTradesCsv>["trades"]; errors: string[] } | null>(null);
@@ -119,11 +121,16 @@ export default function Journal() {
   };
 
   const filtered = useMemo(() => trades.filter((t) => {
-    if (filter === "open") return t.closed_at == null;
-    if (filter === "win") return (t.pnl ?? 0) > 0;
-    if (filter === "loss") return (t.pnl ?? 0) < 0;
+    if (filter === "open" && t.closed_at != null) return false;
+    if (filter === "win" && !((t.pnl ?? 0) > 0)) return false;
+    if (filter === "loss" && !((t.pnl ?? 0) < 0)) return false;
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      const haystack = `${t.pair} ${t.setup ?? ""} ${(t.tags ?? []).join(" ")}`.toLowerCase();
+      if (!haystack.includes(q)) return false;
+    }
     return true;
-  }), [trades, filter]);
+  }), [trades, filter, search]);
 
   const stats = useMemo(() => {
     const closed = trades.filter((t) => t.closed_at && t.pnl != null);
@@ -219,6 +226,12 @@ export default function Journal() {
         {loading ? <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-gold" /></div>
          : tab === "list" ? (
           <>
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search pair, setup, tag…"
+              className="mb-3 h-10 bg-surface-elevated border-border-strong"
+            />
             <div className="flex gap-2 mb-3 overflow-x-auto -mx-1 px-1">
               {(["all", "open", "win", "loss"] as const).map((f) => (
                 <button key={f} onClick={() => setFilter(f)}
@@ -494,6 +507,8 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
   const [takeProfit, setTakeProfit] = useState(trade.take_profit?.toString() ?? "");
   const [notes, setNotes] = useState(trade.notes ?? "");
   const [saving, setSaving] = useState(false);
+  const [showLive, setShowLive] = useState(false);
+  const [liveInterval, setLiveInterval] = useState<"1" | "5" | "15" | "60" | "240" | "D">("D");
   const win = (trade.pnl ?? 0) > 0;
 
   const save = async () => {
@@ -546,6 +561,23 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
           <div className="text-sm font-medium mt-0.5">{trade.size}</div>
         </div>
       </div>
+
+      <button onClick={() => setShowLive((s) => !s)} className="text-[11px] text-gold-bright press">
+        {showLive ? "Hide live chart" : "Show live chart"}
+      </button>
+      {showLive && (
+        <div className="space-y-2">
+          <div className="flex gap-1 overflow-x-auto">
+            {(["1", "5", "15", "60", "240", "D"] as const).map((i) => (
+              <button key={i} onClick={() => setLiveInterval(i)}
+                className={`text-[11px] px-2.5 py-1 rounded-full press whitespace-nowrap ${liveInterval === i ? "bg-gold text-gold-foreground" : "glass text-muted-foreground"}`}>
+                {i === "D" ? "1D" : i === "60" ? "1h" : i === "240" ? "4h" : `${i}m`}
+              </button>
+            ))}
+          </div>
+          <TradingViewChart symbol={trade.pair} interval={liveInterval} height={360} />
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <Labeled label="Stop loss"><Input type="number" step="any" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} /></Labeled>
@@ -912,14 +944,117 @@ function StatsPanel({ stats, trades, strats }: any) {
     return Object.values(m);
   }, [trades, strats]);
 
+  const bySetup = useMemo(() => {
+    const m: Record<string, { name: string; pnl: number; count: number; wins: number }> = {};
+    for (const t of trades as Trade[]) {
+      if (t.pnl == null) continue;
+      const key = t.setup?.trim() || "Untagged";
+      if (!m[key]) m[key] = { name: key, pnl: 0, count: 0, wins: 0 };
+      m[key].pnl += t.pnl;
+      m[key].count += 1;
+      if (t.pnl > 0) m[key].wins += 1;
+    }
+    return Object.values(m).sort((a, b) => b.pnl - a.pnl);
+  }, [trades]);
+
+  const bySymbol = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of trades as Trade[]) {
+      if (t.pnl == null) continue;
+      m.set(t.pair, (m.get(t.pair) ?? 0) + t.pnl);
+    }
+    return Array.from(m.entries()).map(([pair, pnl]) => ({ pair, pnl })).sort((a, b) => b.pnl - a.pnl);
+  }, [trades]);
+
+  const byDow = useMemo(() => {
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const m = days.map((d) => ({ day: d, pnl: 0 }));
+    for (const t of trades as Trade[]) {
+      if (t.pnl == null) continue;
+      const d = new Date(t.closed_at ?? t.opened_at).getDay();
+      m[d].pnl += t.pnl;
+    }
+    return m;
+  }, [trades]);
+
+  const equity = useMemo(() => {
+    const closed = (trades as Trade[]).filter((t) => t.pnl != null)
+      .sort((a, b) => new Date(a.closed_at ?? a.opened_at).getTime() - new Date(b.closed_at ?? b.opened_at).getTime());
+    let cum = 0;
+    return closed.map((t) => { cum += t.pnl ?? 0; return { equity: cum }; });
+  }, [trades]);
+
+  const profitFactor = useMemo(() => {
+    const grossWin = (trades as Trade[]).filter((t) => (t.pnl ?? 0) > 0).reduce((s, t) => s + (t.pnl ?? 0), 0);
+    const grossLoss = Math.abs((trades as Trade[]).filter((t) => (t.pnl ?? 0) < 0).reduce((s, t) => s + (t.pnl ?? 0), 0));
+    return grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
+  }, [trades]);
+
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <Stat label="Wins" value={`${stats.wins}`} tone="good" />
         <Stat label="Losses" value={`${stats.losses}`} tone="bad" />
+        <Stat label="Profit factor" value={Number.isFinite(profitFactor) ? profitFactor.toFixed(2) : "∞"} tone={profitFactor >= 1 ? "good" : "bad"} />
         <Stat label="Avg win" value={fmtMoney(stats.avgWin)} tone="good" />
         <Stat label="Avg loss" value={`-${fmtMoney(stats.avgLoss)}`} tone="bad" />
       </div>
+
+      {equity.length > 1 && (
+        <div className="glass rounded-2xl p-3">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">Equity curve</div>
+          <div className="h-32">
+            <ResponsiveContainer>
+              <AreaChart data={equity} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="equity-fill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--gold))" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="hsl(var(--gold))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="equity" stroke="hsl(var(--gold))" strokeWidth={1.5} fill="url(#equity-fill)" isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {bySymbol.length > 0 && (
+        <div className="glass rounded-2xl p-3">
+          <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">P&L by symbol</div>
+          <div className="h-40">
+            <ResponsiveContainer>
+              <BarChart data={bySymbol} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" opacity={0.4} vertical={false} />
+                <XAxis dataKey="pair" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} />
+                <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} width={36} />
+                <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border-strong))", borderRadius: 8, fontSize: 11 }} />
+                <Bar dataKey="pnl" isAnimationActive={false}>
+                  {bySymbol.map((e, i) => <Cell key={i} fill={e.pnl >= 0 ? "hsl(var(--success))" : "hsl(var(--danger))"} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      <div className="glass rounded-2xl p-3">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">P&L by day of week</div>
+        <div className="h-40">
+          <ResponsiveContainer>
+            <BarChart data={byDow} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+              <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" opacity={0.4} vertical={false} />
+              <XAxis dataKey="day" tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} />
+              <YAxis tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }} width={36} />
+              <Tooltip contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border-strong))", borderRadius: 8, fontSize: 11 }} />
+              <Bar dataKey="pnl" isAnimationActive={false}>
+                {byDow.map((e, i) => <Cell key={i} fill={e.pnl >= 0 ? "hsl(var(--success))" : "hsl(var(--danger))"} />)}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
       <div className="glass rounded-2xl p-3">
         <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">By strategy</div>
         {byStrat.length === 0 ? <div className="text-xs text-muted-foreground">No closed trades yet.</div> : (
@@ -928,6 +1063,21 @@ function StatsPanel({ stats, trades, strats }: any) {
               <div key={s.name} className="flex items-center gap-3">
                 <div className="size-3 rounded-full" style={{ background: s.color }} />
                 <div className="flex-1 text-sm">{s.name}</div>
+                <div className="text-[11px] text-muted-foreground">{s.count} · {((s.wins / s.count) * 100).toFixed(0)}%</div>
+                <div className={`text-sm font-medium ${s.pnl >= 0 ? "text-success" : "text-danger"}`}>{fmtMoney(s.pnl)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="glass rounded-2xl p-3">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">By setup</div>
+        {bySetup.length === 0 ? <div className="text-xs text-muted-foreground">No closed trades yet.</div> : (
+          <div className="space-y-2">
+            {bySetup.map((s) => (
+              <div key={s.name} className="flex items-center gap-3">
+                <div className="flex-1 text-sm truncate">{s.name}</div>
                 <div className="text-[11px] text-muted-foreground">{s.count} · {((s.wins / s.count) * 100).toFixed(0)}%</div>
                 <div className={`text-sm font-medium ${s.pnl >= 0 ? "text-success" : "text-danger"}`}>{fmtMoney(s.pnl)}</div>
               </div>
