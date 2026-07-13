@@ -8,13 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen, Link2, LineChart as LineChartIcon, ChevronRight } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen, Link2, LineChart as LineChartIcon, ChevronRight, Home as HomeIcon, Table as TableIcon } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 import { parseTradesCsv } from "@/lib/csvImport";
 import { TradeSnapshotChart } from "@/components/TradeSnapshotChart";
 import { TradingViewChart } from "@/components/TradingViewChart";
 import { BrokerConnections } from "@/components/BrokerConnections";
+import { AdvancedCsvImport } from "@/components/AdvancedCsvImport";
 
 type Trade = {
   id: string; pair: string; direction: "long" | "short";
@@ -32,7 +33,7 @@ const sb = supabase as any;
 export default function Journal() {
   const { user } = useAuth();
   const nav = useNavigate();
-  const [tab, setTab] = useState<"list" | "calendar" | "days" | "stats" | "notes">("list");
+  const [tab, setTab] = useState<"home" | "list" | "table" | "calendar" | "days" | "stats" | "notes">("list");
   const [trades, setTrades] = useState<Trade[]>([]);
   const [strats, setStrats] = useState<Strategy[]>([]);
   const [sheet, setSheet] = useState<null | "new" | "strats" | "broker">(null);
@@ -42,6 +43,7 @@ export default function Journal() {
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
   const [pendingImport, setPendingImport] = useState<{ trades: ReturnType<typeof parseTradesCsv>["trades"]; errors: string[] } | null>(null);
+  const [csvFallbackText, setCsvFallbackText] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const refresh = async () => {
@@ -63,9 +65,43 @@ export default function Journal() {
 
     if (parsed.length === 0) {
       toast.error(errors[0] ?? "No valid rows found in that file.");
+      setCsvFallbackText(text);
       return;
     }
     setPendingImport({ trades: parsed, errors });
+  };
+
+  const importAdvancedTrades = async (built: { pair?: string; direction?: "long" | "short"; size?: number; entry_price?: number; exit_price?: number | null; opened_at?: string; closed_at?: string | null; fees?: number; setup?: string; notes?: string }[]) => {
+    if (!user) return;
+    const payload = built.map((t) => {
+      const fees = t.fees ?? 0;
+      const pnl = t.exit_price != null && t.entry_price != null && t.size != null
+        ? (t.exit_price - t.entry_price) * t.size * (t.direction === "long" ? 1 : -1) - fees
+        : null;
+      return {
+        user_id: user.id,
+        pair: (t.pair ?? "").toUpperCase(),
+        direction: t.direction,
+        entry_price: t.entry_price,
+        exit_price: t.exit_price ?? null,
+        size: t.size,
+        fees,
+        pnl,
+        strategy_id: null,
+        notes: t.notes ?? null,
+        opened_at: t.opened_at,
+        closed_at: t.closed_at ?? null,
+        setup: t.setup ?? null,
+        tags: [],
+        stop_loss: null,
+        take_profit: null,
+      };
+    });
+    const { error } = await sb.from("trades").insert(payload);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`Imported ${payload.length} trade${payload.length === 1 ? "" : "s"}.`);
+    setCsvFallbackText(null);
+    refresh();
   };
 
   const confirmImport = async () => {
@@ -213,7 +249,9 @@ export default function Journal() {
           </div>
 
           <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1 overflow-x-auto">
+            <TabBtn active={tab === "home"} onClick={() => setTab("home")} icon={HomeIcon}>Home</TabBtn>
             <TabBtn active={tab === "list"} onClick={() => setTab("list")} icon={List}>List</TabBtn>
+            <TabBtn active={tab === "table"} onClick={() => setTab("table")} icon={TableIcon}>Table</TabBtn>
             <TabBtn active={tab === "calendar"} onClick={() => setTab("calendar")} icon={CalendarIcon}>Cal</TabBtn>
             <TabBtn active={tab === "days"} onClick={() => setTab("days")} icon={LineChartIcon}>Days</TabBtn>
             <TabBtn active={tab === "stats"} onClick={() => setTab("stats")} icon={BarChart3}>Stats</TabBtn>
@@ -224,7 +262,9 @@ export default function Journal() {
     >
       <div className="px-5 mt-4 pb-nav">
         {loading ? <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-gold" /></div>
-         : tab === "list" ? (
+         : tab === "home" ? (
+          <DashboardHome trades={trades} onOpenTrade={(t) => setDetailTrade(t)} />
+        ) : tab === "list" ? (
           <>
             <Input
               value={search}
@@ -248,6 +288,16 @@ export default function Journal() {
                 {filtered.map((t) => <TradeRow key={t.id} t={t} strats={strats} onChange={refresh} onOpen={() => setDetailTrade(t)} />)}
               </div>
             )}
+          </>
+        ) : tab === "table" ? (
+          <>
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search pair, setup, tag…"
+              className="mb-3 h-10 bg-surface-elevated border-border-strong"
+            />
+            <TradesTable trades={filtered} strats={strats} onChange={refresh} onOpenTrade={(t) => setDetailTrade(t)} />
           </>
         ) : tab === "calendar" ? (
           <PnlCalendar trades={trades} />
@@ -315,6 +365,14 @@ export default function Journal() {
                 <Button onClick={confirmImport} className="flex-1 gold-fill h-11 rounded-xl">Import</Button>
               </div>
             </div>
+          )}
+        </SheetContent>
+      </Sheet>
+      <Sheet open={csvFallbackText != null} onOpenChange={(o) => !o && setCsvFallbackText(null)}>
+        <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl max-h-[92dvh] overflow-y-auto">
+          <SheetHeader><SheetTitle className="display gold-text">Map CSV columns</SheetTitle></SheetHeader>
+          {csvFallbackText && (
+            <AdvancedCsvImport text={csvFallbackText} onImport={importAdvancedTrades} onCancel={() => setCsvFallbackText(null)} />
           )}
         </SheetContent>
       </Sheet>
@@ -925,6 +983,203 @@ function StatCell({ label, value, tone }: { label: string; value: string; tone?:
     <div>
       <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
       <div className={`text-xs font-medium mt-0.5 ${tone === "good" ? "text-success" : tone === "bad" ? "text-danger" : ""}`}>{value}</div>
+    </div>
+  );
+}
+
+/* ---------- Dashboard home ---------- */
+function DashboardHome({ trades, onOpenTrade }: { trades: Trade[]; onOpenTrade: (t: Trade) => void }) {
+  const closed = useMemo(() => trades.filter((t) => t.pnl != null), [trades]);
+  const kpis = useMemo(() => {
+    const net = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
+    const wins = closed.filter((t) => (t.pnl ?? 0) > 0);
+    const losses = closed.filter((t) => (t.pnl ?? 0) < 0);
+    const winRate = closed.length ? wins.length / closed.length : 0;
+    const grossW = wins.reduce((s, t) => s + (t.pnl ?? 0), 0);
+    const grossL = Math.abs(losses.reduce((s, t) => s + (t.pnl ?? 0), 0));
+    const pf = grossL > 0 ? grossW / grossL : wins.length ? Infinity : 0;
+    return { net, winRate, pf, count: closed.length, wins: wins.length, losses: losses.length };
+  }, [closed]);
+
+  const equity = useMemo(() => {
+    const sorted = [...closed].sort((a, b) => new Date(a.closed_at ?? a.opened_at).getTime() - new Date(b.closed_at ?? b.opened_at).getTime());
+    let cum = 0;
+    return sorted.map((t) => { cum += t.pnl ?? 0; return { equity: cum }; });
+  }, [closed]);
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <Stat label="Net P&L" value={fmtMoney(kpis.net)} tone={kpis.net >= 0 ? "good" : "bad"} />
+        <Stat label="Win rate" value={`${(kpis.winRate * 100).toFixed(0)}%`} />
+        <Stat label="Profit factor" value={Number.isFinite(kpis.pf) ? kpis.pf.toFixed(2) : "∞"} tone={kpis.pf >= 1 ? "good" : "bad"} />
+        <Stat label="Trades" value={`${kpis.count}`} />
+      </div>
+
+      {equity.length > 1 && (
+        <div className="glass rounded-2xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright">Equity curve</div>
+            <div className={`text-xs font-medium ${kpis.net >= 0 ? "text-success" : "text-danger"}`}>{fmtMoney(kpis.net)}</div>
+          </div>
+          <div className="h-28">
+            <ResponsiveContainer>
+              <AreaChart data={equity} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="home-equity" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="hsl(var(--gold))" stopOpacity={0.5} />
+                    <stop offset="100%" stopColor="hsl(var(--gold))" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="equity" stroke="hsl(var(--gold))" strokeWidth={1.5} fill="url(#home-equity)" isAnimationActive={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      <div className="glass rounded-2xl p-3">
+        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">Recent trades</div>
+        {trades.length === 0 ? <div className="text-xs text-muted-foreground">No trades yet.</div> : (
+          <div className="space-y-2">
+            {trades.slice(0, 8).map((t) => (
+              <button key={t.id} onClick={() => onOpenTrade(t)} className="w-full flex items-center justify-between text-sm press">
+                <span className="flex items-center gap-2">
+                  <span className="font-medium">{t.pair}</span>
+                  <span className="text-[10px] uppercase text-muted-foreground">{t.direction}</span>
+                </span>
+                <span className={`text-xs font-medium ${t.pnl == null ? "text-muted-foreground" : (t.pnl > 0 ? "text-success" : t.pnl < 0 ? "text-danger" : "text-muted-foreground")}`}>
+                  {t.pnl == null ? "Open" : fmtMoney(t.pnl)}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <MonthHeatmap trades={closed} />
+    </div>
+  );
+}
+
+function MonthHeatmap({ trades }: { trades: Trade[] }) {
+  const [offset, setOffset] = useState(0);
+  const today = new Date();
+  const target = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+  const y = target.getFullYear(), m = target.getMonth();
+  const days = new Date(y, m + 1, 0).getDate();
+  const first = new Date(y, m, 1).getDay();
+
+  const byDay = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const t of trades) {
+      const key = new Date(t.closed_at ?? t.opened_at).toISOString().slice(0, 10);
+      map.set(key, (map.get(key) ?? 0) + (t.pnl ?? 0));
+    }
+    return map;
+  }, [trades]);
+
+  const monthNet = Array.from(byDay.entries())
+    .filter(([d]) => d.startsWith(`${y}-${String(m + 1).padStart(2, "0")}`))
+    .reduce((s, [, v]) => s + v, 0);
+  const maxAbs = Math.max(1, ...Array.from(byDay.values()).map((v) => Math.abs(v)));
+
+  return (
+    <div className="glass rounded-2xl p-3">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-sm font-medium">{target.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</div>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-medium ${monthNet >= 0 ? "text-success" : "text-danger"}`}>{fmtMoney(monthNet)}</span>
+          <button onClick={() => setOffset((o) => o - 1)} className="size-6 grid place-items-center rounded press glass text-xs">‹</button>
+          <button onClick={() => setOffset(0)} className="text-[10px] px-1.5 press text-muted-foreground">Today</button>
+          <button onClick={() => setOffset((o) => o + 1)} className="size-6 grid place-items-center rounded press glass text-xs">›</button>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 gap-1 text-[9px] text-muted-foreground text-center mb-1">
+        {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i}>{d}</div>)}
+      </div>
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: first }).map((_, i) => <div key={`p${i}`} />)}
+        {Array.from({ length: days }).map((_, i) => {
+          const d = i + 1;
+          const key = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          const pnl = byDay.get(key);
+          const intensity = pnl ? Math.min(1, Math.abs(pnl) / maxAbs) : 0;
+          const alpha = 0.15 + intensity * 0.6;
+          const bg = !pnl ? undefined : `hsl(var(--${pnl > 0 ? "success" : "danger"}) / ${alpha})`;
+          return (
+            <div key={d} className="aspect-square rounded-md p-1 text-[9px] bg-surface-elevated/60" style={bg ? { background: bg } : undefined}>
+              <div className="text-muted-foreground">{d}</div>
+              {pnl != null && <div className="font-medium mt-0.5">{pnl > 0 ? "+" : ""}{Math.round(pnl)}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Trades table ---------- */
+function TradesTable({ trades, strats, onChange, onOpenTrade }: { trades: Trade[]; strats: Strategy[]; onChange: () => void; onOpenTrade: (t: Trade) => void }) {
+  const del = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!confirm("Delete this trade?")) return;
+    const { error } = await sb.from("trades").delete().eq("id", id);
+    if (error) toast.error(error.message); else { toast.success("Deleted"); onChange(); }
+  };
+
+  if (trades.length === 0) return <div className="text-xs text-muted-foreground text-center py-12">No trades match.</div>;
+
+  return (
+    <div className="glass rounded-2xl overflow-x-auto">
+      <table className="w-full text-xs whitespace-nowrap">
+        <thead className="text-muted-foreground">
+          <tr className="border-b border-border">
+            <th className="px-2.5 py-2 text-left font-medium">Date</th>
+            <th className="px-2.5 py-2 text-left font-medium">Pair</th>
+            <th className="px-2.5 py-2 text-left font-medium">Dir</th>
+            <th className="px-2.5 py-2 text-right font-medium">Size</th>
+            <th className="px-2.5 py-2 text-right font-medium">Entry</th>
+            <th className="px-2.5 py-2 text-right font-medium">Exit</th>
+            <th className="px-2.5 py-2 text-right font-medium">P&L</th>
+            <th className="px-2.5 py-2 text-left font-medium">Setup</th>
+            <th className="px-2.5 py-2 text-left font-medium">Tags</th>
+            <th className="px-2.5 py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {trades.map((t) => {
+            const strat = strats.find((s) => s.id === t.strategy_id);
+            return (
+              <tr key={t.id} onClick={() => onOpenTrade(t)} className="border-b border-border/60 last:border-0 press cursor-pointer">
+                <td className="px-2.5 py-2 text-muted-foreground">{new Date(t.opened_at).toLocaleDateString()}</td>
+                <td className="px-2.5 py-2 font-medium">
+                  {t.pair}
+                  {strat && <span className="ml-1.5 px-1 py-px rounded text-[9px]" style={{ background: strat.color + "33", color: strat.color }}>{strat.name}</span>}
+                </td>
+                <td className={`px-2.5 py-2 uppercase text-[10px] ${t.direction === "long" ? "text-success" : "text-danger"}`}>{t.direction}</td>
+                <td className="px-2.5 py-2 text-right">{t.size}</td>
+                <td className="px-2.5 py-2 text-right">{t.entry_price}</td>
+                <td className="px-2.5 py-2 text-right">{t.exit_price ?? "—"}</td>
+                <td className={`px-2.5 py-2 text-right font-medium ${t.pnl == null ? "text-muted-foreground" : t.pnl >= 0 ? "text-success" : "text-danger"}`}>
+                  {t.pnl == null ? "Open" : fmtMoney(t.pnl)}
+                </td>
+                <td className="px-2.5 py-2 text-muted-foreground">{t.setup ?? "—"}</td>
+                <td className="px-2.5 py-2">
+                  <div className="flex gap-1">
+                    {(t.tags ?? []).slice(0, 2).map((tag) => (
+                      <span key={tag} className="px-1 py-px rounded bg-surface-elevated text-[9px] text-muted-foreground">{tag}</span>
+                    ))}
+                  </div>
+                </td>
+                <td className="px-2.5 py-2">
+                  <button onClick={(e) => del(e, t.id)} className="text-muted-foreground hover:text-danger press"><Trash2 className="size-3.5" /></button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

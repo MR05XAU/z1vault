@@ -1,6 +1,10 @@
+export function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 // Excel on UK/EU locales often exports ";"-delimited CSVs (with a UTF-8 BOM)
 // instead of ",". Sniff the header line so both forms import cleanly.
-function detectDelimiter(firstLine: string): string {
+export function detectDelimiter(firstLine: string): string {
   let best = ",";
   let bestCount = 0;
   for (const c of [",", ";", "\t"]) {
@@ -12,7 +16,7 @@ function detectDelimiter(firstLine: string): string {
 
 // Minimal RFC4180-ish CSV parser: handles quoted fields, escaped quotes ("")
 // and delimiters/newlines inside quotes. Good enough for spreadsheet exports.
-function parseCsvRows(text: string, delimiter: string): string[][] {
+export function parseCsvRows(text: string, delimiter: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
