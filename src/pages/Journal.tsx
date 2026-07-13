@@ -82,7 +82,7 @@ export default function Journal() {
       }
 
       const payload = parsed.map((t) => {
-        const pnl = t.exit_price != null
+        const pnl = t.pnl !== undefined ? t.pnl : t.exit_price != null
           ? (t.exit_price - t.entry_price) * t.size * (t.direction === "long" ? 1 : -1) - t.fees
           : null;
         return {

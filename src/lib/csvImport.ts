@@ -53,6 +53,83 @@ export interface ImportedTrade {
   opened_at: string;
   closed_at: string | null;
   notes: string | null;
+  // Set only when the source file supplies an authoritative pnl (e.g. a
+  // futures broker export, where price-diff * size ignores per-contract
+  // tick value). undefined means "recompute from entry/exit/size/fees".
+  pnl?: number | null;
+}
+
+// Parses "$1,160.00" / "$(42.00)" (parens = negative) broker money formats.
+function parseMoney(raw: string): number | null {
+  const s = raw.trim();
+  if (!s) return null;
+  const negative = s.includes("(") && s.includes(")");
+  const n = Number(s.replace(/[()$,]/g, ""));
+  if (Number.isNaN(n)) return null;
+  return negative ? -Math.abs(n) : n;
+}
+
+// A common futures-broker "trade performance" export format (e.g.
+// NinjaTrader): symbol/qty/buyPrice/sellPrice/pnl/boughtTimestamp/
+// soldTimestamp instead of this app's own pair/direction/entry_price/...
+// columns. Direction is inferred from which timestamp comes first.
+const BROKER_REQUIRED = ["symbol", "qty", "buyprice", "sellprice", "boughttimestamp", "soldtimestamp"];
+
+function isBrokerSchema(header: string[]): boolean {
+  return BROKER_REQUIRED.every((c) => header.includes(c));
+}
+
+// Explicit "MM/DD/YYYY HH:mm:ss" parse instead of new Date(string) — generic
+// slash-date string parsing is inconsistent across browsers (notably iOS Safari).
+function parseBrokerTimestamp(s: string): Date {
+  const m = s.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (!m) return new Date(NaN);
+  const [mo, da, yr, hh, mi, se] = m.slice(1).map(Number);
+  return new Date(yr, mo - 1, da, hh, mi, se);
+}
+
+function parseBrokerCsv(header: string[], rows: string[][]): CsvImportResult {
+  const idx = (name: string) => header.indexOf(name);
+  const iSymbol = idx("symbol"), iQty = idx("qty"), iBuy = idx("buyprice"), iSell = idx("sellprice"),
+    iPnl = idx("pnl"), iBought = idx("boughttimestamp"), iSold = idx("soldtimestamp");
+
+  const trades: ImportedTrade[] = [];
+  const errors: string[] = [];
+
+  for (let r = 1; r < rows.length; r++) {
+    const cols = rows[r];
+    const lineNo = r + 1;
+    const get = (i: number) => (i === -1 ? "" : (cols[i] ?? "").trim());
+
+    const symbol = get(iSymbol).toUpperCase();
+    const qty = Number(get(iQty));
+    const buyPrice = Number(get(iBuy));
+    const sellPrice = Number(get(iSell));
+    const bought = parseBrokerTimestamp(get(iBought));
+    const sold = parseBrokerTimestamp(get(iSold));
+
+    if (!symbol) { errors.push(`Row ${lineNo}: missing symbol`); continue; }
+    if (!qty || Number.isNaN(qty)) { errors.push(`Row ${lineNo}: invalid qty`); continue; }
+    if (Number.isNaN(buyPrice) || Number.isNaN(sellPrice)) { errors.push(`Row ${lineNo}: invalid buyPrice/sellPrice`); continue; }
+    if (Number.isNaN(bought.getTime()) || Number.isNaN(sold.getTime())) { errors.push(`Row ${lineNo}: invalid boughtTimestamp/soldTimestamp`); continue; }
+
+    const long = bought.getTime() <= sold.getTime();
+    trades.push({
+      pair: symbol,
+      direction: long ? "long" : "short",
+      entry_price: long ? buyPrice : sellPrice,
+      exit_price: long ? sellPrice : buyPrice,
+      size: qty,
+      fees: 0,
+      strategy: null,
+      opened_at: (long ? bought : sold).toISOString(),
+      closed_at: (long ? sold : bought).toISOString(),
+      notes: null,
+      pnl: iPnl === -1 ? undefined : parseMoney(get(iPnl)),
+    });
+  }
+
+  return { trades, errors };
 }
 
 export interface CsvImportResult {
@@ -75,6 +152,8 @@ export function parseTradesCsv(rawText: string): CsvImportResult {
   if (rows.length === 0) return { trades: [], errors: ["File is empty."] };
 
   const header = rows[0].map((h) => h.trim().toLowerCase());
+  if (isBrokerSchema(header)) return parseBrokerCsv(header, rows);
+
   const missing = REQUIRED.filter((c) => !header.includes(c));
   if (missing.length) {
     return { trades: [], errors: [`Missing required column(s): ${missing.join(", ")}`] };
