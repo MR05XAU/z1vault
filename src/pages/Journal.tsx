@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { parseTradesCsv } from "@/lib/csvImport";
+import { TradeSnapshotChart } from "@/components/TradeSnapshotChart";
 
 type Trade = {
   id: string; pair: string; direction: "long" | "short";
@@ -18,6 +19,8 @@ type Trade = {
   pnl: number | null; fees: number | null;
   strategy_id: string | null; notes: string | null;
   opened_at: string; closed_at: string | null;
+  setup: string | null; tags: string[] | null;
+  stop_loss: number | null; take_profit: number | null;
 };
 type Strategy = { id: string; name: string; color: string };
 
@@ -26,10 +29,11 @@ const sb = supabase as any;
 export default function Journal() {
   const { user } = useAuth();
   const nav = useNavigate();
-  const [tab, setTab] = useState<"list" | "calendar" | "stats">("list");
+  const [tab, setTab] = useState<"list" | "calendar" | "stats" | "notes">("list");
   const [trades, setTrades] = useState<Trade[]>([]);
   const [strats, setStrats] = useState<Strategy[]>([]);
   const [sheet, setSheet] = useState<null | "new" | "strats">(null);
+  const [detailTrade, setDetailTrade] = useState<Trade | null>(null);
   const [filter, setFilter] = useState<"all" | "win" | "loss" | "open">("all");
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
@@ -200,6 +204,7 @@ export default function Journal() {
             <TabBtn active={tab === "list"} onClick={() => setTab("list")} icon={List}>List</TabBtn>
             <TabBtn active={tab === "calendar"} onClick={() => setTab("calendar")} icon={CalendarIcon}>Calendar</TabBtn>
             <TabBtn active={tab === "stats"} onClick={() => setTab("stats")} icon={BarChart3}>Stats</TabBtn>
+            <TabBtn active={tab === "notes"} onClick={() => setTab("notes")} icon={BookOpen}>Notes</TabBtn>
           </div>
         </header>
       }
@@ -221,14 +226,16 @@ export default function Journal() {
               <EmptyState onAdd={() => setSheet("new")} />
             ) : (
               <div className="space-y-2">
-                {filtered.map((t) => <TradeRow key={t.id} t={t} strats={strats} onChange={refresh} />)}
+                {filtered.map((t) => <TradeRow key={t.id} t={t} strats={strats} onChange={refresh} onOpen={() => setDetailTrade(t)} />)}
               </div>
             )}
           </>
         ) : tab === "calendar" ? (
           <PnlCalendar trades={trades} />
-        ) : (
+        ) : tab === "stats" ? (
           <StatsPanel stats={stats} trades={trades} strats={strats} />
+        ) : (
+          <JournalNotes />
         )}
       </div>
 
@@ -241,6 +248,19 @@ export default function Journal() {
         <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl max-h-[92dvh] overflow-y-auto">
           <SheetHeader><SheetTitle className="display gold-text">New trade</SheetTitle></SheetHeader>
           <TradeForm strats={strats} onSaved={() => { setSheet(null); refresh(); }} />
+        </SheetContent>
+      </Sheet>
+      <Sheet open={detailTrade != null} onOpenChange={(o) => !o && setDetailTrade(null)}>
+        <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl max-h-[92dvh] overflow-y-auto">
+          <SheetHeader><SheetTitle className="display gold-text">{detailTrade?.pair}</SheetTitle></SheetHeader>
+          {detailTrade && (
+            <TradeDetail
+              trade={detailTrade}
+              strats={strats}
+              onChange={(updated) => { setDetailTrade(updated); refresh(); }}
+              onClose={() => setDetailTrade(null)}
+            />
+          )}
         </SheetContent>
       </Sheet>
       <Sheet open={sheet === "strats"} onOpenChange={(o) => !o && setSheet(null)}>
@@ -297,17 +317,18 @@ function fmtMoney(n: number) {
   return `${n < 0 ? "-" : ""}$${s}`;
 }
 
-function TradeRow({ t, strats, onChange }: { t: Trade; strats: Strategy[]; onChange: () => void }) {
+function TradeRow({ t, strats, onChange, onOpen }: { t: Trade; strats: Strategy[]; onChange: () => void; onOpen: () => void }) {
   const strat = strats.find((s) => s.id === t.strategy_id);
   const win = (t.pnl ?? 0) > 0;
   const open = !t.closed_at;
-  const del = async () => {
+  const del = async (e: React.MouseEvent) => {
+    e.stopPropagation();
     if (!confirm("Delete this trade?")) return;
     const { error } = await sb.from("trades").delete().eq("id", t.id);
     if (error) toast.error(error.message); else { toast.success("Deleted"); onChange(); }
   };
   return (
-    <div className="glass rounded-2xl p-3 flex items-center gap-3">
+    <div onClick={onOpen} className="glass rounded-2xl p-3 flex items-center gap-3 press cursor-pointer">
       <div className={`size-10 rounded-xl grid place-items-center ${open ? "bg-secondary" : win ? "bg-success/20" : "bg-danger/20"}`}>
         {open ? <div className="size-2 rounded-full bg-gold animate-pulse" />
               : win ? <TrendingUp className="size-4 text-success" />
@@ -353,6 +374,7 @@ function TradeForm({ strats, onSaved }: { strats: Strategy[]; onSaved: () => voi
     fees: "0", strategy_id: "", notes: "",
     opened_at: new Date().toISOString().slice(0, 16),
     closed_at: "",
+    setup: "", tags: "", stop_loss: "", take_profit: "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -380,6 +402,10 @@ function TradeForm({ strats, onSaved }: { strats: Strategy[]; onSaved: () => voi
       notes: v.notes || null,
       opened_at: new Date(v.opened_at).toISOString(),
       closed_at: v.closed_at ? new Date(v.closed_at).toISOString() : (v.exit_price ? new Date().toISOString() : null),
+      setup: v.setup || null,
+      tags: v.tags ? v.tags.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
+      stop_loss: v.stop_loss ? Number(v.stop_loss) : null,
+      take_profit: v.take_profit ? Number(v.take_profit) : null,
     };
     const { error } = await sb.from("trades").insert(payload);
     setSaving(false);
@@ -418,6 +444,12 @@ function TradeForm({ strats, onSaved }: { strats: Strategy[]; onSaved: () => voi
         <Labeled label="Opened"><Input type="datetime-local" value={v.opened_at} onChange={(e) => setV({ ...v, opened_at: e.target.value })} /></Labeled>
         <Labeled label="Closed (optional)"><Input type="datetime-local" value={v.closed_at} onChange={(e) => setV({ ...v, closed_at: e.target.value })} /></Labeled>
       </div>
+      <div className="grid grid-cols-2 gap-2">
+        <Labeled label="Stop loss"><Input type="number" step="any" value={v.stop_loss} onChange={(e) => setV({ ...v, stop_loss: e.target.value })} /></Labeled>
+        <Labeled label="Take profit"><Input type="number" step="any" value={v.take_profit} onChange={(e) => setV({ ...v, take_profit: e.target.value })} /></Labeled>
+      </div>
+      <Labeled label="Setup"><Input value={v.setup} onChange={(e) => setV({ ...v, setup: e.target.value })} placeholder="Breakout, VWAP reclaim…" /></Labeled>
+      <Labeled label="Tags (comma separated)"><Input value={v.tags} onChange={(e) => setV({ ...v, tags: e.target.value })} placeholder="momentum, gap-up" /></Labeled>
       <Labeled label="Notes"><Textarea rows={3} value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} placeholder="Setup, reason, mistakes…" /></Labeled>
       {pnlPreview !== null && (
         <div className="glass rounded-xl px-3 py-2 text-xs flex justify-between">
@@ -437,6 +469,157 @@ function Labeled({ label, children }: any) {
       <div className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground mb-1">{label}</div>
       {children}
     </label>
+  );
+}
+
+function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strats: Strategy[]; onChange: (t: Trade) => void; onClose: () => void }) {
+  const strat = strats.find((s) => s.id === trade.strategy_id);
+  const [setup, setSetup] = useState(trade.setup ?? "");
+  const [tags, setTags] = useState((trade.tags ?? []).join(", "));
+  const [stopLoss, setStopLoss] = useState(trade.stop_loss?.toString() ?? "");
+  const [takeProfit, setTakeProfit] = useState(trade.take_profit?.toString() ?? "");
+  const [notes, setNotes] = useState(trade.notes ?? "");
+  const [saving, setSaving] = useState(false);
+  const win = (trade.pnl ?? 0) > 0;
+
+  const save = async () => {
+    setSaving(true);
+    const payload = {
+      setup: setup || null,
+      tags: tags.split(",").map((s) => s.trim()).filter(Boolean),
+      stop_loss: stopLoss ? Number(stopLoss) : null,
+      take_profit: takeProfit ? Number(takeProfit) : null,
+      notes: notes || null,
+    };
+    const { data, error } = await sb.from("trades").update(payload).eq("id", trade.id).select().single();
+    setSaving(false);
+    if (error) toast.error(error.message);
+    else { toast.success("Trade updated."); onChange(data as Trade); }
+  };
+
+  return (
+    <div className="space-y-4 mt-3 pb-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs uppercase text-muted-foreground">
+          <span>{trade.direction}</span>
+          {strat && <span className="px-1.5 py-px rounded text-[10px]" style={{ background: strat.color + "33", color: strat.color }}>{strat.name}</span>}
+        </div>
+        <div className={`text-sm font-medium ${!trade.closed_at ? "text-muted-foreground" : win ? "text-success" : "text-danger"}`}>
+          {!trade.closed_at ? "Open" : fmtMoney(trade.pnl ?? 0)}
+        </div>
+      </div>
+
+      <TradeSnapshotChart
+        symbol={trade.pair}
+        direction={trade.direction}
+        openedAt={trade.opened_at}
+        closedAt={trade.closed_at}
+        entryPrice={trade.entry_price}
+        exitPrice={trade.exit_price}
+      />
+
+      <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="glass rounded-xl p-2">
+          <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Entry</div>
+          <div className="text-sm font-medium mt-0.5">{trade.entry_price}</div>
+        </div>
+        <div className="glass rounded-xl p-2">
+          <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Exit</div>
+          <div className="text-sm font-medium mt-0.5">{trade.exit_price ?? "—"}</div>
+        </div>
+        <div className="glass rounded-xl p-2">
+          <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground">Size</div>
+          <div className="text-sm font-medium mt-0.5">{trade.size}</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Labeled label="Stop loss"><Input type="number" step="any" value={stopLoss} onChange={(e) => setStopLoss(e.target.value)} /></Labeled>
+        <Labeled label="Take profit"><Input type="number" step="any" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} /></Labeled>
+      </div>
+      <Labeled label="Setup"><Input value={setup} onChange={(e) => setSetup(e.target.value)} placeholder="Breakout, VWAP reclaim…" /></Labeled>
+      <Labeled label="Tags (comma separated)"><Input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="momentum, gap-up" /></Labeled>
+      <Labeled label="Notes"><Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} /></Labeled>
+
+      <div className="flex gap-2">
+        <Button onClick={onClose} variant="outline" className="flex-1 h-11 rounded-xl">Close</Button>
+        <Button onClick={save} disabled={saving} className="flex-1 gold-fill h-11 rounded-xl">
+          {saving && <Loader2 className="size-4 animate-spin mr-2" />}Save
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+type JournalEntry = { id: string; entry_date: string; mood: string | null; market_notes: string | null; lessons: string | null };
+
+function JournalNotes() {
+  const { user } = useAuth();
+  const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [mood, setMood] = useState("");
+  const [notes, setNotes] = useState("");
+  const [lessons, setLessons] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const refresh = async () => {
+    if (!user) return;
+    const { data } = await sb.from("journal_entries").select("*").eq("user_id", user.id).order("entry_date", { ascending: false });
+    setEntries(data ?? []);
+    setLoading(false);
+  };
+  useEffect(() => { refresh(); }, [user]);
+
+  const loadDate = (d: string, list: JournalEntry[] = entries) => {
+    setDate(d);
+    const e = list.find((x) => x.entry_date === d);
+    setMood(e?.mood ?? ""); setNotes(e?.market_notes ?? ""); setLessons(e?.lessons ?? "");
+  };
+
+  const save = async () => {
+    if (!user) return;
+    setSaving(true);
+    const { error } = await sb.from("journal_entries").upsert(
+      { user_id: user.id, entry_date: date, mood: mood || null, market_notes: notes || null, lessons: lessons || null },
+      { onConflict: "user_id,entry_date" },
+    );
+    setSaving(false);
+    if (error) toast.error(error.message);
+    else { toast.success("Journal saved."); refresh(); }
+  };
+
+  if (loading) return <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-gold" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="glass rounded-2xl p-4 space-y-3">
+        <Labeled label="Date"><Input type="date" value={date} onChange={(e) => loadDate(e.target.value)} /></Labeled>
+        <Labeled label="Mood / conviction"><Input value={mood} onChange={(e) => setMood(e.target.value)} placeholder="Focused · patient · aggressive · tilted…" /></Labeled>
+        <Labeled label="Market notes"><Textarea rows={4} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What did the market do today? Levels, catalysts, plan…" /></Labeled>
+        <Labeled label="Lessons"><Textarea rows={4} value={lessons} onChange={(e) => setLessons(e.target.value)} placeholder="What worked, what didn't, what to change tomorrow." /></Labeled>
+        <Button onClick={save} disabled={saving} className="w-full gold-fill h-11 rounded-xl">
+          {saving && <Loader2 className="size-4 animate-spin mr-2" />}Save entry
+        </Button>
+      </div>
+
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">Recent</div>
+        {entries.length === 0 ? (
+          <div className="text-xs text-muted-foreground text-center py-4">No journal entries yet.</div>
+        ) : (
+          <div className="space-y-1.5">
+            {entries.slice(0, 20).map((e) => (
+              <button key={e.id} onClick={() => loadDate(e.entry_date)}
+                className={`w-full text-left glass rounded-xl p-2.5 press ${date === e.entry_date ? "border border-gold" : ""}`}>
+                <div className="text-sm font-medium">{new Date(e.entry_date).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</div>
+                <div className="text-[11px] text-muted-foreground truncate">{e.mood || e.market_notes || "—"}</div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

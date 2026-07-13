@@ -1,0 +1,120 @@
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { ComposedChart, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceDot, Bar, Cell, CartesianGrid } from "recharts";
+
+type Props = {
+  symbol: string;
+  direction: "long" | "short";
+  openedAt: string;
+  closedAt?: string | null;
+  entryPrice: number;
+  exitPrice?: number | null;
+  height?: number;
+};
+
+/**
+ * Candlestick-style snapshot of the price action around a logged trade, with
+ * entry/exit markers. Data comes from the trade-candles edge function
+ * (Yahoo Finance, no API key) — best-effort, so a missing symbol just shows
+ * a fallback message rather than blocking the trade detail view.
+ */
+export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entryPrice, exitPrice, height = 260 }: Props) {
+  const from = openedAt;
+  const to = closedAt ?? openedAt;
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["trade-candles", symbol, from, to],
+    queryFn: async () => {
+      const { data: sess } = await supabase.auth.getSession();
+      const token = sess.session?.access_token;
+      const { data: res, error } = await supabase.functions.invoke("trade-candles", {
+        body: { symbol, from, to, interval: "5m" },
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
+      if (error) throw error;
+      return res as { candles: { t: number; o: number; h: number; l: number; c: number }[]; error: string | null };
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+
+  const rows = useMemo(() => {
+    const candles = data?.candles ?? [];
+    return candles.map((c) => ({
+      t: c.t,
+      lowHigh: [c.l, c.h] as [number, number],
+      body: [Math.min(c.o, c.c), Math.max(c.o, c.c)] as [number, number],
+      up: c.c >= c.o,
+    }));
+  }, [data]);
+
+  if (isLoading) {
+    return <div className="grid place-items-center rounded-xl glass" style={{ height }}><Loader2 className="size-4 animate-spin text-gold" /></div>;
+  }
+  if (!data || data.error || rows.length === 0) {
+    return (
+      <div className="grid place-items-center rounded-xl glass p-4 text-center" style={{ height }}>
+        <p className="text-xs text-muted-foreground">Couldn't load a chart for {symbol}.{data?.error ? ` (${data.error})` : ""}</p>
+      </div>
+    );
+  }
+
+  const entryMs = new Date(openedAt).getTime();
+  const exitMs = closedAt ? new Date(closedAt).getTime() : null;
+  const win = direction === "long" ? (exitPrice ?? 0) >= entryPrice : (exitPrice ?? 0) <= entryPrice;
+  const prices = rows.flatMap((r) => r.lowHigh);
+  const pMin = Math.min(...prices, entryPrice, exitPrice ?? entryPrice);
+  const pMax = Math.max(...prices, entryPrice, exitPrice ?? entryPrice);
+  const pad = (pMax - pMin) * 0.08 || 1;
+
+  return (
+    <div style={{ height, width: "100%" }} className="rounded-xl glass p-2">
+      <ResponsiveContainer>
+        <ComposedChart data={rows} margin={{ top: 10, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid stroke="hsl(var(--border))" strokeDasharray="3 3" opacity={0.4} />
+          <XAxis
+            dataKey="t"
+            type="number"
+            scale="time"
+            domain={["dataMin", "dataMax"]}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }}
+            tickFormatter={(v) => new Date(v).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            minTickGap={50}
+          />
+          <YAxis
+            domain={[pMin - pad, pMax + pad]}
+            tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 9 }}
+            tickFormatter={(v) => v.toFixed(2)}
+            width={48}
+          />
+          <Tooltip
+            contentStyle={{ background: "hsl(var(--surface-elevated))", border: "1px solid hsl(var(--border-strong))", borderRadius: 8, fontSize: 11 }}
+            labelFormatter={(v) => new Date(Number(v)).toLocaleString()}
+            formatter={(val: unknown, name) => {
+              const arr = Array.isArray(val) ? val : [val];
+              if (name === "lowHigh") return [`${(arr[0] as number).toFixed(2)} – ${(arr[1] as number).toFixed(2)}`, "Range"];
+              if (name === "body") return [`${(arr[0] as number).toFixed(2)} – ${(arr[1] as number).toFixed(2)}`, "Body"];
+              return [String(val), String(name)];
+            }}
+          />
+          <Bar dataKey="lowHigh" barSize={1} isAnimationActive={false}>
+            {rows.map((r, i) => <Cell key={`w${i}`} fill={r.up ? "hsl(var(--success))" : "hsl(var(--danger))"} />)}
+          </Bar>
+          <Bar dataKey="body" barSize={5} isAnimationActive={false}>
+            {rows.map((r, i) => <Cell key={`b${i}`} fill={r.up ? "hsl(var(--success))" : "hsl(var(--danger))"} />)}
+          </Bar>
+          <ReferenceLine y={entryPrice} stroke="hsl(var(--gold))" strokeDasharray="4 3" label={{ value: `Entry ${entryPrice}`, position: "insideLeft", fill: "hsl(var(--gold-bright))", fontSize: 9 }} />
+          {exitPrice != null && (
+            <ReferenceLine y={exitPrice} stroke={win ? "hsl(var(--success))" : "hsl(var(--danger))"} strokeDasharray="4 3" label={{ value: `Exit ${exitPrice}`, position: "insideLeft", fill: win ? "hsl(var(--success))" : "hsl(var(--danger))", fontSize: 9 }} />
+          )}
+          <ReferenceDot x={entryMs} y={entryPrice} r={4} fill="hsl(var(--gold))" stroke="hsl(var(--surface))" strokeWidth={2} />
+          {exitMs != null && exitPrice != null && (
+            <ReferenceDot x={exitMs} y={exitPrice} r={4} fill={win ? "hsl(var(--success))" : "hsl(var(--danger))"} stroke="hsl(var(--surface))" strokeWidth={2} />
+          )}
+        </ComposedChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
