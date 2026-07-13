@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen, Link2 } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen, Link2, LineChart as LineChartIcon, ChevronRight } from "lucide-react";
+import { AreaChart, Area, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 import { parseTradesCsv } from "@/lib/csvImport";
 import { TradeSnapshotChart } from "@/components/TradeSnapshotChart";
@@ -30,7 +31,7 @@ const sb = supabase as any;
 export default function Journal() {
   const { user } = useAuth();
   const nav = useNavigate();
-  const [tab, setTab] = useState<"list" | "calendar" | "stats" | "notes">("list");
+  const [tab, setTab] = useState<"list" | "calendar" | "days" | "stats" | "notes">("list");
   const [trades, setTrades] = useState<Trade[]>([]);
   const [strats, setStrats] = useState<Strategy[]>([]);
   const [sheet, setSheet] = useState<null | "new" | "strats" | "broker">(null);
@@ -204,9 +205,10 @@ export default function Journal() {
             <Stat label="Trades" value={`${stats.closed}`} />
           </div>
 
-          <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
+          <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1 overflow-x-auto">
             <TabBtn active={tab === "list"} onClick={() => setTab("list")} icon={List}>List</TabBtn>
-            <TabBtn active={tab === "calendar"} onClick={() => setTab("calendar")} icon={CalendarIcon}>Calendar</TabBtn>
+            <TabBtn active={tab === "calendar"} onClick={() => setTab("calendar")} icon={CalendarIcon}>Cal</TabBtn>
+            <TabBtn active={tab === "days"} onClick={() => setTab("days")} icon={LineChartIcon}>Days</TabBtn>
             <TabBtn active={tab === "stats"} onClick={() => setTab("stats")} icon={BarChart3}>Stats</TabBtn>
             <TabBtn active={tab === "notes"} onClick={() => setTab("notes")} icon={BookOpen}>Notes</TabBtn>
           </div>
@@ -236,6 +238,8 @@ export default function Journal() {
           </>
         ) : tab === "calendar" ? (
           <PnlCalendar trades={trades} />
+        ) : tab === "days" ? (
+          <DailyBreakdown trades={trades} strats={strats} onChange={refresh} onOpenTrade={(t) => setDetailTrade(t)} />
         ) : tab === "stats" ? (
           <StatsPanel stats={stats} trades={trades} strats={strats} />
         ) : (
@@ -788,6 +792,107 @@ function YearGrid({ cursor, byDay }: any) {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ---------- Daily breakdown ---------- */
+function DailyBreakdown({ trades, strats, onChange, onOpenTrade }: { trades: Trade[]; strats: Strategy[]; onChange: () => void; onOpenTrade: (t: Trade) => void }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const days = useMemo(() => {
+    const byDay = new Map<string, Trade[]>();
+    for (const t of trades) {
+      if (t.pnl == null) continue;
+      const key = new Date(t.closed_at ?? t.opened_at).toISOString().slice(0, 10);
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key)!.push(t);
+    }
+    return Array.from(byDay.entries()).map(([date, dayTrades]) => {
+      const sorted = [...dayTrades].sort((a, b) => new Date(a.opened_at).getTime() - new Date(b.opened_at).getTime());
+      let cum = 0;
+      const spark = sorted.map((t) => { cum += t.pnl ?? 0; return { v: cum }; });
+      const netPnl = cum;
+      const fees = dayTrades.reduce((s, t) => s + (t.fees ?? 0), 0);
+      const grossPnl = netPnl + fees;
+      const wins = dayTrades.filter((t) => (t.pnl ?? 0) > 0);
+      const losses = dayTrades.filter((t) => (t.pnl ?? 0) < 0);
+      const winRate = dayTrades.length ? (wins.length / dayTrades.length) * 100 : 0;
+      const volume = dayTrades.reduce((s, t) => s + t.size, 0);
+      const grossWin = wins.reduce((s, t) => s + (t.pnl ?? 0), 0);
+      const grossLoss = Math.abs(losses.reduce((s, t) => s + (t.pnl ?? 0), 0));
+      const profitFactor = grossLoss > 0 ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
+      return { date, trades: sorted, netPnl, grossPnl, fees, winRate, volume, winners: wins.length, losers: losses.length, profitFactor, spark };
+    }).sort((a, b) => b.date.localeCompare(a.date));
+  }, [trades]);
+
+  const toggle = (date: string) => setExpanded((s) => {
+    const n = new Set(s);
+    if (n.has(date)) n.delete(date); else n.add(date);
+    return n;
+  });
+
+  if (days.length === 0) return <div className="text-xs text-muted-foreground text-center py-12">No closed trades yet.</div>;
+
+  return (
+    <div className="space-y-2">
+      {days.map((d) => {
+        const good = d.netPnl >= 0;
+        const color = good ? "hsl(var(--success))" : "hsl(var(--danger))";
+        const open = expanded.has(d.date);
+        return (
+          <div key={d.date} className="glass rounded-2xl overflow-hidden">
+            <button onClick={() => toggle(d.date)} className="w-full flex items-center gap-2 p-3 press text-left">
+              <ChevronRight className={`size-3.5 text-muted-foreground transition-transform shrink-0 ${open ? "rotate-90" : ""}`} />
+              <div className="min-w-0">
+                <div className="text-sm font-medium">
+                  {new Date(d.date).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                </div>
+                <div className={`text-xs font-medium ${good ? "text-success" : "text-danger"}`}>Net {fmtMoney(d.netPnl)}</div>
+              </div>
+            </button>
+            <div className="px-3 pb-3">
+              {d.spark.length > 1 && (
+                <div className="h-16 -mx-1">
+                  <ResponsiveContainer>
+                    <AreaChart data={d.spark} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id={`spark-${d.date}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={color} stopOpacity={0.5} />
+                          <stop offset="100%" stopColor={color} stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#spark-${d.date})`} isAnimationActive={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2 mt-2">
+                <StatCell label="Total trades" value={`${d.trades.length}`} />
+                <StatCell label="Gross P&L" value={fmtMoney(d.grossPnl)} tone={d.grossPnl >= 0 ? "good" : "bad"} />
+                <StatCell label="Win rate" value={`${d.winRate.toFixed(0)}%`} />
+                <StatCell label="Volume" value={`${d.volume}`} />
+                <StatCell label="Winners / Losers" value={`${d.winners} / ${d.losers}`} />
+                <StatCell label="Profit factor" value={Number.isFinite(d.profitFactor) ? d.profitFactor.toFixed(2) : "∞"} />
+                <StatCell label="Commissions" value={fmtMoney(d.fees)} />
+              </div>
+              {open && (
+                <div className="space-y-1.5 mt-3 pt-3 border-t border-border">
+                  {d.trades.map((t) => <TradeRow key={t.id} t={t} strats={strats} onChange={onChange} onOpen={() => onOpenTrade(t)} />)}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+function StatCell({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }) {
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-[0.2em] text-muted-foreground">{label}</div>
+      <div className={`text-xs font-medium mt-0.5 ${tone === "good" ? "text-success" : tone === "bad" ? "text-danger" : ""}`}>{value}</div>
     </div>
   );
 }
