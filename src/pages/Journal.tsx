@@ -8,10 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { parseTradesCsv } from "@/lib/csvImport";
 import { TradeSnapshotChart } from "@/components/TradeSnapshotChart";
+import { BrokerConnections } from "@/components/BrokerConnections";
 
 type Trade = {
   id: string; pair: string; direction: "long" | "short";
@@ -32,7 +33,7 @@ export default function Journal() {
   const [tab, setTab] = useState<"list" | "calendar" | "stats" | "notes">("list");
   const [trades, setTrades] = useState<Trade[]>([]);
   const [strats, setStrats] = useState<Strategy[]>([]);
-  const [sheet, setSheet] = useState<null | "new" | "strats">(null);
+  const [sheet, setSheet] = useState<null | "new" | "strats" | "broker">(null);
   const [detailTrade, setDetailTrade] = useState<Trade | null>(null);
   const [filter, setFilter] = useState<"all" | "win" | "loss" | "open">("all");
   const [loading, setLoading] = useState(true);
@@ -190,6 +191,9 @@ export default function Journal() {
               <button onClick={() => nav("/calculators")} className="size-10 grid place-items-center rounded-xl glass press" title="Calculators">
                 <Calculator className="size-4" />
               </button>
+              <button onClick={() => setSheet("broker")} className="size-10 grid place-items-center rounded-xl glass press" title="Broker sync">
+                <Link2 className="size-4" />
+              </button>
             </div>
           </div>
           <p className="text-xs text-muted-foreground italic mt-1">Educational record-keeping. Not financial advice.</p>
@@ -267,6 +271,12 @@ export default function Journal() {
         <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl">
           <SheetHeader><SheetTitle className="display gold-text">Strategy tags</SheetTitle></SheetHeader>
           <StrategiesEditor strats={strats} onChange={refresh} />
+        </SheetContent>
+      </Sheet>
+      <Sheet open={sheet === "broker"} onOpenChange={(o) => !o && setSheet(null)}>
+        <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl max-h-[92dvh] overflow-y-auto">
+          <SheetHeader><SheetTitle className="display gold-text">Broker sync</SheetTitle></SheetHeader>
+          <BrokerConnections />
         </SheetContent>
       </Sheet>
       <Sheet open={pendingImport != null} onOpenChange={(o) => !o && setPendingImport(null)}>
