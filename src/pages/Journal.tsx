@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen, Link2, LineChart as LineChartIcon, ChevronRight, Home as HomeIcon, Table as TableIcon } from "lucide-react";
+import { Plus, Trash2, TrendingUp, TrendingDown, Calendar as CalendarIcon, List, Calculator, Tag, BarChart3, Loader2, Download, Upload, BookOpen, Link2, LineChart as LineChartIcon, ChevronRight, Table as TableIcon } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 import { parseTradesCsv } from "@/lib/csvImport";
@@ -33,7 +33,8 @@ const sb = supabase as any;
 export default function Journal() {
   const { user } = useAuth();
   const nav = useNavigate();
-  const [tab, setTab] = useState<"home" | "list" | "table" | "calendar" | "days" | "stats" | "notes">("list");
+  const [tab, setTab] = useState<"list" | "calendar" | "days" | "stats" | "notes">("list");
+  const [listView, setListView] = useState<"cards" | "table">("cards");
   const [trades, setTrades] = useState<Trade[]>([]);
   const [strats, setStrats] = useState<Strategy[]>([]);
   const [sheet, setSheet] = useState<null | "new" | "strats" | "broker">(null);
@@ -248,10 +249,8 @@ export default function Journal() {
             <Stat label="Trades" value={`${stats.closed}`} />
           </div>
 
-          <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1 overflow-x-auto">
-            <TabBtn active={tab === "home"} onClick={() => setTab("home")} icon={HomeIcon}>Home</TabBtn>
-            <TabBtn active={tab === "list"} onClick={() => setTab("list")} icon={List}>List</TabBtn>
-            <TabBtn active={tab === "table"} onClick={() => setTab("table")} icon={TableIcon}>Table</TabBtn>
+          <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
+            <TabBtn active={tab === "list"} onClick={() => setTab("list")} icon={List}>Trades</TabBtn>
             <TabBtn active={tab === "calendar"} onClick={() => setTab("calendar")} icon={CalendarIcon}>Cal</TabBtn>
             <TabBtn active={tab === "days"} onClick={() => setTab("days")} icon={LineChartIcon}>Days</TabBtn>
             <TabBtn active={tab === "stats"} onClick={() => setTab("stats")} icon={BarChart3}>Stats</TabBtn>
@@ -262,16 +261,23 @@ export default function Journal() {
     >
       <div className="px-5 mt-4 pb-nav">
         {loading ? <div className="grid place-items-center py-12"><Loader2 className="size-5 animate-spin text-gold" /></div>
-         : tab === "home" ? (
-          <DashboardHome trades={trades} onOpenTrade={(t) => setDetailTrade(t)} />
-        ) : tab === "list" ? (
+         : tab === "list" ? (
           <>
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search pair, setup, tag…"
-              className="mb-3 h-10 bg-surface-elevated border-border-strong"
-            />
+            <div className="flex gap-2 mb-3">
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search pair, setup, tag…"
+                className="h-10 bg-surface-elevated border-border-strong"
+              />
+              <button
+                onClick={() => setListView((v) => (v === "cards" ? "table" : "cards"))}
+                className="size-10 shrink-0 grid place-items-center rounded-xl glass press"
+                title={listView === "cards" ? "Switch to table view" : "Switch to card view"}
+              >
+                {listView === "cards" ? <TableIcon className="size-4" /> : <List className="size-4" />}
+              </button>
+            </div>
             <div className="flex gap-2 mb-3 overflow-x-auto -mx-1 px-1">
               {(["all", "open", "win", "loss"] as const).map((f) => (
                 <button key={f} onClick={() => setFilter(f)}
@@ -283,21 +289,13 @@ export default function Journal() {
             </div>
             {filtered.length === 0 ? (
               <EmptyState onAdd={() => setSheet("new")} />
+            ) : listView === "table" ? (
+              <TradesTable trades={filtered} strats={strats} onChange={refresh} onOpenTrade={(t) => setDetailTrade(t)} />
             ) : (
               <div className="space-y-2">
                 {filtered.map((t) => <TradeRow key={t.id} t={t} strats={strats} onChange={refresh} onOpen={() => setDetailTrade(t)} />)}
               </div>
             )}
-          </>
-        ) : tab === "table" ? (
-          <>
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search pair, setup, tag…"
-              className="mb-3 h-10 bg-surface-elevated border-border-strong"
-            />
-            <TradesTable trades={filtered} strats={strats} onChange={refresh} onOpenTrade={(t) => setDetailTrade(t)} />
           </>
         ) : tab === "calendar" ? (
           <PnlCalendar trades={trades} />
@@ -987,81 +985,6 @@ function StatCell({ label, value, tone }: { label: string; value: string; tone?:
   );
 }
 
-/* ---------- Dashboard home ---------- */
-function DashboardHome({ trades, onOpenTrade }: { trades: Trade[]; onOpenTrade: (t: Trade) => void }) {
-  const closed = useMemo(() => trades.filter((t) => t.pnl != null), [trades]);
-  const kpis = useMemo(() => {
-    const net = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
-    const wins = closed.filter((t) => (t.pnl ?? 0) > 0);
-    const losses = closed.filter((t) => (t.pnl ?? 0) < 0);
-    const winRate = closed.length ? wins.length / closed.length : 0;
-    const grossW = wins.reduce((s, t) => s + (t.pnl ?? 0), 0);
-    const grossL = Math.abs(losses.reduce((s, t) => s + (t.pnl ?? 0), 0));
-    const pf = grossL > 0 ? grossW / grossL : wins.length ? Infinity : 0;
-    return { net, winRate, pf, count: closed.length, wins: wins.length, losses: losses.length };
-  }, [closed]);
-
-  const equity = useMemo(() => {
-    const sorted = [...closed].sort((a, b) => new Date(a.closed_at ?? a.opened_at).getTime() - new Date(b.closed_at ?? b.opened_at).getTime());
-    let cum = 0;
-    return sorted.map((t) => { cum += t.pnl ?? 0; return { equity: cum }; });
-  }, [closed]);
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <Stat label="Net P&L" value={fmtMoney(kpis.net)} tone={kpis.net >= 0 ? "good" : "bad"} />
-        <Stat label="Win rate" value={`${(kpis.winRate * 100).toFixed(0)}%`} />
-        <Stat label="Profit factor" value={Number.isFinite(kpis.pf) ? kpis.pf.toFixed(2) : "∞"} tone={kpis.pf >= 1 ? "good" : "bad"} />
-        <Stat label="Trades" value={`${kpis.count}`} />
-      </div>
-
-      {equity.length > 1 && (
-        <div className="glass rounded-2xl p-3">
-          <div className="flex items-center justify-between mb-2">
-            <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright">Equity curve</div>
-            <div className={`text-xs font-medium ${kpis.net >= 0 ? "text-success" : "text-danger"}`}>{fmtMoney(kpis.net)}</div>
-          </div>
-          <div className="h-28">
-            <ResponsiveContainer>
-              <AreaChart data={equity} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="home-equity" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="hsl(var(--gold))" stopOpacity={0.5} />
-                    <stop offset="100%" stopColor="hsl(var(--gold))" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <Area type="monotone" dataKey="equity" stroke="hsl(var(--gold))" strokeWidth={1.5} fill="url(#home-equity)" isAnimationActive={false} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      <div className="glass rounded-2xl p-3">
-        <div className="text-[10px] uppercase tracking-[0.2em] text-gold-bright mb-2">Recent trades</div>
-        {trades.length === 0 ? <div className="text-xs text-muted-foreground">No trades yet.</div> : (
-          <div className="space-y-2">
-            {trades.slice(0, 8).map((t) => (
-              <button key={t.id} onClick={() => onOpenTrade(t)} className="w-full flex items-center justify-between text-sm press">
-                <span className="flex items-center gap-2">
-                  <span className="font-medium">{t.pair}</span>
-                  <span className="text-[10px] uppercase text-muted-foreground">{t.direction}</span>
-                </span>
-                <span className={`text-xs font-medium ${t.pnl == null ? "text-muted-foreground" : (t.pnl > 0 ? "text-success" : t.pnl < 0 ? "text-danger" : "text-muted-foreground")}`}>
-                  {t.pnl == null ? "Open" : fmtMoney(t.pnl)}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <MonthHeatmap trades={closed} />
-    </div>
-  );
-}
-
 function MonthHeatmap({ trades }: { trades: Trade[] }) {
   const [offset, setOffset] = useState(0);
   const today = new Date();
@@ -1273,6 +1196,8 @@ function StatsPanel({ stats, trades, strats }: any) {
           </div>
         </div>
       )}
+
+      <MonthHeatmap trades={(trades as Trade[]).filter((t) => t.pnl != null)} />
 
       {bySymbol.length > 0 && (
         <div className="glass rounded-2xl p-3">
