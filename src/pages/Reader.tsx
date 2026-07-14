@@ -354,8 +354,15 @@ export default function Reader() {
           onDoubleClick={onDoubleClick}
           className="flex-1 overflow-y-auto px-6 py-8 pb-[max(env(safe-area-inset-bottom),2rem)] prose-z1"
         >
-          <div className="text-[11px] uppercase tracking-[0.32em] text-muted-foreground mb-2">
-            {chapter.subtitle}
+          {/* Chapter opener — a book's chapter-start page, not a small app label */}
+          <div className="mb-10 text-center">
+            <div className="mx-auto h-px w-8 bg-mint/50" />
+            <div className="mt-4 text-[10px] uppercase tracking-[0.4em] text-mint-bright">
+              {chapter.is_background ? "Appendix" : `Chapter ${chapter.chapter_number}`}
+            </div>
+            <h1 className="display mt-2 text-[28px] font-medium leading-tight">{chapter.title}</h1>
+            {chapter.subtitle && <p className="mt-2 text-sm italic text-muted-foreground">{chapter.subtitle}</p>}
+            <div className="mx-auto mt-4 h-px w-8 bg-mint/50" />
           </div>
           {(audioBlobUrl || chapter.audio_url) && chapter.audio_url && (
             <div className="glass rounded-2xl p-3 mb-6 flex items-center gap-2">
@@ -365,7 +372,14 @@ export default function Reader() {
           )}
           <ReactMarkdown>{chapter.content}</ReactMarkdown>
 
-          <div className="mt-12 pt-6 border-t border-border-strong">
+          {/* End-of-chapter ornament */}
+          <div className="mt-10 flex items-center justify-center gap-2 text-mint/50">
+            <span className="h-px w-6 bg-current" />
+            <span className="size-1 rounded-full bg-current" />
+            <span className="h-px w-6 bg-current" />
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-border-strong">
             {chapter.is_background ? (
               <Button
                 onClick={async () => {
