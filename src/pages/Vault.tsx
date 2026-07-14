@@ -211,7 +211,7 @@ export default function Vault() {
                   onClick={() => nav(`/read/${p.chapter_id}`)}
                   className="flex w-full flex-col gap-0.5 border-b border-border pb-2.5 text-left last:border-b-0 last:pb-0"
                 >
-                  <span className="font-medium leading-snug">{p.chapter?.title}</span>
+                  <span className="line-clamp-1 font-medium leading-snug">{p.chapter?.title}</span>
                   <span className={`text-xs ${p.completed ? "mint-text" : "text-muted-foreground"}`}>
                     {p.completed ? "Done" : `${Math.round(p.progress_percentage)}% complete`}
                   </span>
@@ -241,7 +241,7 @@ export default function Vault() {
             <h2 className="text-sm font-medium">Modules</h2>
             <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Quick access</span>
           </div>
-          <div className="grid grid-cols-3 gap-px overflow-hidden rounded-b-2xl bg-border sm:grid-cols-4">
+          <div className="grid grid-cols-3 gap-px overflow-hidden rounded-b-2xl bg-border sm:grid-cols-4 lg:grid-cols-6">
             {modules.map(({ to, label, icon: Icon }) => (
               <button
                 key={label}
