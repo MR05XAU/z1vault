@@ -11,6 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { downloadChapter, getOffline, isOnline, offlineAudioUrl, removeChapter, type DownloadProgress } from "@/lib/offline";
 import { WordPopover } from "@/components/WordPopover";
 
+// Chapter titles in the data are often authored as "Chapter N: Title" —
+// redundant once we're already showing "Chapter N" as its own label above
+// (in the header and the chapter-opener), so strip it for display.
+function stripChapterPrefix(title: string): string {
+  return title.replace(/^chapter\s+\d+\s*[:.\-–]\s*/i, "");
+}
+
 export default function Reader() {
   const { chapterId } = useParams();
   const [searchParams] = useSearchParams();
@@ -313,7 +320,7 @@ export default function Reader() {
             <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright">
               Chapter {chapter.chapter_number}
             </div>
-            <div className="text-sm font-medium truncate">{chapter.title}</div>
+            <div className="text-sm font-medium truncate">{stripChapterPrefix(chapter.title)}</div>
           </div>
           <button
             onClick={downloaded ? wipeDownload : startDownload}
@@ -360,7 +367,7 @@ export default function Reader() {
             <div className="mt-4 text-[10px] uppercase tracking-[0.4em] text-mint-bright">
               {chapter.is_background ? "Appendix" : `Chapter ${chapter.chapter_number}`}
             </div>
-            <h1 className="display mt-2 text-[28px] font-medium leading-tight">{chapter.title}</h1>
+            <h1 className="display mt-2 text-[28px] font-medium leading-tight">{stripChapterPrefix(chapter.title)}</h1>
             {chapter.subtitle && <p className="mt-2 text-sm italic text-muted-foreground">{chapter.subtitle}</p>}
             <div className="mx-auto mt-4 h-px w-8 bg-mint/50" />
           </div>

@@ -7,6 +7,12 @@ import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Check } from "lucide-react";
 
+// Chapter titles are often authored as "Chapter N: Title" — redundant next
+// to the numbered TOC row it's already displayed in.
+function stripChapterPrefix(title: string): string {
+  return title.replace(/^chapter\s+\d+\s*[:.\-–]\s*/i, "");
+}
+
 export default function Library() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -48,7 +54,7 @@ export default function Library() {
       >
         <span className="display shrink-0 text-sm text-muted-foreground tabular-nums">{numeral}</span>
         <span className="display shrink-0 text-[15px] font-medium group-hover:mint-text transition-colors">
-          {c.title}
+          {stripChapterPrefix(c.title)}
         </span>
         <span className="min-w-[1rem] flex-1 overflow-hidden border-b border-dotted border-border translate-y-[-3px]" />
         <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
