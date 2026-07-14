@@ -50,13 +50,22 @@ const PAPER_VARS = {
   "--foreground": "30 30% 14%",
   "--card": "42 38% 93%",
   "--card-foreground": "30 30% 14%",
+  "--popover": "42 38% 93%",
+  "--popover-foreground": "30 30% 14%",
+  "--muted": "38 22% 84%",
   "--muted-foreground": "30 14% 42%",
+  "--secondary": "38 22% 84%",
+  "--secondary-foreground": "30 30% 14%",
+  "--accent": "38 22% 84%",
+  "--accent-foreground": "30 30% 14%",
   "--border": "30 18% 72% / 0.6",
   "--border-strong": "30 20% 60% / 0.7",
   "--mint": "152 48% 30%",
   "--mint-bright": "152 55% 25%",
   "--mint-deep": "152 45% 20%",
+  "--mint-foreground": "42 38% 96%",
   "--primary": "152 48% 30%",
+  "--primary-foreground": "42 38% 96%",
 } as React.CSSProperties;
 
 export default function Reader() {
