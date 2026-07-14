@@ -217,25 +217,44 @@
   .page-flip-next {
     transform-origin: left center;
     backface-visibility: hidden;
-    animation: page-flip-next 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) both;
+    animation: page-flip-next 0.95s cubic-bezier(0.25, 0.8, 0.35, 1) both;
   }
   .page-flip-prev {
     transform-origin: right center;
     backface-visibility: hidden;
-    animation: page-flip-prev 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) both;
+    animation: page-flip-prev 0.95s cubic-bezier(0.25, 0.8, 0.35, 1) both;
   }
-  .page-settle { animation: page-settle 0.45s var(--ease-out-soft) both; }
+  .page-settle { animation: page-settle 0.8s var(--ease-out-soft) both; }
   @keyframes page-flip-next {
-    0% { transform: rotateY(-70deg); filter: brightness(0.78); }
+    0% { transform: rotateY(-72deg); filter: brightness(0.72); }
+    55% { filter: brightness(1.04); }
     100% { transform: rotateY(0deg); filter: brightness(1); }
   }
   @keyframes page-flip-prev {
-    0% { transform: rotateY(70deg); filter: brightness(0.78); }
+    0% { transform: rotateY(72deg); filter: brightness(0.72); }
+    55% { filter: brightness(1.04); }
     100% { transform: rotateY(0deg); filter: brightness(1); }
   }
   @keyframes page-settle {
     0% { opacity: 0.3; }
     100% { opacity: 1; }
+  }
+
+  /* Paper grain: procedural SVG fractal noise + a faint warm mottle, layered
+     over the leaf with multiply blending so the cream base and ink show
+     through — reads as real paper stock instead of a flat fill. */
+  .paper-texture::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image:
+      radial-gradient(ellipse 120% 90% at 30% 10%, hsl(40 30% 60% / 0.05) 0%, transparent 60%),
+      radial-gradient(ellipse 100% 120% at 80% 90%, hsl(30 25% 50% / 0.05) 0%, transparent 55%),
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+    background-size: auto, auto, 240px 240px;
+    mix-blend-mode: multiply;
+    opacity: 0.35;
   }
 
   .prose-z1 { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif; }

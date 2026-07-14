@@ -46,6 +46,23 @@ function GateLoading() {
   );
 }
 
+// Branded pre-page splash shown while the Edgebook chunk itself downloads —
+// same visuals as the in-page data-loading splash inside Journal, so the
+// whole transition into Edgebook reads as one continuous screen.
+function EdgebookSplash() {
+  return (
+    <div className="min-h-[100dvh] vault-bg grid place-items-center">
+      <div className="flex flex-col items-center gap-3 animate-fade-up">
+        <div className="grid h-12 w-12 place-items-center rounded-2xl animate-mint-pulse bg-mint text-background">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-6 w-6"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" /></svg>
+        </div>
+        <div className="text-xl font-semibold tracking-tight text-foreground">Edgebook</div>
+        <div className="text-sm text-muted-foreground">Your all-in-one journal</div>
+      </div>
+    </div>
+  );
+}
+
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading, hasAccess, accessLoading } = useAuth();
   const loc = useLocation();
@@ -90,7 +107,7 @@ const App = () => (
             <Route path="/quiz/:chapterId" element={<Protected><Quiz /></Protected>} />
             <Route path="/notebook" element={<Protected><Notebook /></Protected>} />
             <Route path="/analytics" element={<Protected><Analytics /></Protected>} />
-            <Route path="/journal" element={<Protected><Journal /></Protected>} />
+            <Route path="/journal" element={<Protected><Suspense fallback={<EdgebookSplash />}><Journal /></Suspense></Protected>} />
             <Route path="/calculators" element={<Protected><Calculators /></Protected>} />
             <Route path="/patterns" element={<Protected><Patterns /></Protected>} />
             <Route path="/news" element={<Protected><News /></Protected>} />

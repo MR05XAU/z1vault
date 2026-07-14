@@ -545,7 +545,7 @@ export default function Reader() {
                     key={absoluteIndex}
                     style={PAPER_VARS}
                     className={[
-                      "relative flex-1 min-w-0 overflow-hidden px-6 py-8 md:px-10 md:py-10 prose-z1",
+                      "paper-texture relative flex-1 min-w-0 overflow-hidden px-6 py-8 md:px-10 md:py-10 prose-z1",
                       "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.65)]",
                       isFirstOfSpread ? "rounded-l-md rounded-r-[2px]" : "rounded-r-md rounded-l-[2px]",
                       flipClass,
