@@ -69,24 +69,27 @@ Deno.serve(async (req) => {
       return json({
         ok: true,
         environment: env,
-        promos: promos.data.map((p) => ({
-          id: p.id,
-          code: p.code,
-          active: p.active,
-          created: p.created,
-          expires_at: p.expires_at,
-          max_redemptions: p.max_redemptions,
-          times_redeemed: p.times_redeemed,
-          coupon: {
-            id: (p.coupon as any).id,
-            name: (p.coupon as any).name,
-            percent_off: (p.coupon as any).percent_off,
-            amount_off: (p.coupon as any).amount_off,
-            currency: (p.coupon as any).currency,
-            duration: (p.coupon as any).duration,
-            duration_in_months: (p.coupon as any).duration_in_months,
-          },
-        })),
+        promos: promos.data.map((p) => {
+          const c = (p.coupon ?? {}) as any;
+          return {
+            id: p.id,
+            code: p.code,
+            active: p.active,
+            created: p.created,
+            expires_at: p.expires_at,
+            max_redemptions: p.max_redemptions,
+            times_redeemed: p.times_redeemed,
+            coupon: {
+              id: c.id ?? null,
+              name: c.name ?? null,
+              percent_off: c.percent_off ?? null,
+              amount_off: c.amount_off ?? null,
+              currency: c.currency ?? null,
+              duration: c.duration ?? null,
+              duration_in_months: c.duration_in_months ?? null,
+            },
+          };
+        }),
       });
     }
 
