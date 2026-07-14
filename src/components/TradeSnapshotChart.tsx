@@ -97,7 +97,7 @@ export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entr
     const mint = cssVar("--mint");
     const exitColor = win ? cssVar("--success") : cssVar("--danger");
 
-    series.setMarkers([
+    createSeriesMarkers(series, [
       {
         time: entrySec,
         position: direction === "long" ? "belowBar" : "aboveBar",
