@@ -210,6 +210,34 @@
   .pb-nav { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
   .hide-scrollbar::-webkit-scrollbar { display: none; }
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  /* Real book page-flip: the stage supplies 3D perspective; the incoming
+     leaf swings open around the spine edge with a brightness sweep, like a
+     physical page falling flat. The other leaf of a spread just settles. */
+  .book-stage { perspective: 1800px; }
+  .page-flip-next {
+    transform-origin: left center;
+    backface-visibility: hidden;
+    animation: page-flip-next 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) both;
+  }
+  .page-flip-prev {
+    transform-origin: right center;
+    backface-visibility: hidden;
+    animation: page-flip-prev 0.55s cubic-bezier(0.2, 0.75, 0.3, 1) both;
+  }
+  .page-settle { animation: page-settle 0.45s var(--ease-out-soft) both; }
+  @keyframes page-flip-next {
+    0% { transform: rotateY(-70deg); filter: brightness(0.78); }
+    100% { transform: rotateY(0deg); filter: brightness(1); }
+  }
+  @keyframes page-flip-prev {
+    0% { transform: rotateY(70deg); filter: brightness(0.78); }
+    100% { transform: rotateY(0deg); filter: brightness(1); }
+  }
+  @keyframes page-settle {
+    0% { opacity: 0.3; }
+    100% { opacity: 1; }
+  }
+
   .prose-z1 { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif; }
   .prose-z1 p { @apply mb-4 text-[16px] leading-[1.85] text-foreground/85; }
   .prose-z1 h1 { @apply text-3xl mb-4 mt-2 font-medium text-foreground; }

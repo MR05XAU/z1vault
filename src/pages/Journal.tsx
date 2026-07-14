@@ -177,9 +177,12 @@ export default function Journal() {
     <div className="min-h-screen vault-bg" style={{ color: EB.foreground }}>
       {/* Sidebar (desktop) */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 md:flex md:flex-col" style={{ background: "hsl(220 10% 5% / 0.6)", backdropFilter: "blur(20px)", borderRight: `1px solid ${EB.sidebarBorder}` }}>
-        <div className="flex h-14 items-center gap-2 px-5 font-semibold" style={{ borderBottom: `1px solid ${EB.sidebarBorder}` }}>
-          <div className="grid h-7 w-7 place-items-center rounded-md" style={{ background: EB.primary, color: EB.primaryForeground }}><TrendingUp className="h-4 w-4" /></div>
-          Edgebook
+        <div className="flex h-16 items-center gap-2.5 px-5" style={{ borderBottom: `1px solid ${EB.sidebarBorder}` }}>
+          <div className="grid h-7 w-7 shrink-0 place-items-center rounded-md" style={{ background: EB.primary, color: EB.primaryForeground }}><TrendingUp className="h-4 w-4" /></div>
+          <div className="min-w-0">
+            <div className="font-semibold leading-tight">Edgebook</div>
+            <div className="truncate text-[10px] leading-tight" style={{ color: EB.mutedForeground }}>Your all-in-one journal</div>
+          </div>
         </div>
         <nav className="flex-1 space-y-1 p-3">
           {NAV.map((n) => (
@@ -238,7 +241,16 @@ export default function Journal() {
         )}
         <div className="mx-auto max-w-7xl p-4 md:p-8">
           {loading ? (
-            <div className="grid place-items-center py-24 text-sm" style={{ color: EB.mutedForeground }}>Loading…</div>
+            /* Branded splash while the journal loads */
+            <div className="grid place-items-center py-32">
+              <div className="flex flex-col items-center gap-3 animate-fade-up">
+                <div className="grid h-12 w-12 place-items-center rounded-2xl animate-mint-pulse" style={{ background: EB.primary, color: EB.primaryForeground }}>
+                  <TrendingUp className="h-6 w-6" />
+                </div>
+                <div className="text-xl font-semibold tracking-tight">Edgebook</div>
+                <div className="text-sm" style={{ color: EB.mutedForeground }}>Your all-in-one journal</div>
+              </div>
+            </div>
           ) : view === "dashboard" ? (
             <DashboardView trades={trades} onOpenTrade={setDetailTrade} onGoImport={() => setView("import")} onGoSettings={() => setView("settings")} onAdd={() => setSheet("new")} />
           ) : view === "trades" ? (

@@ -526,12 +526,20 @@ export default function Reader() {
               onDoubleClick={onDoubleClick}
               onTouchStart={onTouchStart}
               onTouchEnd={(e) => { onMouseUp(); onTouchEndSwipe(e); }}
-              className={`relative flex w-full min-h-0 flex-1 gap-[2px] ${turnDir === "next" ? "animate-page-turn-next" : "animate-page-turn-prev"}`}
+              className="book-stage relative flex w-full min-h-0 flex-1 gap-[2px]"
             >
               {visibleSpecs.map((blockIdxs, i) => {
                 const absoluteIndex = pageIndex + i;
                 const isFirstOfSpread = i === 0;
                 const isClosingLeaf = absoluteIndex === totalPages - 1;
+                const isSpread = visibleSpecs.length === 2;
+                // On "next", the right leaf (or the single page) swings open
+                // from the spine; on "prev" the left leaf swings back. The
+                // opposite leaf of a spread just settles into place.
+                const flipClass =
+                  turnDir === "next"
+                    ? (!isSpread || i === 1 ? "page-flip-next" : "page-settle")
+                    : (!isSpread || i === 0 ? "page-flip-prev" : "page-settle");
                 return (
                   <div
                     key={absoluteIndex}
@@ -540,6 +548,7 @@ export default function Reader() {
                       "relative flex-1 min-w-0 overflow-hidden px-6 py-8 md:px-10 md:py-10 prose-z1",
                       "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.65)]",
                       isFirstOfSpread ? "rounded-l-md rounded-r-[2px]" : "rounded-r-md rounded-l-[2px]",
+                      flipClass,
                     ].join(" ")}
                   >
                     <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/10 to-transparent" />
@@ -631,43 +640,6 @@ export default function Reader() {
             </button>
           </div>
 
-          {isLastPage && (
-            <div className="w-full max-w-sm pb-[max(env(safe-area-inset-bottom),0.5rem)]">
-              {/* End-of-chapter ornament */}
-              <div className="mb-4 flex items-center justify-center gap-2 text-mint/50">
-                <span className="h-px w-6 bg-current" />
-                <span className="size-1 rounded-full bg-current" />
-                <span className="h-px w-6 bg-current" />
-              </div>
-              {chapter.is_background ? (
-                <Button
-                  onClick={() => completeChapter(() => neighbors.next ? nav(`/read/${neighbors.next.id}`) : nav("/library"))}
-                  className="w-full h-14 rounded-2xl mint-fill font-medium shadow-glow press"
-                >
-                  <CheckCircle2 className="size-4 mr-2" /> Mark complete & continue
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => completeChapter(() => nav(`/quiz/${chapter.id}`))}
-                  className="w-full h-14 rounded-2xl mint-fill font-medium shadow-glow press"
-                >
-                  <Trophy className="size-4 mr-2" /> Take the chapter quiz
-                </Button>
-              )}
-              <div className="flex gap-2 mt-3">
-                {neighbors.prev && (
-                  <Button variant="outline" onClick={() => nav(`/read/${neighbors.prev.id}`)} className="flex-1 h-12 rounded-xl border-border-strong">
-                    <ChevronLeft className="size-4 mr-1" /> Previous
-                  </Button>
-                )}
-                {neighbors.next && (
-                  <Button onClick={() => nav(`/read/${neighbors.next.id}`)} className="flex-1 h-12 rounded-xl bg-secondary text-foreground hover:bg-secondary/80">
-                    Next <ChevronRight className="size-4 ml-1" />
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
         </div>
 
         {selectedText && (
