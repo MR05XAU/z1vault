@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { createChart, CandlestickSeries, type IChartApi, type ISeriesApi, type UTCTimestamp } from "lightweight-charts";
+import { createChart, CandlestickSeries, createSeriesMarkers, type IChartApi, type ISeriesApi, type SeriesMarker, type Time, type UTCTimestamp } from "lightweight-charts";
 
 type Props = {
   symbol: string;
@@ -97,26 +97,29 @@ export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entr
     const mint = cssVar("--mint");
     const exitColor = win ? cssVar("--success") : cssVar("--danger");
 
-    series.setMarkers([
-      {
-        time: entrySec,
-        position: direction === "long" ? "belowBar" : "aboveBar",
-        color: mint,
-        shape: direction === "long" ? "arrowUp" : "arrowDown",
-        text: "Entry",
-      },
-      ...(exitSec != null
-        ? [
-            {
-              time: exitSec,
-              position: direction === "short" ? "belowBar" : "aboveBar",
-              color: exitColor,
-              shape: (direction === "short" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
-              text: "Exit",
-            },
-          ]
-        : []),
-    ]);
+    createSeriesMarkers(
+      series,
+      [
+        {
+          time: entrySec,
+          position: (direction === "long" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
+          color: mint,
+          shape: (direction === "long" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
+          text: "Entry",
+        },
+        ...(exitSec != null
+          ? [
+              {
+                time: exitSec,
+                position: (direction === "short" ? "belowBar" : "aboveBar") as "belowBar" | "aboveBar",
+                color: exitColor,
+                shape: (direction === "short" ? "arrowUp" : "arrowDown") as "arrowUp" | "arrowDown",
+                text: "Exit",
+              },
+            ]
+          : []),
+      ] as SeriesMarker<Time>[]
+    );
 
     series.createPriceLine({ price: entryPrice, color: mint, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "Entry" });
     if (exitPrice != null) {
