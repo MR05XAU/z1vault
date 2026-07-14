@@ -19,11 +19,45 @@ function stripChapterPrefix(title: string): string {
 }
 
 // Chapter bodies are often authored with their own leading "# Chapter N:
-// Title" line — the opener above already presents the title in full, so
-// strip a leading H1 from the markdown to avoid rendering it twice.
+// Title" line — the opener already presents the title in full, so strip a
+// leading H1 from the markdown to avoid rendering it twice.
 function stripLeadingH1(content: string): string {
   return content.replace(/^\s*#\s+.+\r?\n+/, "");
 }
+
+// Splits chapter markdown into "pages" for real page-turn navigation instead
+// of one continuous scroll — prefers splitting on H2 sections (natural
+// sub-topic breaks); falls back to grouping paragraphs into ~6 chunks for
+// chapters without enough H2s to paginate meaningfully.
+function splitIntoPages(markdown: string): string[] {
+  const trimmed = markdown.trim();
+  if (!trimmed) return [""];
+  const h2Split = trimmed.split(/\n(?=##\s)/).map((s) => s.trim()).filter(Boolean);
+  if (h2Split.length >= 3) return h2Split;
+  const paras = trimmed.split(/\n{2,}/).filter(Boolean);
+  const chunkSize = Math.max(3, Math.ceil(paras.length / 6));
+  const pages: string[] = [];
+  for (let i = 0; i < paras.length; i += chunkSize) pages.push(paras.slice(i, i + chunkSize).join("\n\n"));
+  return pages.length ? pages : [trimmed];
+}
+
+// Overrides the design-system's color variables to a warm paper palette,
+// scoped to this element and its children — every existing text-foreground /
+// text-muted-foreground / mint-text / border-border class automatically
+// re-themes since they all read from these same CSS variables.
+const PAPER_VARS = {
+  "--background": "42 38% 93%",
+  "--foreground": "30 30% 14%",
+  "--card": "42 38% 93%",
+  "--card-foreground": "30 30% 14%",
+  "--muted-foreground": "30 14% 42%",
+  "--border": "30 18% 72% / 0.6",
+  "--border-strong": "30 20% 60% / 0.7",
+  "--mint": "152 48% 30%",
+  "--mint-bright": "152 55% 25%",
+  "--mint-deep": "152 45% 20%",
+  "--primary": "152 48% 30%",
+} as React.CSSProperties;
 
 export default function Reader() {
   const { chapterId } = useParams();
@@ -32,7 +66,7 @@ export default function Reader() {
   const { user } = useAuth();
   const [chapter, setChapter] = useState<any>(null);
   const [neighbors, setNeighbors] = useState<{ prev?: any; next?: any }>({});
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState("");
   const [actionSheet, setActionSheet] = useState<null | "highlight" | "ask" | "note">(null);
   const [noteText, setNoteText] = useState("");
@@ -43,6 +77,20 @@ export default function Reader() {
   const [online, setOnline] = useState<boolean>(isOnline());
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
   const [wordLookup, setWordLookup] = useState<{ word: string; x: number; y: number } | null>(null);
+
+  const [pageIndex, setPageIndex] = useState(0);
+  const [turnDir, setTurnDir] = useState<"next" | "prev">("next");
+  const [turnKey, setTurnKey] = useState(0);
+  const [isWide, setIsWide] = useState(false);
+  const touchStartX = useRef<number | null>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsWide(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   useEffect(() => {
     if (!chapterId) return;
@@ -58,6 +106,7 @@ export default function Reader() {
         if (cached) ch = cached;
       }
       setChapter(ch);
+      setPageIndex(0);
       const local = await getOffline(chapterId);
       setDownloaded(!!local);
       if (local?.audio_cached && local.audio_url) {
@@ -74,40 +123,30 @@ export default function Reader() {
     })();
   }, [chapterId]);
 
-  // Scroll restore: ?pos=PX or ?pct=NN from a bookmark, otherwise last_position from progress.
+  const pages = useMemo(() => (chapter ? splitIntoPages(stripLeadingH1(chapter.content)) : []), [chapter]);
+  const pagesPerView = isWide ? 2 : 1;
+  const totalPages = pages.length;
+  const visiblePages = pages.slice(pageIndex, pageIndex + pagesPerView);
+  const isLastPage = pageIndex + pagesPerView >= totalPages;
+
+  // Restore reading position: ?pct=NN from a bookmark, otherwise the page
+  // index saved in last_position (repurposed from the old scroll-pixel value).
   useEffect(() => {
-    if (!chapter || !scrollRef.current || !user) return;
-    const el = scrollRef.current;
-    const restore = async () => {
-      const pos = searchParams.get("pos");
+    if (!chapter || !user || totalPages === 0) return;
+    (async () => {
       const pct = searchParams.get("pct");
-      if (pos) { el.scrollTop = Number(pos); return; }
       if (pct) {
-        const max = el.scrollHeight - el.clientHeight;
-        el.scrollTop = Math.max(0, (Number(pct) / 100) * max);
+        setPageIndex(Math.min(totalPages - 1, Math.max(0, Math.floor((Number(pct) / 100) * totalPages))));
         return;
       }
       const { data } = await supabase
         .from("user_progress").select("last_position")
         .eq("user_id", user.id).eq("chapter_id", chapter.id).maybeSingle();
-      if (data?.last_position) el.scrollTop = Number(data.last_position);
-    };
-    // wait for content to render
-    const t = setTimeout(restore, 80);
-    return () => clearTimeout(t);
-  }, [chapter, user, searchParams]);
-
-  // Selection on mobile: track selectionchange so the action bar appears reliably.
-  useEffect(() => {
-    const handler = () => {
-      const sel = window.getSelection()?.toString().trim() ?? "";
-      if (sel.length > 3 && scrollRef.current?.contains(window.getSelection()?.anchorNode ?? null)) {
-        setSelectedText(sel);
+      if (data?.last_position != null) {
+        setPageIndex(Math.min(totalPages - 1, Math.max(0, Number(data.last_position))));
       }
-    };
-    document.addEventListener("selectionchange", handler);
-    return () => document.removeEventListener("selectionchange", handler);
-  }, []);
+    })();
+  }, [chapter, user, totalPages, searchParams]);
 
   useEffect(() => {
     const on = () => setOnline(true), off = () => setOnline(false);
@@ -141,61 +180,24 @@ export default function Reader() {
     toast.success("Removed offline copy.");
   };
 
-  // Persist progress on scroll
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !chapter || !user) return;
+  const saveProgress = async (newIndex: number) => {
+    if (!user || !chapter || totalPages === 0) return;
+    const pct = Math.min(100, Math.round(((newIndex + pagesPerView) / totalPages) * 100));
+    await supabase.from("user_progress").upsert(
+      { user_id: user.id, chapter_id: chapter.id, progress_percentage: pct, last_position: newIndex, completed: pct >= 100 },
+      { onConflict: "user_id,chapter_id" },
+    );
+  };
 
-    // Mark as started immediately so progress isn't lost on short chapters / quick exits.
-    (async () => {
-      const { data: existing } = await supabase
-        .from("user_progress")
-        .select("progress_percentage,completed")
-        .eq("user_id", user.id)
-        .eq("chapter_id", chapter.id)
-        .maybeSingle();
-      if (!existing) {
-        await supabase.from("user_progress").upsert(
-          { user_id: user.id, chapter_id: chapter.id, progress_percentage: 5, last_position: 0, completed: false },
-          { onConflict: "user_id,chapter_id" },
-        );
-      }
-    })();
-
-    let saveTimer: any;
-    const onScroll = () => {
-      const max = el.scrollHeight - el.clientHeight;
-      const pct = max > 0 ? Math.min(100, (el.scrollTop / max) * 100) : 100;
-      clearTimeout(saveTimer);
-      saveTimer = setTimeout(async () => {
-        await supabase.from("user_progress").upsert(
-          {
-            user_id: user!.id,
-            chapter_id: chapter.id,
-            progress_percentage: pct,
-            last_position: el.scrollTop,
-            completed: pct >= 95,
-          },
-          { onConflict: "user_id,chapter_id" }
-        );
-      }, 700);
-    };
-    el.addEventListener("scroll", onScroll);
-    return () => { el.removeEventListener("scroll", onScroll); clearTimeout(saveTimer); };
-  }, [chapter, user]);
-
-  // Flush progress on unload so quick exits don't lose the last scroll position.
+  // Flush progress on unload so quick exits don't lose the current page.
   useEffect(() => {
     if (!chapter || !user) return;
     const flush = () => {
-      const el = scrollRef.current;
-      if (!el) return;
-      const max = el.scrollHeight - el.clientHeight;
-      const pct = max > 0 ? Math.min(100, (el.scrollTop / max) * 100) : 100;
+      const pct = totalPages ? Math.min(100, Math.round(((pageIndex + pagesPerView) / totalPages) * 100)) : 0;
       const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_progress?on_conflict=user_id,chapter_id`;
       const body = JSON.stringify({
         user_id: user.id, chapter_id: chapter.id,
-        progress_percentage: pct, last_position: el.scrollTop, completed: pct >= 95,
+        progress_percentage: pct, last_position: pageIndex, completed: pct >= 100,
       });
       try {
         const blob = new Blob([body], { type: "application/json" });
@@ -208,7 +210,27 @@ export default function Reader() {
       window.removeEventListener("pagehide", flush);
       window.removeEventListener("beforeunload", flush);
     };
-  }, [chapter, user]);
+  }, [chapter, user, pageIndex, totalPages, pagesPerView]);
+
+  const goToPage = (newIndex: number, dir: "next" | "prev") => {
+    const clamped = Math.max(0, Math.min(newIndex, Math.max(0, totalPages - 1)));
+    if (clamped === pageIndex) return;
+    setTurnDir(dir);
+    setPageIndex(clamped);
+    setTurnKey((k) => k + 1);
+    saveProgress(clamped);
+  };
+  const nextPage = () => goToPage(pageIndex + pagesPerView, "next");
+  const prevPage = () => goToPage(pageIndex - pagesPerView, "prev");
+
+  const onTouchStart = (e: React.TouchEvent) => { touchStartX.current = e.touches[0]?.clientX ?? null; };
+  const onTouchEndSwipe = (e: React.TouchEvent) => {
+    if (touchStartX.current == null) return;
+    const dx = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 60) return;
+    if (dx < 0) nextPage(); else prevPage();
+  };
 
   const onMouseUp = () => {
     const sel = window.getSelection()?.toString().trim() ?? "";
@@ -218,7 +240,6 @@ export default function Reader() {
   // Double-tap / double-click a single word -> definition popover
   const onDoubleClick = (e: React.MouseEvent | React.TouchEvent) => {
     const sel = window.getSelection()?.toString().trim() ?? "";
-    // Single-word selection only (no spaces, alpha/hyphen, 2-30 chars)
     if (/^[A-Za-z][A-Za-z\-']{1,29}$/.test(sel)) {
       const touch = "touches" in e ? (e as any).changedTouches?.[0] : null;
       const x = touch?.clientX ?? (e as any).clientX ?? window.innerWidth / 2;
@@ -245,8 +266,7 @@ export default function Reader() {
 
   const addBookmark = async () => {
     if (!chapter) return;
-    const el = scrollRef.current;
-    const pct = el ? Math.round((el.scrollTop / Math.max(1, el.scrollHeight - el.clientHeight)) * 100) : 0;
+    const pct = totalPages ? Math.round(((pageIndex + pagesPerView) / totalPages) * 100) : 0;
     const { error } = await supabase.from("bookmarks").insert({
       user_id: user!.id,
       chapter_id: chapter.id,
@@ -308,7 +328,17 @@ export default function Reader() {
     }
   };
 
-  if (!chapter) {
+  const completeChapter = async (goTo: () => void) => {
+    if (user && chapter) {
+      await supabase.from("user_progress").upsert(
+        { user_id: user.id, chapter_id: chapter.id, progress_percentage: 100, last_position: Math.max(0, totalPages - 1), completed: true },
+        { onConflict: "user_id,chapter_id" },
+      );
+    }
+    goTo();
+  };
+
+  if (!chapter || totalPages === 0) {
     return (
       <div className="min-h-[100dvh] vault-bg grid place-items-center">
         <div className="size-8 border-2 border-mint/30 border-t-mint rounded-full animate-spin" />
@@ -317,15 +347,12 @@ export default function Reader() {
   }
 
   return (
-    <div className="h-[100dvh] vault-bg flex justify-center">
-      <div className="w-full max-w-md md:max-w-xl lg:max-w-2xl flex flex-col relative h-full">
+    <div className="h-[100dvh] vault-bg flex flex-col items-center">
+      <div className="w-full max-w-md md:max-w-3xl lg:max-w-5xl flex flex-col relative h-full">
         <header className="sticky top-0 z-20 glass-strong px-4 py-3 safe-top flex items-center gap-3 border-b border-border/60">
           <button onClick={() => nav("/library")} className="size-9 grid place-items-center rounded-full glass press">
             <ArrowLeft className="size-4" />
           </button>
-          {/* Chapter number + title already get a full presentation in the
-              in-body opener below — the sticky header stays minimal so it
-              doesn't repeat the same "Chapter N" label on every scroll. */}
           <div className="flex-1 min-w-0 text-center text-xs text-muted-foreground truncate">
             {stripChapterPrefix(chapter.title)}
           </div>
@@ -361,84 +388,117 @@ export default function Reader() {
           </div>
         )}
 
-        <div
-          ref={scrollRef}
-          onMouseUp={onMouseUp}
-          onTouchEnd={onMouseUp}
-          onDoubleClick={onDoubleClick}
-          className="flex-1 overflow-y-auto px-6 py-8 pb-[max(env(safe-area-inset-bottom),2rem)] prose-z1"
-        >
-          {/* Chapter opener — a book's chapter-start page, not a small app label */}
-          <div className="mb-10 text-center">
-            <div className="mx-auto h-px w-8 bg-mint/50" />
-            <div className="mt-4 text-[10px] uppercase tracking-[0.4em] text-mint-bright">
-              {chapter.is_background ? "Appendix" : `Chapter ${chapter.chapter_number}`}
-            </div>
-            <h1 className="display mt-2 text-[28px] font-medium leading-tight">{stripChapterPrefix(chapter.title)}</h1>
-            {chapter.subtitle && <p className="mt-2 text-sm italic text-muted-foreground">{chapter.subtitle}</p>}
-            <div className="mx-auto mt-4 h-px w-8 bg-mint/50" />
+        {/* The book itself — one paper leaf on mobile, a two-page spread on desktop */}
+        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 overflow-hidden px-3 py-4 md:px-6">
+          <div
+            key={turnKey}
+            ref={pageRef}
+            onMouseUp={onMouseUp}
+            onDoubleClick={onDoubleClick}
+            onTouchStart={onTouchStart}
+            onTouchEnd={(e) => { onMouseUp(); onTouchEndSwipe(e); }}
+            className={`relative flex w-full min-h-0 flex-1 gap-[2px] ${turnDir === "next" ? "animate-page-turn-next" : "animate-page-turn-prev"}`}
+          >
+            {visiblePages.map((pageMd, i) => {
+              const absoluteIndex = pageIndex + i;
+              const isFirstOfSpread = i === 0;
+              return (
+                <div
+                  key={absoluteIndex}
+                  style={PAPER_VARS}
+                  className={[
+                    "relative flex-1 min-w-0 overflow-y-auto px-6 py-8 md:px-10 md:py-10 prose-z1",
+                    "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.65)]",
+                    isFirstOfSpread ? "rounded-l-md rounded-r-[2px]" : "rounded-r-md rounded-l-[2px]",
+                  ].join(" ")}
+                >
+                  <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/10 to-transparent" />
+                  {absoluteIndex === 0 && (
+                    <div className="mb-8 text-center">
+                      <div className="mx-auto h-px w-8 bg-mint/50" />
+                      <div className="mt-4 text-[10px] uppercase tracking-[0.4em] text-mint-bright">
+                        {chapter.is_background ? "Appendix" : `Chapter ${chapter.chapter_number}`}
+                      </div>
+                      <h1 className="display mt-2 text-[26px] font-medium leading-tight">{stripChapterPrefix(chapter.title)}</h1>
+                      {chapter.subtitle && <p className="mt-2 text-sm italic text-muted-foreground">{chapter.subtitle}</p>}
+                      <div className="mx-auto mt-4 h-px w-8 bg-mint/50" />
+                    </div>
+                  )}
+                  {absoluteIndex === 0 && (audioBlobUrl || chapter.audio_url) && chapter.audio_url && (
+                    <div className="rounded-2xl border border-border p-3 mb-6 flex items-center gap-2 bg-black/5">
+                      <Headphones className="size-4 text-mint-bright" />
+                      <audio controls src={audioBlobUrl ?? chapter.audio_url} className="flex-1 h-9" />
+                    </div>
+                  )}
+                  <ReactMarkdown>{pageMd}</ReactMarkdown>
+                  <div className="mt-6 text-center text-[11px] text-muted-foreground/70 tabular-nums">{absoluteIndex + 1}</div>
+                </div>
+              );
+            })}
+            {/* Binding shadow between two facing pages */}
+            {visiblePages.length === 2 && (
+              <div className="pointer-events-none absolute inset-y-0 left-1/2 w-6 -translate-x-1/2 bg-gradient-to-r from-black/25 via-black/10 to-black/25" />
+            )}
           </div>
-          {(audioBlobUrl || chapter.audio_url) && chapter.audio_url && (
-            <div className="glass rounded-2xl p-3 mb-6 flex items-center gap-2">
-              <Headphones className="size-4 text-mint-bright" />
-              <audio controls src={audioBlobUrl ?? chapter.audio_url} className="flex-1 h-9" />
+
+          {/* Page-turn controls */}
+          <div className="flex w-full max-w-sm items-center justify-between px-2">
+            <button
+              onClick={prevPage}
+              disabled={pageIndex === 0}
+              className="size-10 grid place-items-center rounded-full glass press disabled:opacity-30"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <span className="text-xs text-muted-foreground tabular-nums">
+              Page {pageIndex + 1}{visiblePages.length === 2 ? `–${pageIndex + 2}` : ""} of {totalPages}
+            </span>
+            <button
+              onClick={nextPage}
+              disabled={isLastPage}
+              className="size-10 grid place-items-center rounded-full glass press disabled:opacity-30"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+
+          {isLastPage && (
+            <div className="w-full max-w-sm pb-[max(env(safe-area-inset-bottom),0.5rem)]">
+              {/* End-of-chapter ornament */}
+              <div className="mb-4 flex items-center justify-center gap-2 text-mint/50">
+                <span className="h-px w-6 bg-current" />
+                <span className="size-1 rounded-full bg-current" />
+                <span className="h-px w-6 bg-current" />
+              </div>
+              {chapter.is_background ? (
+                <Button
+                  onClick={() => completeChapter(() => neighbors.next ? nav(`/read/${neighbors.next.id}`) : nav("/library"))}
+                  className="w-full h-14 rounded-2xl mint-fill font-medium shadow-glow press"
+                >
+                  <CheckCircle2 className="size-4 mr-2" /> Mark complete & continue
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => completeChapter(() => nav(`/quiz/${chapter.id}`))}
+                  className="w-full h-14 rounded-2xl mint-fill font-medium shadow-glow press"
+                >
+                  <Trophy className="size-4 mr-2" /> Take the chapter quiz
+                </Button>
+              )}
+              <div className="flex gap-2 mt-3">
+                {neighbors.prev && (
+                  <Button variant="outline" onClick={() => nav(`/read/${neighbors.prev.id}`)} className="flex-1 h-12 rounded-xl border-border-strong">
+                    <ChevronLeft className="size-4 mr-1" /> Previous
+                  </Button>
+                )}
+                {neighbors.next && (
+                  <Button onClick={() => nav(`/read/${neighbors.next.id}`)} className="flex-1 h-12 rounded-xl bg-secondary text-foreground hover:bg-secondary/80">
+                    Next <ChevronRight className="size-4 ml-1" />
+                  </Button>
+                )}
+              </div>
             </div>
           )}
-          <ReactMarkdown>{stripLeadingH1(chapter.content)}</ReactMarkdown>
-
-          {/* End-of-chapter ornament */}
-          <div className="mt-10 flex items-center justify-center gap-2 text-mint/50">
-            <span className="h-px w-6 bg-current" />
-            <span className="size-1 rounded-full bg-current" />
-            <span className="h-px w-6 bg-current" />
-          </div>
-
-          <div className="mt-8 pt-6 border-t border-border-strong">
-            {chapter.is_background ? (
-              <Button
-                onClick={async () => {
-                  if (user) {
-                    await supabase.from("user_progress").upsert(
-                      { user_id: user.id, chapter_id: chapter.id, progress_percentage: 100, last_position: scrollRef.current?.scrollTop ?? 0, completed: true },
-                      { onConflict: "user_id,chapter_id" },
-                    );
-                  }
-                  if (neighbors.next) nav(`/read/${neighbors.next.id}`);
-                  else nav("/library");
-                }}
-                className="w-full h-14 rounded-2xl mint-fill font-medium shadow-glow press"
-              >
-                <CheckCircle2 className="size-4 mr-2" /> Mark complete & continue
-              </Button>
-            ) : (
-            <Button
-              onClick={async () => {
-                if (user) {
-                  await supabase.from("user_progress").upsert(
-                    { user_id: user.id, chapter_id: chapter.id, progress_percentage: 100, last_position: scrollRef.current?.scrollTop ?? 0, completed: true },
-                    { onConflict: "user_id,chapter_id" },
-                  );
-                }
-                nav(`/quiz/${chapter.id}`);
-              }}
-              className="w-full h-14 rounded-2xl mint-fill font-medium shadow-glow press"
-            >
-              <Trophy className="size-4 mr-2" /> Take the chapter quiz
-            </Button>
-            )}
-            <div className="flex gap-2 mt-3">
-              {neighbors.prev && (
-                <Button variant="outline" onClick={() => nav(`/read/${neighbors.prev.id}`)} className="flex-1 h-12 rounded-xl border-border-strong">
-                  <ChevronLeft className="size-4 mr-1" /> Previous
-                </Button>
-              )}
-              {neighbors.next && (
-                <Button onClick={() => nav(`/read/${neighbors.next.id}`)} className="flex-1 h-12 rounded-xl bg-secondary text-foreground hover:bg-secondary/80">
-                  Next <ChevronRight className="size-4 ml-1" />
-                </Button>
-              )}
-            </div>
-          </div>
         </div>
 
         {selectedText && (
