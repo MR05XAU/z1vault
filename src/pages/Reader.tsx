@@ -25,20 +25,14 @@ function stripLeadingH1(content: string): string {
   return content.replace(/^\s*#\s+.+\r?\n+/, "");
 }
 
-// Splits chapter markdown into "pages" for real page-turn navigation instead
-// of one continuous scroll — prefers splitting on H2 sections (natural
-// sub-topic breaks); falls back to grouping paragraphs into ~6 chunks for
-// chapters without enough H2s to paginate meaningfully.
-function splitIntoPages(markdown: string): string[] {
+// Splits chapter markdown into block-level units (paragraphs, headings,
+// lists). Pages are then packed from consecutive blocks based on *measured*
+// heights against the real page height — so a page never holds more text
+// than fits on screen and never needs internal scrolling.
+function splitIntoBlocks(markdown: string): string[] {
   const trimmed = markdown.trim();
-  if (!trimmed) return [""];
-  const h2Split = trimmed.split(/\n(?=##\s)/).map((s) => s.trim()).filter(Boolean);
-  if (h2Split.length >= 3) return h2Split;
-  const paras = trimmed.split(/\n{2,}/).filter(Boolean);
-  const chunkSize = Math.max(3, Math.ceil(paras.length / 6));
-  const pages: string[] = [];
-  for (let i = 0; i < paras.length; i += chunkSize) pages.push(paras.slice(i, i + chunkSize).join("\n\n"));
-  return pages.length ? pages : [trimmed];
+  if (!trimmed) return [];
+  return trimmed.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
 }
 
 // Overrides the design-system's color variables to a warm paper palette,
@@ -94,6 +88,15 @@ export default function Reader() {
   const [isWide, setIsWide] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
+  // Measurement-driven pagination: blocks are measured off-screen at the real
+  // page width, then greedily packed into pages that fit the real page height.
+  const stageRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<HTMLDivElement>(null);
+  const openerMeasureRef = useRef<HTMLDivElement>(null);
+  const [stageSize, setStageSize] = useState({ w: 0, h: 0 });
+  const [pageMap, setPageMap] = useState<number[][]>([]);
+  const restoredRef = useRef<string | null>(null);
+
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1024px)");
     const update = () => setIsWide(mq.matches);
@@ -133,30 +136,72 @@ export default function Reader() {
     })();
   }, [chapterId]);
 
-  const pages = useMemo(() => (chapter ? splitIntoPages(stripLeadingH1(chapter.content)) : []), [chapter]);
+  const blocks = useMemo(() => (chapter ? splitIntoBlocks(stripLeadingH1(chapter.content)) : []), [chapter]);
   const pagesPerView = isWide ? 2 : 1;
-  const totalPages = pages.length;
-  const visiblePages = pages.slice(pageIndex, pageIndex + pagesPerView);
-  const isLastPage = pageIndex + pagesPerView >= totalPages;
 
-  // Restore reading position: ?pct=NN from a bookmark, otherwise the page
-  // index saved in last_position (repurposed from the old scroll-pixel value).
+  // Track the live size of the page stage so pagination follows the viewport.
   useEffect(() => {
-    if (!chapter || !user || totalPages === 0) return;
+    const el = stageRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const r = entries[0]?.contentRect;
+      if (r) setStageSize({ w: Math.round(r.width), h: Math.round(r.height) });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [chapter]);
+
+  // Pack measured blocks into pages that fit the page height exactly —
+  // no internal scrolling. Page 0 reserves space for the chapter opener.
+  useEffect(() => {
+    if (!measureRef.current || blocks.length === 0 || stageSize.h < 100 || stageSize.w < 100) return;
+    const el = measureRef.current;
+    const cs = getComputedStyle(el);
+    const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const footerReserve = 44; // page-number line + its top margin
+    const capacity = Math.max(120, stageSize.h - padY - footerReserve);
+    const openerH = openerMeasureRef.current?.offsetHeight ?? 0;
+    const blockEls = Array.from(el.querySelectorAll("[data-block]")) as HTMLElement[];
+    const out: number[][] = [];
+    let cur: number[] = [];
+    let used = openerH;
+    blockEls.forEach((be, i) => {
+      const h = be.offsetHeight;
+      if (cur.length > 0 && used + h > capacity) { out.push(cur); cur = []; used = 0; }
+      cur.push(i);
+      used += h;
+    });
+    if (cur.length) out.push(cur);
+    setPageMap(out);
+  }, [blocks, stageSize, pagesPerView]);
+
+  const totalPages = pageMap.length;
+  const visibleSpecs = pageMap.slice(pageIndex, pageIndex + pagesPerView);
+  const isLastPage = totalPages > 0 && pageIndex + pagesPerView >= totalPages;
+
+  // Restore reading position once per chapter — by percentage, not raw page
+  // index, since page counts differ per device/viewport under measured
+  // pagination (a phone has more, smaller pages than a desktop spread).
+  useEffect(() => {
+    if (!chapter || !user || totalPages === 0 || restoredRef.current === chapter.id) return;
+    restoredRef.current = chapter.id;
     (async () => {
+      const toPage = (pct: number) => Math.min(totalPages - 1, Math.max(0, Math.floor((pct / 100) * totalPages)));
       const pct = searchParams.get("pct");
-      if (pct) {
-        setPageIndex(Math.min(totalPages - 1, Math.max(0, Math.floor((Number(pct) / 100) * totalPages))));
-        return;
-      }
+      if (pct) { setPageIndex(toPage(Number(pct))); return; }
       const { data } = await supabase
-        .from("user_progress").select("last_position")
+        .from("user_progress").select("progress_percentage,completed")
         .eq("user_id", user.id).eq("chapter_id", chapter.id).maybeSingle();
-      if (data?.last_position != null) {
-        setPageIndex(Math.min(totalPages - 1, Math.max(0, Number(data.last_position))));
+      if (data && !data.completed && data.progress_percentage != null && Number(data.progress_percentage) < 100) {
+        setPageIndex(toPage(Number(data.progress_percentage)));
       }
     })();
   }, [chapter, user, totalPages, searchParams]);
+
+  // Keep pageIndex valid when repagination shrinks the page count (resize).
+  useEffect(() => {
+    if (totalPages > 0 && pageIndex >= totalPages) setPageIndex(totalPages - 1);
+  }, [totalPages, pageIndex]);
 
   useEffect(() => {
     const on = () => setOnline(true), off = () => setOnline(false);
@@ -241,6 +286,19 @@ export default function Reader() {
     if (Math.abs(dx) < 60) return;
     if (dx < 0) nextPage(); else prevPage();
   };
+
+  // Desktop: turn pages with the arrow keys (unless a sheet/input has focus).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (actionSheet) return;
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "ArrowRight") nextPage();
+      else if (e.key === "ArrowLeft") prevPage();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   const onMouseUp = () => {
     const sel = window.getSelection()?.toString().trim() ?? "";
@@ -348,7 +406,7 @@ export default function Reader() {
     goTo();
   };
 
-  if (!chapter || totalPages === 0) {
+  if (!chapter) {
     return (
       <div className="min-h-[100dvh] vault-bg grid place-items-center">
         <div className="size-8 border-2 border-mint/30 border-t-mint rounded-full animate-spin" />
@@ -356,9 +414,35 @@ export default function Reader() {
     );
   }
 
+  // Chapter opener — rendered on page 0 and (identically) in the hidden
+  // measurer so pagination accounts for its exact height.
+  const opener = (
+    <>
+      <div className="mb-8 text-center">
+        <div className="mx-auto h-px w-8 bg-mint/50" />
+        <div className="mt-4 text-[10px] uppercase tracking-[0.4em] text-mint-bright">
+          {chapter.is_background ? "Appendix" : `Chapter ${chapter.chapter_number}`}
+        </div>
+        <h1 className="display mt-2 text-[26px] font-medium leading-tight text-foreground">{stripChapterPrefix(chapter.title)}</h1>
+        {chapter.subtitle && <p className="mt-2 text-sm italic text-muted-foreground">{chapter.subtitle}</p>}
+        <div className="mx-auto mt-4 h-px w-8 bg-mint/50" />
+      </div>
+      {(audioBlobUrl || chapter.audio_url) && chapter.audio_url && (
+        <div className="rounded-2xl border border-border p-3 mb-6 flex items-center gap-2 bg-black/5">
+          <Headphones className="size-4 text-mint-bright" />
+          <audio controls src={audioBlobUrl ?? chapter.audio_url} className="flex-1 h-9" />
+        </div>
+      )}
+    </>
+  );
+
+  // The measure page width mirrors one page of the spread: stage width,
+  // halved (minus the 2px gap) when showing two pages.
+  const measureW = pagesPerView === 2 ? Math.floor((stageSize.w - 2) / 2) : stageSize.w;
+
   return (
     <div className="h-[100dvh] vault-bg flex flex-col items-center">
-      <div className="w-full max-w-md md:max-w-3xl lg:max-w-5xl flex flex-col relative h-full">
+      <div className="w-full max-w-md md:max-w-3xl lg:max-w-6xl xl:max-w-7xl flex flex-col relative h-full">
         <header className="sticky top-0 z-20 glass-strong px-4 py-3 safe-top flex items-center gap-3 border-b border-border/60">
           <button onClick={() => nav("/library")} className="size-9 grid place-items-center rounded-full glass press">
             <ArrowLeft className="size-4" />
@@ -399,57 +483,63 @@ export default function Reader() {
         )}
 
         {/* The book itself — one paper leaf on mobile, a two-page spread on desktop */}
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 overflow-hidden px-3 py-4 md:px-6">
-          <div
-            key={turnKey}
-            ref={pageRef}
-            onMouseUp={onMouseUp}
-            onDoubleClick={onDoubleClick}
-            onTouchStart={onTouchStart}
-            onTouchEnd={(e) => { onMouseUp(); onTouchEndSwipe(e); }}
-            className={`relative flex w-full min-h-0 flex-1 gap-[2px] ${turnDir === "next" ? "animate-page-turn-next" : "animate-page-turn-prev"}`}
-          >
-            {visiblePages.map((pageMd, i) => {
-              const absoluteIndex = pageIndex + i;
-              const isFirstOfSpread = i === 0;
-              return (
-                <div
-                  key={absoluteIndex}
-                  style={PAPER_VARS}
-                  className={[
-                    "relative flex-1 min-w-0 overflow-y-auto px-6 py-8 md:px-10 md:py-10 prose-z1",
-                    "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.65)]",
-                    isFirstOfSpread ? "rounded-l-md rounded-r-[2px]" : "rounded-r-md rounded-l-[2px]",
-                  ].join(" ")}
-                >
-                  <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/10 to-transparent" />
-                  {absoluteIndex === 0 && (
-                    <div className="mb-8 text-center">
-                      <div className="mx-auto h-px w-8 bg-mint/50" />
-                      <div className="mt-4 text-[10px] uppercase tracking-[0.4em] text-mint-bright">
-                        {chapter.is_background ? "Appendix" : `Chapter ${chapter.chapter_number}`}
-                      </div>
-                      <h1 className="display mt-2 text-[26px] font-medium leading-tight text-foreground">{stripChapterPrefix(chapter.title)}</h1>
-                      {chapter.subtitle && <p className="mt-2 text-sm italic text-muted-foreground">{chapter.subtitle}</p>}
-                      <div className="mx-auto mt-4 h-px w-8 bg-mint/50" />
-                    </div>
-                  )}
-                  {absoluteIndex === 0 && (audioBlobUrl || chapter.audio_url) && chapter.audio_url && (
-                    <div className="rounded-2xl border border-border p-3 mb-6 flex items-center gap-2 bg-black/5">
-                      <Headphones className="size-4 text-mint-bright" />
-                      <audio controls src={audioBlobUrl ?? chapter.audio_url} className="flex-1 h-9" />
-                    </div>
-                  )}
-                  <ReactMarkdown>{pageMd}</ReactMarkdown>
-                  <div className="mt-6 text-center text-[11px] text-muted-foreground/70 tabular-nums">{absoluteIndex + 1}</div>
+        <div ref={stageRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 overflow-hidden px-3 py-4 md:px-6">
+          {/* Hidden measurer: same width, typography, and padding as one real
+              page, used to compute how many blocks fit per page. */}
+          {measureW > 100 && (
+            <div
+              ref={measureRef}
+              aria-hidden
+              style={{ ...PAPER_VARS, position: "fixed", left: -99999, top: 0, width: measureW, visibility: "hidden", pointerEvents: "none" }}
+              className="px-6 py-8 md:px-10 md:py-10 prose-z1"
+            >
+              <div ref={openerMeasureRef} style={{ display: "flow-root" }}>{opener}</div>
+              {blocks.map((b, i) => (
+                <div key={i} data-block style={{ display: "flow-root" }}>
+                  <ReactMarkdown>{b}</ReactMarkdown>
                 </div>
-              );
-            })}
-            {/* Binding shadow between two facing pages */}
-            {visiblePages.length === 2 && (
-              <div className="pointer-events-none absolute inset-y-0 left-1/2 w-6 -translate-x-1/2 bg-gradient-to-r from-black/25 via-black/10 to-black/25" />
-            )}
-          </div>
+              ))}
+            </div>
+          )}
+
+          {totalPages === 0 ? (
+            <div className="size-8 border-2 border-mint/30 border-t-mint rounded-full animate-spin" />
+          ) : (
+            <div
+              key={turnKey}
+              ref={pageRef}
+              onMouseUp={onMouseUp}
+              onDoubleClick={onDoubleClick}
+              onTouchStart={onTouchStart}
+              onTouchEnd={(e) => { onMouseUp(); onTouchEndSwipe(e); }}
+              className={`relative flex w-full min-h-0 flex-1 gap-[2px] ${turnDir === "next" ? "animate-page-turn-next" : "animate-page-turn-prev"}`}
+            >
+              {visibleSpecs.map((blockIdxs, i) => {
+                const absoluteIndex = pageIndex + i;
+                const isFirstOfSpread = i === 0;
+                return (
+                  <div
+                    key={absoluteIndex}
+                    style={PAPER_VARS}
+                    className={[
+                      "relative flex-1 min-w-0 overflow-hidden px-6 py-8 md:px-10 md:py-10 prose-z1",
+                      "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.65)]",
+                      isFirstOfSpread ? "rounded-l-md rounded-r-[2px]" : "rounded-r-md rounded-l-[2px]",
+                    ].join(" ")}
+                  >
+                    <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/10 to-transparent" />
+                    {absoluteIndex === 0 && opener}
+                    <ReactMarkdown>{blockIdxs.map((bi) => blocks[bi]).join("\n\n")}</ReactMarkdown>
+                    <div className="absolute inset-x-0 bottom-3 text-center text-[11px] text-muted-foreground/70 tabular-nums">{absoluteIndex + 1}</div>
+                  </div>
+                );
+              })}
+              {/* Binding shadow between two facing pages */}
+              {visibleSpecs.length === 2 && (
+                <div className="pointer-events-none absolute inset-y-0 left-1/2 w-6 -translate-x-1/2 bg-gradient-to-r from-black/25 via-black/10 to-black/25" />
+              )}
+            </div>
+          )}
 
           {/* Page-turn controls */}
           <div className="flex w-full max-w-sm items-center justify-between px-2">
@@ -461,11 +551,11 @@ export default function Reader() {
               <ChevronLeft className="size-4" />
             </button>
             <span className="text-xs text-muted-foreground tabular-nums">
-              Page {pageIndex + 1}{visiblePages.length === 2 ? `–${pageIndex + 2}` : ""} of {totalPages}
+              Page {totalPages === 0 ? "…" : `${pageIndex + 1}${visibleSpecs.length === 2 ? `–${pageIndex + 2}` : ""} of ${totalPages}`}
             </span>
             <button
               onClick={nextPage}
-              disabled={isLastPage}
+              disabled={isLastPage || totalPages === 0}
               className="size-10 grid place-items-center rounded-full glass press disabled:opacity-30"
             >
               <ChevronRight className="size-4" />
