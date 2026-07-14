@@ -159,7 +159,9 @@ export default function Reader() {
     const cs = getComputedStyle(el);
     const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     const footerReserve = 44; // page-number line + its top margin
-    const capacity = Math.max(120, stageSize.h - padY - footerReserve);
+    // 8px slack absorbs sub-pixel/rounding drift between measure and render
+    // so the last block on a page can never be clipped by the page edge.
+    const capacity = Math.max(120, stageSize.h - padY - footerReserve - 8);
     const openerH = openerMeasureRef.current?.offsetHeight ?? 0;
     const blockEls = Array.from(el.querySelectorAll("[data-block]")) as HTMLElement[];
     const out: number[][] = [];
@@ -172,6 +174,14 @@ export default function Reader() {
       used += h;
     });
     if (cur.length) out.push(cur);
+    // Orphan control: never leave a heading stranded as the last line of a
+    // page — carry it over to open the next page with its section instead.
+    for (let p = 0; p < out.length - 1; p++) {
+      const page = out[p];
+      while (page.length > 1 && /^#{1,6}\s/.test(blocks[page[page.length - 1]] ?? "")) {
+        out[p + 1].unshift(page.pop()!);
+      }
+    }
     setPageMap(out);
   }, [blocks, stageSize, pagesPerView]);
 
@@ -495,7 +505,7 @@ export default function Reader() {
             >
               <div ref={openerMeasureRef} style={{ display: "flow-root" }}>{opener}</div>
               {blocks.map((b, i) => (
-                <div key={i} data-block style={{ display: "flow-root" }}>
+                <div key={i} data-block className={i === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
                   <ReactMarkdown>{b}</ReactMarkdown>
                 </div>
               ))}
@@ -529,7 +539,15 @@ export default function Reader() {
                   >
                     <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/10 to-transparent" />
                     {absoluteIndex === 0 && opener}
-                    <ReactMarkdown>{blockIdxs.map((bi) => blocks[bi]).join("\n\n")}</ReactMarkdown>
+                    {/* Blocks are wrapped exactly like the measurer's, so the
+                        rendered height always matches the measured height —
+                        joined rendering collapsed margins differently and
+                        clipped the tail of the page. */}
+                    {blockIdxs.map((bi) => (
+                      <div key={bi} className={bi === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
+                        <ReactMarkdown>{blocks[bi]}</ReactMarkdown>
+                      </div>
+                    ))}
                     <div className="absolute inset-x-0 bottom-3 text-center text-[11px] text-muted-foreground/70 tabular-nums">{absoluteIndex + 1}</div>
                   </div>
                 );

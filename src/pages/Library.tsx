@@ -70,26 +70,38 @@ export default function Library() {
     );
   };
 
-  return (
-    <MobileShell
-      bottomNav={<BottomNav />}
-      header={
-        <header className="px-5 pt-6 safe-top" />
-      }
-    >
-      {/* Book cover */}
-      <div className="relative mt-2 overflow-hidden rounded-3xl border border-border bg-gradient-to-b from-surface-elevated to-background px-7 py-10 text-center">
-        <div className="mx-auto h-px w-10 bg-mint/60" />
-        <div className="mt-4 text-[10px] uppercase tracking-[0.4em] text-muted-foreground">A Complete Trading Curriculum</div>
-        <h1 className="display mt-3 text-4xl font-medium leading-tight">Z1 Insights</h1>
-        <div className="mx-auto mt-5 h-px w-10 bg-mint/60" />
-        <p className="mt-5 text-xs italic text-muted-foreground">
-          {chapters.length} chapters · {doneCount} read
-        </p>
-      </div>
+  // First chapter with progress > 0 and not done; falls back to first unread.
+  const continueChapter =
+    chapters.find((c) => !progress[c.id]?.done && (progress[c.id]?.pct ?? 0) > 0) ??
+    chapters.find((c) => !progress[c.id]?.done);
 
-      {/* Table of contents */}
-      <section className="mt-8">
+  const cover = (
+    <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-b from-surface-elevated to-background px-7 py-10 text-center lg:py-14">
+      <div className="mx-auto h-px w-10 bg-mint/60" />
+      <div className="mt-4 text-[10px] uppercase tracking-[0.4em] text-muted-foreground">A Complete Trading Curriculum</div>
+      <h1 className="display mt-3 text-4xl font-medium leading-tight lg:text-5xl">Z1 Insights</h1>
+      <div className="mx-auto mt-5 h-px w-10 bg-mint/60" />
+      <p className="mt-5 text-xs italic text-muted-foreground">
+        {chapters.length} chapters · {doneCount} read
+      </p>
+      {/* Overall progress */}
+      <div className="mx-auto mt-6 h-1 w-40 overflow-hidden rounded-full bg-border-strong">
+        <div className="h-full mint-fill" style={{ width: `${chapters.length ? (doneCount / chapters.length) * 100 : 0}%` }} />
+      </div>
+      {continueChapter && (
+        <button
+          onClick={() => nav(`/read/${continueChapter.id}`)}
+          className="mt-7 inline-flex items-center gap-2 rounded-2xl mint-fill px-6 py-3 text-sm font-medium shadow-glow press"
+        >
+          {(progress[continueChapter.id]?.pct ?? 0) > 0 ? "Continue reading" : "Start reading"}
+        </button>
+      )}
+    </div>
+  );
+
+  const contents = (
+    <>
+      <section>
         <div className="mb-1 flex items-baseline justify-between">
           <h2 className="display text-lg font-medium">Contents</h2>
         </div>
@@ -109,6 +121,22 @@ export default function Library() {
           </div>
         </section>
       )}
+    </>
+  );
+
+  return (
+    <MobileShell
+      bottomNav={<BottomNav />}
+      header={
+        <header className="px-5 pt-6 safe-top" />
+      }
+    >
+      {/* Mobile: cover stacked above contents. Desktop: cover as a sticky
+          left panel beside the contents column, like a book jacket + TOC. */}
+      <div className="mt-2 lg:grid lg:grid-cols-[minmax(280px,340px)_1fr] lg:items-start lg:gap-10">
+        <div className="lg:sticky lg:top-8">{cover}</div>
+        <div className="mt-8 lg:mt-0">{contents}</div>
+      </div>
       <div className="h-4" />
     </MobileShell>
   );

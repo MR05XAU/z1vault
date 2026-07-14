@@ -221,7 +221,10 @@
   .prose-z1 ol { @apply list-decimal pl-5 mb-4 space-y-1 text-foreground/85; }
   .prose-z1 code { @apply font-mono text-sm px-1.5 py-0.5 rounded bg-secondary text-foreground/90; }
   .prose-z1 blockquote { @apply border-l-2 border-primary/60 pl-4 italic text-foreground/75 my-4; }
-  /* Drop cap on the chapter's opening paragraph — a real-book flourish */
+  /* Drop cap on the chapter's opening paragraph — a real-book flourish.
+     Scoped to .drop-cap since reader pages wrap blocks in divs (for measured
+     pagination), which broke the old `> p:first-of-type` direct-child match. */
+  .prose-z1 .drop-cap p:first-of-type::first-letter,
   .prose-z1 > p:first-of-type::first-letter {
     font-family: Georgia, "Iowan Old Style", Palatino, serif;
     float: left;
