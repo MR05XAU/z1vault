@@ -4,21 +4,29 @@ interface Props {
   stroke?: number;
   label?: string;
   sub?: string;
+  theme?: "gold" | "mint";
 }
 
-export function ProgressRing({ value, size = 140, stroke = 8, label, sub }: Props) {
+const RING_STOPS = {
+  gold: ["hsl(46 80% 68%)", "hsl(36 55% 38%)"],
+  mint: ["hsl(152 75% 60%)", "hsl(152 55% 34%)"],
+};
+
+export function ProgressRing({ value, size = 140, stroke = 8, label, sub, theme = "gold" }: Props) {
   const radius = (size - stroke) / 2;
   const circ = 2 * Math.PI * radius;
   const clamped = Math.max(0, Math.min(100, value));
   const offset = circ - (clamped / 100) * circ;
+  const gradientId = `ring-${theme}`;
+  const [from, to] = RING_STOPS[theme];
 
   return (
     <div className="relative grid place-items-center" style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">
         <defs>
-          <linearGradient id="ring-gold" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stopColor="hsl(46 80% 68%)" />
-            <stop offset="100%" stopColor="hsl(36 55% 38%)" />
+          <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={from} />
+            <stop offset="100%" stopColor={to} />
           </linearGradient>
         </defs>
         <circle
@@ -33,7 +41,7 @@ export function ProgressRing({ value, size = 140, stroke = 8, label, sub }: Prop
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          stroke="url(#ring-gold)"
+          stroke={`url(#${gradientId})`}
           strokeWidth={stroke}
           strokeLinecap="round"
           strokeDasharray={circ}
@@ -44,7 +52,7 @@ export function ProgressRing({ value, size = 140, stroke = 8, label, sub }: Prop
       </svg>
       <div className="absolute inset-0 grid place-items-center text-center">
         <div>
-          <div className="display text-3xl font-medium gold-text leading-none">
+          <div className={`display text-3xl font-medium leading-none ${theme === "mint" ? "mint-text" : "gold-text"}`}>
             {Math.round(clamped)}<span className="text-base">%</span>
           </div>
           {label && <div className="mt-1.5 text-[10px] uppercase tracking-[0.22em] text-muted-foreground">{label}</div>}

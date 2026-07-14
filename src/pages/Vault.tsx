@@ -129,12 +129,12 @@ export default function Vault() {
       }
     >
       <section className="mt-6 animate-fade-up">
-        <div className="glass-strong rounded-3xl p-6 gold-border relative overflow-hidden">
-          <div className="absolute -top-20 -right-20 size-60 bg-gold/15 blur-3xl rounded-full" />
+        <div className="glass-strong rounded-3xl p-6 mint-border relative overflow-hidden">
+          <div className="absolute -top-20 -right-20 size-60 bg-mint/15 blur-3xl rounded-full" />
           <div className="relative flex items-center gap-6">
-            <ProgressRing value={totalProgress} label="Mastery" sub={`${chaptersDone}/${chapters.length} done`} />
+            <ProgressRing value={totalProgress} label="Mastery" sub={`${chaptersDone}/${chapters.length} done`} theme="mint" />
             <div className="flex-1">
-              <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Continue</div>
+              <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Continue</div>
               {continueChapter ? (
                 <>
                   <div className="text-base font-medium mt-1.5 line-clamp-2">{continueChapter.title}</div>
@@ -143,9 +143,9 @@ export default function Vault() {
                   </div>
                   <button
                     onClick={() => nav(`/read/${continueChapter.id}`)}
-                    className="mt-4 inline-flex items-center gap-1.5 text-sm gold-text font-medium press"
+                    className="mt-4 inline-flex items-center gap-1.5 text-sm mint-text font-medium press"
                   >
-                    Resume reading <ArrowRight className="size-3.5 text-gold-bright" />
+                    Resume reading <ArrowRight className="size-3.5 text-mint-bright" />
                   </button>
                 </>
               ) : (
@@ -157,7 +157,7 @@ export default function Vault() {
       </section>
 
       <section className="mt-4 animate-fade-up" style={{ animationDelay: "60ms" }}>
-        <MindsetCard mode="daily" />
+        <MindsetCard mode="daily" theme="mint" />
       </section>
 
       <section className="mt-5 grid grid-cols-3 gap-3 animate-fade-up" style={{ animationDelay: "100ms" }}>
@@ -179,8 +179,8 @@ export default function Vault() {
               className="glass rounded-2xl aspect-square flex flex-col items-center justify-center press hover:shadow-glow animate-fade-up"
               style={{ animationDelay: `${200 + i * 60}ms` }}
             >
-              <div className="size-10 rounded-xl bg-gold/10 grid place-items-center mb-2">
-                <Icon className="size-4.5 text-gold-bright" />
+              <div className="size-10 rounded-xl bg-mint/10 grid place-items-center mb-2">
+                <Icon className="size-4.5 text-mint-bright" />
               </div>
               <div className="text-xs font-medium text-foreground/90">{label}</div>
             </button>
@@ -195,8 +195,8 @@ export default function Vault() {
 function StatTile({ icon: Icon, label, value }: any) {
   return (
     <div className="glass rounded-2xl p-3 flex flex-col gap-1.5">
-      <Icon className="size-3.5 text-gold-bright" />
-      <div className="display text-xl font-medium gold-text leading-none">{value}</div>
+      <Icon className="size-3.5 text-mint-bright" />
+      <div className="display text-xl font-medium mint-text leading-none">{value}</div>
       <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{label}</div>
     </div>
   );
