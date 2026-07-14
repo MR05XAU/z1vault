@@ -119,6 +119,18 @@ export default function Journal() {
   const [loading, setLoading] = useState(true);
   const [sheet, setSheet] = useState<null | "new">(null);
   const [detailTrade, setDetailTrade] = useState<Trade | null>(null);
+  const [quickLogParams, setQuickLogParams] = useSearchParams();
+
+  // PWA home-screen shortcut ("Quick log a trade") lands on /journal?quicklog=1
+  // — jump straight into the log-trade sheet instead of the dashboard.
+  useEffect(() => {
+    if (quickLogParams.get("quicklog") === "1") {
+      setSheet("new");
+      const next = new URLSearchParams(quickLogParams);
+      next.delete("quicklog");
+      setQuickLogParams(next, { replace: true });
+    }
+  }, []);
 
   const refresh = async (): Promise<Trade[]> => {
     if (!user) return [];
@@ -515,6 +527,24 @@ function TradesView({ trades, strats, onOpenTrade, onChange, onAdd }: { trades: 
     if (error) toast.error(error.message); else { toast.success("Deleted"); onChange(); }
   };
 
+  const [nlQuery, setNlQuery] = useState("");
+  const [nlLoading, setNlLoading] = useState(false);
+  const runNlFilter = async () => {
+    if (!nlQuery.trim()) return;
+    setNlLoading(true);
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    const { data, error } = await supabase.functions.invoke("nl-trade-filter", {
+      body: { query: nlQuery },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    setNlLoading(false);
+    if (error || data?.error) { toast.error(data?.error ?? error?.message ?? "Couldn't parse that."); return; }
+    const next = new URLSearchParams();
+    for (const [k, v] of Object.entries(data.filter ?? {})) if (v) next.set(k, String(v));
+    setParams(next, { replace: true });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -524,6 +554,18 @@ function TradesView({ trades, strats, onOpenTrade, onChange, onAdd }: { trades: 
         </div>
         <Button onClick={onAdd} style={{ background: EB.primary, color: EB.primaryForeground }}>Add trade <span className="ml-1.5 text-[10px] opacity-60">(N)</span></Button>
       </div>
+
+      <Card>
+        <div className="flex gap-2">
+          <Input
+            value={nlQuery} onChange={(e) => setNlQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && runNlFilter()}
+            placeholder='Ask in plain English — "short NQ losses over 2R this month"'
+            style={fieldStyle()}
+          />
+          <Button onClick={runNlFilter} disabled={nlLoading} variant="outline" className="shrink-0">{nlLoading ? "Thinking…" : "Ask"}</Button>
+        </div>
+      </Card>
 
       <Card>
         <div className="flex flex-wrap items-center gap-2">
@@ -693,6 +735,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
   const [showSnapshot, setShowSnapshot] = useState(true);
   const [computingExcursion, setComputingExcursion] = useState(false);
   const [uploadingShot, setUploadingShot] = useState(false);
+  const [suggestingTags, setSuggestingTags] = useState(false);
   const [review, setReview] = useState<ReviewAnswers>(trade.review_answers ?? { whatWorked: "", whatDidnt: "", changeTomorrow: "" });
   const [savingReview, setSavingReview] = useState(false);
   const shareRef = useRef<HTMLDivElement>(null);
@@ -842,7 +885,30 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
         <Field label="Take profit"><Input type="number" value={takeProfit} onChange={(e) => setTakeProfit(e.target.value)} style={fieldStyle()} /></Field>
       </div>
       <Field label="Setup"><Input value={setup} onChange={(e) => setSetup(e.target.value)} style={fieldStyle()} /></Field>
-      <Field label="Tags (comma separated)"><Input value={tags} onChange={(e) => setTags(e.target.value)} style={fieldStyle()} /></Field>
+      <div>
+        <div className="mb-1.5 flex items-center justify-between">
+          <Label>Tags (comma separated)</Label>
+          <button
+            onClick={async () => {
+              setSuggestingTags(true);
+              const { data: sess } = await supabase.auth.getSession();
+              const token = sess.session?.access_token;
+              const { data, error } = await supabase.functions.invoke("suggest-trade-tags", {
+                body: { notes, setup, pair: trade.pair, direction: trade.direction },
+                headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+              });
+              setSuggestingTags(false);
+              if (error || data?.error || !data?.tags?.length) { toast.error(data?.error ?? error?.message ?? "No suggestions."); return; }
+              setTags((t) => Array.from(new Set([...t.split(",").map((s: string) => s.trim()).filter(Boolean), ...data.tags])).join(", "));
+            }}
+            disabled={suggestingTags}
+            className="text-[11px]" style={{ color: EB.primary }}
+          >
+            {suggestingTags ? "Suggesting…" : "Suggest tags (AI)"}
+          </button>
+        </div>
+        <Input value={tags} onChange={(e) => setTags(e.target.value)} style={fieldStyle()} />
+      </div>
       <Field label="Notes"><Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} style={fieldStyle()} /></Field>
 
       <div>
@@ -1335,6 +1401,50 @@ function durationBucket(ms: number): string {
   return "Position (>2d)";
 }
 
+function CoachReportCard() {
+  const { user } = useAuth();
+  const [report, setReport] = useState<{ content: string; period_start: string; period_end: string; created_at: string } | null>(null);
+  const [generating, setGenerating] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    sb.from("coach_reports").select("*").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1)
+      .then(({ data }: any) => { setReport(data?.[0] ?? null); setLoaded(true); });
+  }, [user]);
+
+  const generate = async () => {
+    setGenerating(true);
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    const { data, error } = await supabase.functions.invoke("weekly-coach-report", { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+    setGenerating(false);
+    if (error || data?.error) { toast.error(data?.error ?? error?.message ?? "Couldn't generate report."); return; }
+    setReport(data.report);
+    toast.success("Coach report generated.");
+  };
+
+  if (!loaded) return null;
+  return (
+    <Card>
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-sm font-medium">Weekly coach report</h3>
+        <Button onClick={generate} disabled={generating} variant="outline" size="sm" className="h-8 text-xs">
+          {generating ? "Generating…" : "Generate new report"}
+        </Button>
+      </div>
+      {report ? (
+        <>
+          <p className="mb-1 text-[10px] uppercase" style={{ color: EB.mutedForeground }}>{report.period_start} – {report.period_end}</p>
+          <p className="whitespace-pre-wrap text-sm">{report.content}</p>
+        </>
+      ) : (
+        <p className="text-xs" style={{ color: EB.mutedForeground }}>No report yet — generate one from your last 7 days of trades.</p>
+      )}
+    </Card>
+  );
+}
+
 function AnalyticsView({ trades, strats }: { trades: Trade[]; strats: Strategy[] }) {
   const closed = trades.filter((t) => t.pnl != null);
   const bySymbol = useMemo(() => {
@@ -1536,6 +1646,8 @@ function AnalyticsView({ trades, strats }: { trades: Trade[]; strats: Strategy[]
           )}
         </div>
       )}
+
+      <CoachReportCard />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
