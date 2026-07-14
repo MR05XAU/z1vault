@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Link2, RefreshCw, Unplug, Loader2, CheckCircle2, Server } from "lucide-react";
+import { Link2, RefreshCw, Unplug, Loader2, CheckCircle2, Server, Radio } from "lucide-react";
 import { toast } from "sonner";
 
 const sb = supabase as any;
@@ -56,6 +56,9 @@ export function BrokerConnections() {
   const [showTradovate, setShowTradovate] = useState(false);
   const [tradovateConnecting, setTradovateConnecting] = useState(false);
   const [tv, setTv] = useState({ environment: "live" as "live" | "demo", username: "", password: "", appId: "", appVersion: "1.0", cid: "", sec: "" });
+  const [showRithmic, setShowRithmic] = useState(false);
+  const [rithmicConnecting, setRithmicConnecting] = useState(false);
+  const [rt, setRt] = useState({ gateway: "", systemName: "", username: "", password: "", appName: "z1vault", appVersion: "1.0" });
 
   const refresh = async () => {
     if (!user) return;
@@ -99,6 +102,25 @@ export function BrokerConnections() {
     }
   };
 
+  const connectRithmic = async () => {
+    if (!rt.gateway || !rt.systemName || !rt.username || !rt.password) {
+      toast.error("Fill in gateway, system name, username, and password before connecting.");
+      return;
+    }
+    setRithmicConnecting(true);
+    try {
+      const res = await invoke<{ accounts: number }>("rithmic-connect", rt);
+      toast.success(`Rithmic connected: ${res.accounts} account(s)`);
+      setShowRithmic(false);
+      setRt({ gateway: "", systemName: "", username: "", password: "", appName: "z1vault", appVersion: "1.0" });
+      refresh();
+    } catch (e: any) {
+      toast.error(e.message || "Could not connect Rithmic");
+    } finally {
+      setRithmicConnecting(false);
+    }
+  };
+
   const sync = async () => {
     setSyncing(true);
     try {
@@ -116,6 +138,7 @@ export function BrokerConnections() {
     setDisconnectingId(account.id);
     try {
       if (account.provider === "tradovate") await invoke("tradovate-disconnect", {});
+      else if (account.provider === "rithmic") await invoke("rithmic-disconnect", {});
       else await invoke("broker-disconnect", { accountId: account.id });
       toast.success("Account disconnected.");
       refresh();
@@ -131,14 +154,43 @@ export function BrokerConnections() {
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs" style={{ color: EB.mutedForeground }}>Connect Tradovate directly, or use SnapTrade for supported brokerages.</p>
+        <p className="text-xs" style={{ color: EB.mutedForeground }}>Connect Tradovate or Rithmic directly, or use SnapTrade for supported brokerages.</p>
         <div className="flex shrink-0 flex-wrap gap-2">
+          <Button onClick={() => setShowRithmic((v) => !v)} variant="outline" size="sm" className="gap-1.5"><Radio className="size-3.5" /> Rithmic</Button>
           <Button onClick={() => setShowTradovate((v) => !v)} variant="outline" size="sm" className="gap-1.5"><Server className="size-3.5" /> Tradovate</Button>
           <Button onClick={connect} disabled={connecting} size="sm" className="gap-1.5" style={{ background: EB.primary, color: EB.primaryForeground }}>
             {connecting ? <Loader2 className="size-3.5 animate-spin" /> : <Link2 className="size-3.5" />} SnapTrade
           </Button>
         </div>
       </div>
+
+      {showRithmic && (
+        <div className="grid gap-3 rounded-md p-4 md:grid-cols-2" style={{ border: `1px solid ${EB.border}` }}>
+          <p className="text-xs md:col-span-2" style={{ color: EB.mutedForeground }}>
+            For prop firm accounts — gateway and system name come from your prop firm's Rithmic setup page (e.g. Apex's "Rithmic and NinjaTrader Setup"). This connection is experimental; report any errors so it can be tuned.
+          </p>
+          {(["gateway", "systemName", "username", "password", "appName", "appVersion"] as const).map((field) => (
+            <div key={field}>
+              <div className="mb-1.5 text-xs" style={{ color: EB.mutedForeground }}>
+                {field === "gateway" ? "Gateway (host:port)" : field === "systemName" ? "System name" : field === "appName" ? "App name" : field === "appVersion" ? "App version" : field}
+              </div>
+              <Input
+                type={field === "password" ? "password" : "text"}
+                value={rt[field]}
+                placeholder={field === "gateway" ? "rituz00100.rithmic.com:443" : field === "systemName" ? "Rithmic Test" : undefined}
+                onChange={(e) => setRt({ ...rt, [field]: e.target.value })}
+                style={fieldStyle()}
+              />
+            </div>
+          ))}
+          <div className="md:col-span-2">
+            <Button onClick={connectRithmic} disabled={rithmicConnecting} className="gap-1.5" style={{ background: EB.primary, color: EB.primaryForeground }}>
+              {rithmicConnecting ? <Loader2 className="size-3.5 animate-spin" /> : <Radio className="size-3.5" />}
+              {rithmicConnecting ? "Connecting…" : "Connect Rithmic"}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {showTradovate && (
         <div className="grid gap-3 rounded-md p-4 md:grid-cols-2" style={{ border: `1px solid ${EB.border}` }}>

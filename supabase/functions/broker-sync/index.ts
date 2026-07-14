@@ -2,6 +2,7 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { snaptradeRequest, decrypt, SNAPTRADE_PERSONAL_SECRET_SENTINEL } from "../_shared/snaptrade.ts";
 import { listTradovateAccounts, listTradovateExecutions, getTradovateContracts, decryptTradovateCredentials } from "../_shared/tradovate.ts";
+import { rithmicConnect, rithmicListAccounts, rithmicReplayExecutions, rithmicDisconnect, decryptRithmicCredentials } from "../_shared/rithmic.ts";
 
 type StAccount = {
   id: string;
@@ -40,11 +41,12 @@ Deno.serve(async (req) => {
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const [{ data: st }, { data: tradovate }] = await Promise.all([
+    const [{ data: st }, { data: tradovate }, { data: rithmic }] = await Promise.all([
       admin.from("snaptrade_users").select("st_user_id, st_user_secret_ciphertext").eq("user_id", userId).maybeSingle(),
       admin.from("tradovate_connections").select("*").eq("user_id", userId).maybeSingle(),
+      admin.from("rithmic_connections").select("*").eq("user_id", userId).maybeSingle(),
     ]);
-    if (!st && !tradovate) return json({ error: "not_registered" }, 400);
+    if (!st && !tradovate && !rithmic) return json({ error: "not_registered" }, 400);
 
     const { data: log } = await admin.from("broker_sync_log").insert({ user_id: userId }).select().single();
     const logId = log?.id as string | undefined;
@@ -184,6 +186,72 @@ Deno.serve(async (req) => {
 
         added += await insertFreshTrades(admin, userId, trades);
         await admin.from("tradovate_connections").update({ last_synced_at: nowIso }).eq("user_id", userId);
+      }
+
+      if (rithmic) {
+        const credentials = await decryptRithmicCredentials(rithmic);
+        const session = await rithmicConnect(credentials);
+        try {
+          const accounts = await rithmicListAccounts(session);
+          synced += accounts.length;
+
+          for (const a of accounts) {
+            await admin.from("brokerage_accounts").upsert({
+              user_id: userId,
+              st_account_id: `rithmic:${a.account_id}`,
+              provider: "rithmic",
+              brokerage_name: "Rithmic",
+              account_name: a.account_name ?? a.account_id,
+              currency: a.account_currency ?? null,
+              last_synced_at: nowIso,
+            }, { onConflict: "user_id,st_account_id" });
+          }
+
+          const { data: acctRows } = await admin.from("brokerage_accounts").select("id, st_account_id").eq("user_id", userId).eq("provider", "rithmic");
+          const acctMap = new Map((acctRows ?? []).map((r: { id: string; st_account_id: string }) => [r.st_account_id, r.id]));
+
+          const notifications = (await Promise.all(accounts.map((a) => rithmicReplayExecutions(session, a.account_id).catch(() => [])))).flat();
+
+          const trades = notifications
+            .filter((n) => Number(n.notify_type) === 15 && Number(n.total_fill_size ?? 0) > 0) // COMPLETE fills only
+            .map((n) => {
+              const symbol = String(n.symbol ?? "");
+              if (!symbol) return null;
+              const price = Number(n.avg_fill_price || n.price || 0);
+              if (!price) return null;
+              const size = Math.abs(Number(n.total_fill_size ?? 0));
+              const ssboe = Number(n.ssboe ?? 0);
+              const usecs = Number(n.usecs ?? 0);
+              const openedAt = ssboe ? new Date(ssboe * 1000 + Math.floor(usecs / 1000)).toISOString() : nowIso;
+              return {
+                user_id: userId,
+                pair: symbol,
+                direction: Number(n.transaction_type) === 1 ? "long" as const : "short" as const,
+                entry_price: price,
+                exit_price: null,
+                size,
+                fees: 0,
+                pnl: null,
+                strategy_id: null,
+                notes: "Imported from Rithmic",
+                opened_at: openedAt,
+                closed_at: null,
+                setup: null,
+                tags: [],
+                stop_loss: null,
+                take_profit: null,
+                source: "rithmic",
+                external_id: `rt:${n.account_id}:${n.basket_id}:${ssboe}:${usecs}`,
+                brokerage_account_id: acctMap.get(`rithmic:${n.account_id}`) ?? null,
+              };
+            })
+            .filter((t): t is NonNullable<typeof t> => t !== null);
+
+          added += await insertFreshTrades(admin, userId, trades);
+          await admin.from("rithmic_connections").update({ last_synced_at: nowIso }).eq("user_id", userId);
+        } finally {
+          await rithmicDisconnect(session).catch(() => {});
+        }
       }
 
       if (logId) {
