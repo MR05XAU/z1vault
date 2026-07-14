@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { ComposedChart, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, ReferenceDot, Bar, Cell, CartesianGrid } from "recharts";
+import { ComposedChart, ResponsiveContainer, XAxis, YAxis, Tooltip, ReferenceLine, Bar, Cell, CartesianGrid, Customized } from "recharts";
 
 type Props = {
   symbol: string;
@@ -14,16 +14,41 @@ type Props = {
   height?: number | string;
 };
 
-function ArrowMarker({ cx, cy, up, color }: { cx?: number; cy?: number; up: boolean; color: string }) {
-  if (cx == null || cy == null) return null;
-  // Entry/exit arrow: points up into a long fill or down into a short/exit fill, offset above/below the price so it doesn't sit on top of the candle.
+function Arrow({ cx, cy, up, color }: { cx: number; cy: number; up: boolean; color: string }) {
+  // Entry/exit arrow: up-pointing for buy-side (long entry / short exit),
+  // down-pointing for sell-side, offset above/below the price so it doesn't
+  // sit on top of the candle it's marking.
   const size = 7;
-  const yOffset = up ? size + 4 : -(size + 4);
-  const y = cy + yOffset;
+  const y = cy + (up ? size + 4 : -(size + 4));
   const points = up
     ? `${cx},${y - size} ${cx - size},${y + size} ${cx + size},${y + size}`
     : `${cx},${y + size} ${cx - size},${y - size} ${cx + size},${y - size}`;
   return <polygon points={points} fill={color} stroke="hsl(var(--surface))" strokeWidth={1.5} />;
+}
+
+// ReferenceDot has no real "custom shape" API — Customized is recharts'
+// documented escape hatch for overlays like this, giving us the live
+// axis scale functions to convert data values (time, price) to pixels.
+function EntryExitArrows(props: any) {
+  const { xAxisMap, yAxisMap, entryMs, exitMs, entryPrice, exitPrice, direction, win } = props;
+  const xAxis = Object.values(xAxisMap)[0] as any;
+  const yAxis = Object.values(yAxisMap)[0] as any;
+  if (!xAxis || !yAxis) return null;
+  const ex = xAxis.scale(entryMs);
+  const ey = yAxis.scale(entryPrice);
+  return (
+    <g>
+      <Arrow cx={ex} cy={ey} up={direction === "long"} color="hsl(var(--mint))" />
+      {exitMs != null && exitPrice != null && (
+        <Arrow
+          cx={xAxis.scale(exitMs)}
+          cy={yAxis.scale(exitPrice)}
+          up={direction === "short"}
+          color={win ? "hsl(var(--success))" : "hsl(var(--danger))"}
+        />
+      )}
+    </g>
+  );
 }
 
 /**
@@ -137,18 +162,11 @@ export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entr
           {exitPrice != null && (
             <ReferenceLine y={exitPrice} stroke={win ? "hsl(var(--success))" : "hsl(var(--danger))"} strokeDasharray="4 3" label={<PriceLabel text={`Exit ${exitPrice}`} color={win ? "hsl(var(--success))" : "hsl(var(--danger))"} />} />
           )}
-          <ReferenceDot
-            x={entryMs} y={entryPrice} r={5}
-            fill="hsl(var(--mint))" stroke="hsl(var(--surface))" strokeWidth={2}
-            shape={(props: any) => <ArrowMarker {...props} up={direction === "long"} color="hsl(var(--mint))" />}
+          <Customized
+            component={(props: any) => (
+              <EntryExitArrows {...props} entryMs={entryMs} exitMs={exitMs} entryPrice={entryPrice} exitPrice={exitPrice} direction={direction} win={win} />
+            )}
           />
-          {exitMs != null && exitPrice != null && (
-            <ReferenceDot
-              x={exitMs} y={exitPrice} r={5}
-              fill={win ? "hsl(var(--success))" : "hsl(var(--danger))"} stroke="hsl(var(--surface))" strokeWidth={2}
-              shape={(props: any) => <ArrowMarker {...props} up={direction === "short"} color={win ? "hsl(var(--success))" : "hsl(var(--danger))"} />}
-            />
-          )}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
