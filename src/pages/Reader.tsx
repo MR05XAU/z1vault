@@ -316,11 +316,11 @@ export default function Reader() {
           <button onClick={() => nav("/library")} className="size-9 grid place-items-center rounded-full glass press">
             <ArrowLeft className="size-4" />
           </button>
-          <div className="flex-1 min-w-0 text-center">
-            <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright">
-              Chapter {chapter.chapter_number}
-            </div>
-            <div className="text-sm font-medium truncate">{stripChapterPrefix(chapter.title)}</div>
+          {/* Chapter number + title already get a full presentation in the
+              in-body opener below — the sticky header stays minimal so it
+              doesn't repeat the same "Chapter N" label on every scroll. */}
+          <div className="flex-1 min-w-0 text-center text-xs text-muted-foreground truncate">
+            {stripChapterPrefix(chapter.title)}
           </div>
           <button
             onClick={downloaded ? wipeDownload : startDownload}
