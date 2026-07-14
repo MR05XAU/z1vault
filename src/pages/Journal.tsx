@@ -997,6 +997,7 @@ function DuplicateTrades({ trades, onChange, onOpenTrade }: { trades: Trade[]; o
   const groups = useMemo(() => findDuplicateGroups(trades), [trades]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const del = async (id: string) => {
     setDeletingId(id);
@@ -1024,6 +1025,22 @@ function DuplicateTrades({ trades, onChange, onOpenTrade }: { trades: Trade[]; o
     }
   };
 
+  const deleteAllDupes = async () => {
+    if (groups.length === 0) return;
+    const totalExtra = groups.reduce((s, g) => s + g.length - 1, 0);
+    if (!confirm(`Delete ${totalExtra} duplicate trade${totalExtra === 1 ? "" : "s"} across ${groups.length} group${groups.length === 1 ? "" : "s"}? Keeps one trade per group. This can't be undone.`)) return;
+    setDeletingAll(true);
+    try {
+      for (const group of groups) {
+        for (const t of group.slice(1)) await sb.from("trades").delete().eq("id", t.id);
+      }
+      toast.success(`Removed ${totalExtra} duplicate${totalExtra === 1 ? "" : "s"} across ${groups.length} group${groups.length === 1 ? "" : "s"}.`);
+      onChange();
+    } finally {
+      setDeletingAll(false);
+    }
+  };
+
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
@@ -1032,6 +1049,9 @@ function DuplicateTrades({ trades, onChange, onOpenTrade }: { trades: Trade[]; o
           {groups.length > 0 && <span className="text-xs" style={{ color: EB.mutedForeground }}>{groups.length} group{groups.length === 1 ? "" : "s"}</span>}
           <Button size="sm" variant="outline" onClick={refreshAndCheck} disabled={checking} className="gap-1.5">
             {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} Refresh & check
+          </Button>
+          <Button size="sm" variant="outline" onClick={deleteAllDupes} disabled={deletingAll || groups.length === 0} className="gap-1.5" style={{ color: EB.loss }}>
+            {deletingAll ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete all dupes
           </Button>
         </div>
       </div>
