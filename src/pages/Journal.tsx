@@ -10,7 +10,7 @@ import {
   TrendingUp, LayoutDashboard, ListChecks, Upload, NotebookPen, BarChart3, Settings as SettingsIcon,
   LogOut, Menu, Trash2, Check, FileText, Loader2, RotateCcw,
 } from "lucide-react";
-import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Legend } from "recharts";
 import { toast } from "sonner";
 import { parseTradesCsv, parseCsvRows, detectDelimiter, stripBom } from "@/lib/csvImport";
 import { dupeKey, findDuplicateGroups } from "@/lib/dupeDetection";
@@ -41,6 +41,7 @@ const EB = {
 };
 
 type ChecklistItem = { rule: string; passed: boolean };
+type ReviewAnswers = { whatWorked: string; whatDidnt: string; changeTomorrow: string } | null;
 type Trade = {
   id: string; pair: string; direction: "long" | "short";
   entry_price: number; exit_price: number | null; size: number;
@@ -51,6 +52,8 @@ type Trade = {
   stop_loss: number | null; take_profit: number | null;
   mfe_price: number | null; mae_price: number | null; excursion_computed_at: string | null;
   checklist: ChecklistItem[] | null;
+  import_batch_id: string | null; planned_entry_price: number | null; commission_per_unit: number | null;
+  premarket_plan: string | null; review_answers: ReviewAnswers; screenshot_url: string | null;
 };
 type Strategy = { id: string; name: string; color: string };
 type JournalEntry = {
@@ -83,6 +86,26 @@ function pnlColor(n: number | null | undefined) {
   if (v > 0) return EB.win;
   if (v < 0) return EB.loss;
   return EB.mutedForeground;
+}
+
+// $ per point/tick per contract for common CME futures roots — used to model
+// commissions/costs correctly instead of treating futures like equities.
+// Micro contracts share the root's multiplier family at 1/10th size.
+const FUTURES_MULTIPLIER: Record<string, number> = {
+  ES: 50, MES: 5, NQ: 20, MNQ: 2, YM: 5, MYM: 0.5, RTY: 50, M2K: 5,
+  GC: 100, MGC: 10, SI: 5000, SIL: 1000, CL: 1000, MCL: 100, NG: 10000,
+};
+function futuresRoot(pair: string): string | null {
+  const m = pair.toUpperCase().match(/^([A-Z0-9]+?)([FGHJKMNQUVXZ]\d{1,2})$/);
+  return m ? m[1] : null;
+}
+function symbolMultiplier(pair: string): number {
+  const root = futuresRoot(pair);
+  return root ? (FUTURES_MULTIPLIER[root] ?? 1) : 1;
+}
+function slippagePoints(t: Trade): number | null {
+  if (t.planned_entry_price == null) return null;
+  return t.direction === "long" ? t.entry_price - t.planned_entry_price : t.planned_entry_price - t.entry_price;
 }
 
 export default function Journal() {
@@ -487,6 +510,7 @@ function TradeForm({ strats, checklistRules, onSaved }: { strats: Strategy[]; ch
     pair: "", direction: "long", entry_price: "", exit_price: "", size: "",
     fees: "0", strategy_id: "", notes: "", setup: "", tags: "", stop_loss: "", take_profit: "",
     opened_at: new Date().toISOString().slice(0, 16), closed_at: "",
+    planned_entry_price: "", commission_per_unit: "",
   });
   const [saving, setSaving] = useState(false);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(() => checklistRules.map((rule) => ({ rule, passed: false })));
@@ -511,6 +535,8 @@ function TradeForm({ strats, checklistRules, onSaved }: { strats: Strategy[]; ch
       setup: v.setup || null, tags: v.tags ? v.tags.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
       stop_loss: v.stop_loss ? Number(v.stop_loss) : null, take_profit: v.take_profit ? Number(v.take_profit) : null,
       checklist,
+      planned_entry_price: v.planned_entry_price ? Number(v.planned_entry_price) : null,
+      commission_per_unit: v.commission_per_unit ? Number(v.commission_per_unit) : null,
     };
     const { error } = await sb.from("trades").insert(payload);
     setSaving(false);
@@ -533,6 +559,8 @@ function TradeForm({ strats, checklistRules, onSaved }: { strats: Strategy[]; ch
       <Field label="Exit time"><Input type="datetime-local" value={v.closed_at} onChange={(e) => setV({ ...v, closed_at: e.target.value })} style={fieldStyle()} /></Field>
       <Field label="Stop loss"><Input type="number" value={v.stop_loss} onChange={(e) => setV({ ...v, stop_loss: e.target.value })} style={fieldStyle()} /></Field>
       <Field label="Take profit"><Input type="number" value={v.take_profit} onChange={(e) => setV({ ...v, take_profit: e.target.value })} style={fieldStyle()} /></Field>
+      <Field label="Planned entry (slippage)"><Input type="number" value={v.planned_entry_price} onChange={(e) => setV({ ...v, planned_entry_price: e.target.value })} placeholder="Price you intended to get filled at" style={fieldStyle()} /></Field>
+      <Field label="Commission / contract ($)"><Input type="number" value={v.commission_per_unit} onChange={(e) => setV({ ...v, commission_per_unit: e.target.value })} placeholder={symbolMultiplier(v.pair) !== 1 ? `Typical: ${symbolMultiplier(v.pair)}pt = $${symbolMultiplier(v.pair)}` : "e.g. 2.50"} style={fieldStyle()} /></Field>
       <Field label="Setup" className="col-span-2"><Input value={v.setup} onChange={(e) => setV({ ...v, setup: e.target.value })} placeholder="Breakout, VWAP reclaim…" style={fieldStyle()} /></Field>
       <Field label="Tags (comma separated)" className="col-span-2"><Input value={v.tags} onChange={(e) => setV({ ...v, tags: e.target.value })} placeholder="momentum, gap-up" style={fieldStyle()} /></Field>
       <Field label="Notes" className="col-span-2"><Textarea rows={3} value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} style={fieldStyle()} /></Field>
@@ -564,6 +592,7 @@ function TradeForm({ strats, checklistRules, onSaved }: { strats: Strategy[]; ch
 }
 
 function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strats: Strategy[]; onChange: (t: Trade) => void; onClose: () => void }) {
+  const { user } = useAuth();
   const strat = strats.find((s) => s.id === trade.strategy_id);
   const [setup, setSetup] = useState(trade.setup ?? "");
   const [tags, setTags] = useState((trade.tags ?? []).join(", "));
@@ -573,6 +602,11 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
   const [saving, setSaving] = useState(false);
   const [showSnapshot, setShowSnapshot] = useState(true);
   const [computingExcursion, setComputingExcursion] = useState(false);
+  const [uploadingShot, setUploadingShot] = useState(false);
+  const [review, setReview] = useState<ReviewAnswers>(trade.review_answers ?? { whatWorked: "", whatDidnt: "", changeTomorrow: "" });
+  const [savingReview, setSavingReview] = useState(false);
+  const shareRef = useRef<HTMLDivElement>(null);
+  const [sharing, setSharing] = useState(false);
   const durationMs = trade.closed_at ? new Date(trade.closed_at).getTime() - new Date(trade.opened_at).getTime() : 0;
   const [liveInterval, setLiveInterval] = useState<"1" | "5" | "15" | "60" | "240" | "D">(
     durationMs && durationMs <= 2 * 3600_000 ? "5" : durationMs && durationMs <= 18 * 3600_000 ? "60" : "D",
@@ -585,9 +619,55 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
       stop_loss: stopLoss ? Number(stopLoss) : null, take_profit: takeProfit ? Number(takeProfit) : null,
       notes: notes || null,
     };
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    for (const [key, to] of Object.entries(payload)) {
+      const from = (trade as any)[key];
+      const changed = Array.isArray(to) ? JSON.stringify(to) !== JSON.stringify(from) : to !== from;
+      if (changed) changes[key] = { from, to };
+    }
     const { data, error } = await sb.from("trades").update(payload).eq("id", trade.id).select().single();
     setSaving(false);
-    if (error) toast.error(error.message); else { toast.success("Trade updated."); onChange(data as Trade); }
+    if (error) { toast.error(error.message); return; }
+    if (Object.keys(changes).length > 0 && user) {
+      await sb.from("trade_edits").insert({ trade_id: trade.id, user_id: user.id, changes });
+    }
+    toast.success("Trade updated.");
+    onChange(data as Trade);
+  };
+
+  const uploadScreenshot = async (file: File) => {
+    if (!user) return;
+    setUploadingShot(true);
+    const path = `${user.id}/${trade.id}/${Date.now()}-${file.name}`;
+    const { error: upErr } = await supabase.storage.from("trade-screenshots").upload(path, file, { upsert: true });
+    if (upErr) { setUploadingShot(false); toast.error(upErr.message); return; }
+    const { data: pub } = supabase.storage.from("trade-screenshots").getPublicUrl(path);
+    const { data, error } = await sb.from("trades").update({ screenshot_url: pub.publicUrl }).eq("id", trade.id).select().single();
+    setUploadingShot(false);
+    if (error) toast.error(error.message); else { toast.success("Screenshot attached."); onChange(data as Trade); }
+  };
+
+  const saveReview = async () => {
+    setSavingReview(true);
+    const { data, error } = await sb.from("trades").update({ review_answers: review }).eq("id", trade.id).select().single();
+    setSavingReview(false);
+    if (error) toast.error(error.message); else { toast.success("Review saved."); onChange(data as Trade); }
+  };
+
+  const shareAsImage = async () => {
+    if (!shareRef.current) return;
+    setSharing(true);
+    try {
+      const { toPng } = await import("html-to-image");
+      const dataUrl = await toPng(shareRef.current, { pixelRatio: 2 });
+      const a = document.createElement("a");
+      a.href = dataUrl;
+      a.download = `${trade.pair}-${trade.opened_at.slice(0, 10)}.png`;
+      a.click();
+    } catch (e) {
+      toast.error("Couldn't generate image.");
+    }
+    setSharing(false);
   };
 
   const computeExcursion = async () => {
@@ -675,6 +755,48 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
       <Field label="Tags (comma separated)"><Input value={tags} onChange={(e) => setTags(e.target.value)} style={fieldStyle()} /></Field>
       <Field label="Notes"><Textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} style={fieldStyle()} /></Field>
 
+      <div>
+        <Label>Screenshot</Label>
+        {trade.screenshot_url && <img src={trade.screenshot_url} alt="Trade screenshot" className="mb-2 max-h-64 w-full rounded-md object-contain" style={{ border: `1px solid ${EB.border}` }} />}
+        <input
+          type="file" accept="image/*"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadScreenshot(f); }}
+          disabled={uploadingShot}
+          className="text-xs"
+        />
+        {uploadingShot && <span className="ml-2 text-xs" style={{ color: EB.mutedForeground }}>Uploading…</span>}
+      </div>
+
+      {trade.closed_at && (
+        <div className="space-y-2 rounded-md p-3" style={{ border: `1px solid ${EB.border}` }}>
+          <div className="text-xs" style={{ color: EB.mutedForeground }}>Post-trade review</div>
+          <Field label="What worked?"><Textarea rows={2} value={review?.whatWorked ?? ""} onChange={(e) => setReview((r) => ({ ...(r ?? { whatWorked: "", whatDidnt: "", changeTomorrow: "" }), whatWorked: e.target.value }))} style={fieldStyle()} /></Field>
+          <Field label="What didn't?"><Textarea rows={2} value={review?.whatDidnt ?? ""} onChange={(e) => setReview((r) => ({ ...(r ?? { whatWorked: "", whatDidnt: "", changeTomorrow: "" }), whatDidnt: e.target.value }))} style={fieldStyle()} /></Field>
+          <Field label="Change tomorrow?"><Textarea rows={2} value={review?.changeTomorrow ?? ""} onChange={(e) => setReview((r) => ({ ...(r ?? { whatWorked: "", whatDidnt: "", changeTomorrow: "" }), changeTomorrow: e.target.value }))} style={fieldStyle()} /></Field>
+          <Button onClick={saveReview} disabled={savingReview} variant="outline" className="h-9 text-xs">{savingReview ? "Saving…" : "Save review"}</Button>
+        </div>
+      )}
+
+      {/* Off-screen share card — captured to PNG, not part of the visible layout */}
+      <div style={{ position: "fixed", left: -9999, top: 0 }}>
+        <div ref={shareRef} className="w-[420px] p-6" style={{ background: EB.card, color: EB.foreground, fontFamily: "system-ui" }}>
+          <div className="mb-1 flex items-center justify-between">
+            <div className="text-lg font-semibold">{trade.pair}</div>
+            <div className="text-xs uppercase" style={{ color: EB.mutedForeground }}>{trade.direction}</div>
+          </div>
+          <div className="mb-4 text-2xl font-bold" style={{ color: pnlColor(trade.pnl) }}>{trade.pnl != null ? fmtMoney(trade.pnl, { sign: true }) : "Open"}</div>
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div><div style={{ color: EB.mutedForeground }}>Entry</div><div className="font-medium">{trade.entry_price}</div></div>
+            <div><div style={{ color: EB.mutedForeground }}>Exit</div><div className="font-medium">{trade.exit_price ?? "—"}</div></div>
+            <div><div style={{ color: EB.mutedForeground }}>Size</div><div className="font-medium">{trade.size}</div></div>
+          </div>
+          <div className="mt-4 text-[10px]" style={{ color: EB.mutedForeground }}>{new Date(trade.opened_at).toLocaleDateString()} · Edgebook</div>
+        </div>
+      </div>
+      <Button onClick={shareAsImage} disabled={sharing} variant="outline" className="h-9 w-full text-xs">
+        {sharing ? "Generating…" : "Share as image"}
+      </Button>
+
       <div className="flex gap-2">
         <Button onClick={onClose} variant="outline" className="flex-1 h-11">Close</Button>
         <Button onClick={save} disabled={saving} className="flex-1 h-11" style={{ background: EB.primary, color: EB.primaryForeground }}>
@@ -693,7 +815,21 @@ function ImportView({ user, strats, trades, onDone }: { user: any; strats: Strat
   const [advanced, setAdvanced] = useState(false);
   const [importing, setImporting] = useState(false);
   const [lastFile, setLastFile] = useState<{ name: string; text: string } | null>(null);
+  const [lastBatch, setLastBatch] = useState<{ id: string; count: number } | null>(null);
+  const [undoing, setUndoing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const undoLastImport = async () => {
+    if (!lastBatch) return;
+    if (!confirm(`Delete ${lastBatch.count} trade(s) from that import?`)) return;
+    setUndoing(true);
+    const { error } = await sb.from("trades").delete().eq("import_batch_id", lastBatch.id);
+    setUndoing(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Import undone.");
+    setLastBatch(null);
+    onDone();
+  };
 
   const loadText = (name: string, text: string) => {
     setFileName(name);
@@ -739,9 +875,12 @@ function ImportView({ user, strats, trades, onDone }: { user: any; strats: Strat
         setImporting(false);
         return;
       }
-      const { error } = await sb.from("trades").insert(payload);
+      const { data: batch, error: batchErr } = await sb.from("import_batches").insert({ user_id: user.id, filename: fileName, row_count: payload.length }).select().single();
+      if (batchErr) throw batchErr;
+      const { error } = await sb.from("trades").insert(payload.map((t) => ({ ...t, import_batch_id: batch.id })));
       if (error) throw error;
       toast.success(`Imported ${payload.length} trade${payload.length === 1 ? "" : "s"}${dupes ? ` (skipped ${dupes} likely duplicate${dupes === 1 ? "" : "s"})` : ""}.`);
+      setLastBatch({ id: batch.id, count: payload.length });
       setPending(null); setFileName(""); onDone();
     } catch (e: any) {
       toast.error(e.message || "Import failed");
@@ -752,9 +891,16 @@ function ImportView({ user, strats, trades, onDone }: { user: any; strats: Strat
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Import trades</h1>
-        <p className="text-sm" style={{ color: EB.mutedForeground }}>Upload a CSV — we'll auto-detect the format.</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight">Import trades</h1>
+          <p className="text-sm" style={{ color: EB.mutedForeground }}>Upload a CSV — we'll auto-detect the format.</p>
+        </div>
+        {lastBatch && (
+          <Button variant="outline" size="sm" onClick={undoLastImport} disabled={undoing} className="gap-1.5" style={{ color: EB.destructive }}>
+            <Trash2 className="h-3.5 w-3.5" /> {undoing ? "Undoing…" : `Undo last import (${lastBatch.count})`}
+          </Button>
+        )}
       </div>
 
       {!fileName ? (
@@ -800,9 +946,12 @@ function ImportView({ user, strats, trades, onDone }: { user: any; strats: Strat
               toast.info(`All ${dupes} row(s) look like duplicates of trades you already have — nothing imported.`);
               return;
             }
-            const { error } = await sb.from("trades").insert(payload);
+            const { data: batch, error: batchErr } = await sb.from("import_batches").insert({ user_id: user.id, filename: fileName, row_count: payload.length }).select().single();
+            if (batchErr) { toast.error(batchErr.message); return; }
+            const { error } = await sb.from("trades").insert(payload.map((t) => ({ ...t, import_batch_id: batch.id })));
             if (error) { toast.error(error.message); return; }
             toast.success(`Imported ${payload.length} trade${payload.length === 1 ? "" : "s"}${dupes ? ` (skipped ${dupes} likely duplicate${dupes === 1 ? "" : "s"})` : ""}.`);
+            setLastBatch({ id: batch.id, count: payload.length });
             setFileName(""); setAdvanced(false); onDone();
           }} onCancel={() => { setFileName(""); setAdvanced(false); }} />
         </Card>
@@ -1230,6 +1379,34 @@ function AnalyticsView({ trades, strats }: { trades: Trade[]; strats: Strategy[]
 
   const tiltCount = useMemo(() => detectTiltTradeIds(trades).size, [trades]);
 
+  const symbolConcentration = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of closed) m.set(t.pair, (m.get(t.pair) ?? 0) + 1);
+    const palette = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#a855f7", "#06b6d4", "#ec4899", "#84cc16"];
+    return Array.from(m.entries())
+      .sort(([, a], [, b]) => b - a)
+      .map(([symbol, n], i) => ({ symbol, n, fill: palette[i % palette.length] }));
+  }, [closed]);
+
+  const drawdownCurve = useMemo(() => {
+    const sorted = [...closed].sort((a, b) => new Date(a.closed_at ?? a.opened_at).getTime() - new Date(b.closed_at ?? b.opened_at).getTime());
+    let equity = 0, peak = 0;
+    return sorted.map((t, i) => {
+      equity += t.pnl ?? 0;
+      peak = Math.max(peak, equity);
+      return { i, equity, drawdown: equity - peak };
+    });
+  }, [closed]);
+
+  const slippageReport = useMemo(() => {
+    const withPlan = closed.filter((t) => t.planned_entry_price != null);
+    if (withPlan.length === 0) return null;
+    const points = withPlan.map(slippagePoints).filter((s): s is number => s != null);
+    const avg = points.reduce((a, b) => a + b, 0) / points.length;
+    const worst = Math.min(...points);
+    return { n: points.length, avg, worst };
+  }, [closed]);
+
   return (
     <div className="space-y-6">
       <div>
@@ -1460,6 +1637,63 @@ function AnalyticsView({ trades, strats }: { trades: Trade[]; strats: Strategy[]
           </div>
         </div>
       </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <h3 className="mb-3 text-sm font-medium">Symbol concentration</h3>
+          {symbolConcentration.length === 0 ? (
+            <div className="grid h-64 place-items-center text-xs" style={{ color: EB.mutedForeground }}>No closed trades yet.</div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer>
+                <PieChart>
+                  <Pie data={symbolConcentration} dataKey="n" nameKey="symbol" cx="50%" cy="50%" outerRadius={80} label={(e: any) => e.symbol}>
+                    {symbolConcentration.map((s, i) => <Cell key={i} fill={s.fill} />)}
+                  </Pie>
+                  <Tooltip contentStyle={{ background: EB.card, border: `1px solid ${EB.border}`, borderRadius: 8, fontSize: 12 }} formatter={(v: any, _n, p: any) => [`${v} trades`, p.payload.symbol]} />
+                  <Legend wrapperStyle={{ fontSize: 11, color: EB.mutedForeground }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <h3 className="mb-3 text-sm font-medium">Drawdown (underwater curve)</h3>
+          {drawdownCurve.length === 0 ? (
+            <div className="grid h-64 place-items-center text-xs" style={{ color: EB.mutedForeground }}>No closed trades yet.</div>
+          ) : (
+            <div className="h-64">
+              <ResponsiveContainer>
+                <AreaChart data={drawdownCurve}>
+                  <CartesianGrid stroke={EB.border} strokeDasharray="3 3" />
+                  <XAxis dataKey="i" tick={{ fill: EB.mutedForeground, fontSize: 10 }} tickFormatter={() => ""} />
+                  <YAxis tick={{ fill: EB.mutedForeground, fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
+                  <Tooltip contentStyle={{ background: EB.card, border: `1px solid ${EB.border}`, borderRadius: 8, fontSize: 12 }} formatter={(v: any) => [fmtMoney(v, { sign: true }), "Drawdown"]} labelFormatter={() => ""} />
+                  <Area type="monotone" dataKey="drawdown" stroke={EB.loss} fill={EB.loss} fillOpacity={0.25} isAnimationActive={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {slippageReport && (
+        <Card>
+          <h3 className="mb-3 text-sm font-medium">Slippage report</h3>
+          <p className="mb-2 text-xs" style={{ color: EB.mutedForeground }}>Planned entry vs actual fill, across {slippageReport.n} trades with a planned price set.</p>
+          <div className="grid grid-cols-2 gap-3 text-center">
+            <div>
+              <div className="text-[10px] uppercase" style={{ color: EB.mutedForeground }}>Avg slippage</div>
+              <div className="text-lg font-semibold" style={{ color: slippageReport.avg >= 0 ? EB.win : EB.loss }}>{slippageReport.avg.toFixed(3)} pts</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase" style={{ color: EB.mutedForeground }}>Worst slippage</div>
+              <div className="text-lg font-semibold" style={{ color: EB.loss }}>{slippageReport.worst.toFixed(3)} pts</div>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
