@@ -2,21 +2,14 @@ import { cn } from "@/lib/utils";
 
 export function Z1Logo({ size = 56, className }: { size?: number; className?: string }) {
   return (
-    <div
-      className={cn(
-        "relative grid place-items-center rounded-2xl gold-border bg-surface-elevated shadow-glow",
-        className
-      )}
+    <img
+      src="/logo.png"
+      alt="Z1 INSIGHTS"
+      width={size}
+      height={size}
+      className={cn("rounded-2xl object-cover shadow-glow", className)}
       style={{ width: size, height: size }}
-    >
-      <span
-        className="display gold-text font-medium leading-none"
-        style={{ fontSize: size * 0.5 }}
-      >
-        Z
-        <span className="font-mono text-[0.6em] align-super">1</span>
-      </span>
-    </div>
+    />
   );
 }
 
