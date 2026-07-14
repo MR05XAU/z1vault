@@ -89,6 +89,13 @@ export default function Reader() {
 
   // The outgoing page kept mounted while it physically turns over the spine.
   const [flight, setFlight] = useState<{ dir: "next" | "prev"; spec: number[]; fromAbs: number; wasSpread: boolean } | null>(null);
+  // Safety: if animationend never fires (reduced-motion, hidden tab), the
+  // stale leaf must not stay stuck covering the live page.
+  useEffect(() => {
+    if (!flight) return;
+    const t = setTimeout(() => setFlight(null), 1700);
+    return () => clearTimeout(t);
+  }, [flight]);
 
   // Measurement-driven pagination: blocks are measured off-screen at the real
   // page width, then greedily packed into pages that fit the real page height.

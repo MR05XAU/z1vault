@@ -11,7 +11,7 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { pickMindset } from "@/data/mindset";
 import {
   BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Settings,
-  CalendarDays, LineChart, CandlestickChart, Download, ShoppingBag, Flame,
+  CalendarDays, LineChart, CandlestickChart, Download, ShoppingBag, Flame, Calculator,
 } from "lucide-react";
 
 interface Progress { chapter_id: string; progress_percentage: number; completed: boolean; updated_at: string }
@@ -22,6 +22,7 @@ const modules = [
   { to: "/library", label: "Book", icon: BookOpen },
   { to: "/tutor", label: "Tutor", icon: Sparkles },
   { to: "/journal", label: "Edgebook", icon: LineChart },
+  { to: "/calculators", label: "Calculator", icon: Calculator },
   { to: "/patterns", label: "Candles", icon: CandlestickChart },
   { to: "/notebook?tab=notes", label: "Notes", icon: BookMarked },
   { to: "/notebook?tab=highlights", label: "Highlights", icon: Highlighter },
