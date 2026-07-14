@@ -135,17 +135,17 @@ export default function OfflineSync() {
         <header className="px-5 pt-6 pb-3 safe-top flex items-center gap-3 border-b border-border/40">
           <Z1Logo size={40} />
           <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Offline library</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Offline library</div>
             <div className="text-sm font-medium">Sync for travel & flights</div>
           </div>
-          <div className={`size-2 rounded-full ${ready ? "bg-success" : "bg-gold animate-pulse"}`} />
+          <div className={`size-2 rounded-full ${ready ? "bg-success" : "bg-mint animate-pulse"}`} />
         </header>
       }
     >
       <div className="px-5 pt-5 pb-44 space-y-4">
-        <section className="glass-strong rounded-3xl p-5 gold-border">
+        <section className="glass-strong rounded-3xl p-5 mint-border">
           <div className="flex items-start gap-3">
-            <div className="size-10 rounded-xl gold-fill grid place-items-center shadow-glow">
+            <div className="size-10 rounded-xl mint-fill grid place-items-center shadow-glow">
               {ready ? <CheckCircle2 className="size-5" /> : <Download className="size-5" />}
             </div>
             <div className="flex-1">
@@ -161,7 +161,7 @@ export default function OfflineSync() {
           <button
             onClick={syncAll}
             disabled={busy || chaptersLoading}
-            className="mt-4 w-full rounded-2xl gold-fill text-background font-medium text-sm py-3 press shadow-glow disabled:opacity-60 inline-flex items-center justify-center gap-2"
+            className="mt-4 w-full rounded-2xl mint-fill text-background font-medium text-sm py-3 press shadow-glow disabled:opacity-60 inline-flex items-center justify-center gap-2"
           >
             {busy ? <Loader2 className="size-4 animate-spin" /> : ready ? <RefreshCw className="size-4" /> : <Download className="size-4" />}
             {busy ? "Syncing…" : ready ? "Re-sync now" : "Sync everything"}
@@ -203,7 +203,7 @@ export default function OfflineSync() {
 
         <section className="glass rounded-2xl p-4">
           <div className="flex items-center gap-2">
-            <Sparkles className="size-4 text-gold-bright" />
+            <Sparkles className="size-4 text-mint-bright" />
             <div className="text-sm font-medium">Tutor knowledge base</div>
           </div>
           <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
@@ -246,7 +246,7 @@ function StepCard({
               ? "bg-success/15 text-success"
               : effective.status === "error"
               ? "bg-destructive/15 text-destructive"
-              : "bg-gold/10 text-gold-bright"
+              : "bg-mint/10 text-mint-bright"
           }`}
         >
           {effective.status === "ok" ? <CheckCircle2 className="size-4" /> : <Icon className="size-4" />}
@@ -262,7 +262,7 @@ function StepCard({
         <div className="mt-3">
           <div className="h-1.5 rounded-full bg-secondary overflow-hidden">
             <div
-              className={`h-full transition-all ${effective.status === "ok" ? "bg-success" : "gold-fill"}`}
+              className={`h-full transition-all ${effective.status === "ok" ? "bg-success" : "mint-fill"}`}
               style={{ width: `${effective.status === "ok" ? 100 : effective.progress}%` }}
             />
           </div>
@@ -283,7 +283,7 @@ function StatusBadge({ status }: { status: Status }) {
   if (status === "ok")
     return <span className="text-[10px] uppercase tracking-[0.18em] text-success">Ready</span>;
   if (status === "running")
-    return <span className="text-[10px] uppercase tracking-[0.18em] text-gold-bright">Syncing</span>;
+    return <span className="text-[10px] uppercase tracking-[0.18em] text-mint-bright">Syncing</span>;
   if (status === "error")
     return <span className="text-[10px] uppercase tracking-[0.18em] text-destructive">Error</span>;
   return <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Pending</span>;

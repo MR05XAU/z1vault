@@ -51,7 +51,7 @@ export default function Notebook() {
       bottomNav={<BottomNav />}
       header={
         <header className="px-5 pt-6 safe-top">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Notebook</div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Notebook</div>
           <h1 className="display text-3xl font-medium mt-1">Your vault notes.</h1>
           <div className="relative mt-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -67,13 +67,13 @@ export default function Notebook() {
     >
       <Tabs value={tab} onValueChange={(v) => setSp({ tab: v })} className="mt-5">
         <TabsList className="w-full bg-surface-elevated/60 rounded-xl p-1 h-11">
-          <TabsTrigger value="highlights" className="flex-1 rounded-lg data-[state=active]:bg-gold data-[state=active]:text-gold-foreground text-xs gap-1.5">
+          <TabsTrigger value="highlights" className="flex-1 rounded-lg data-[state=active]:bg-mint data-[state=active]:text-mint-foreground text-xs gap-1.5">
             <Highlighter className="size-3.5" /> Highlights
           </TabsTrigger>
-          <TabsTrigger value="notes" className="flex-1 rounded-lg data-[state=active]:bg-gold data-[state=active]:text-gold-foreground text-xs gap-1.5">
+          <TabsTrigger value="notes" className="flex-1 rounded-lg data-[state=active]:bg-mint data-[state=active]:text-mint-foreground text-xs gap-1.5">
             <NotebookPen className="size-3.5" /> Notes
           </TabsTrigger>
-          <TabsTrigger value="bookmarks" className="flex-1 rounded-lg data-[state=active]:bg-gold data-[state=active]:text-gold-foreground text-xs gap-1.5">
+          <TabsTrigger value="bookmarks" className="flex-1 rounded-lg data-[state=active]:bg-mint data-[state=active]:text-mint-foreground text-xs gap-1.5">
             <Bookmark className="size-3.5" /> Marks
           </TabsTrigger>
         </TabsList>
@@ -119,7 +119,7 @@ function Card({ chapter, children, onOpen, onDelete }: any) {
   return (
     <div className="glass rounded-2xl p-4 animate-fade-up">
       <div className="flex items-start justify-between gap-2 mb-2">
-        <button onClick={onOpen} className="text-[10px] uppercase tracking-[0.28em] text-gold-bright text-left press">
+        <button onClick={onOpen} className="text-[10px] uppercase tracking-[0.28em] text-mint-bright text-left press">
           Ch {chapter?.chapter_number} · {chapter?.title}
         </button>
         <button onClick={onDelete} className="text-muted-foreground hover:text-danger press">

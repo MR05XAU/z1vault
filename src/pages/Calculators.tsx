@@ -18,16 +18,16 @@ export default function Calculators() {
               <ArrowLeft className="size-4" />
             </button>
             <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Tools</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Tools</div>
               <h1 className="display text-2xl font-medium">Calculators.</h1>
             </div>
           </div>
           <div className="mt-4 flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
-            <button onClick={() => setTab("rr")} className={`flex-1 text-xs py-2 rounded-lg press ${tab==="rr"?"bg-gold text-gold-foreground":"text-muted-foreground"}`}>Risk / Reward</button>
-            <button onClick={() => setTab("size")} className={`flex-1 text-xs py-2 rounded-lg press ${tab==="size"?"bg-gold text-gold-foreground":"text-muted-foreground"}`}>Position size</button>
+            <button onClick={() => setTab("rr")} className={`flex-1 text-xs py-2 rounded-lg press ${tab==="rr"?"bg-mint text-mint-foreground":"text-muted-foreground"}`}>Risk / Reward</button>
+            <button onClick={() => setTab("size")} className={`flex-1 text-xs py-2 rounded-lg press ${tab==="size"?"bg-mint text-mint-foreground":"text-muted-foreground"}`}>Position size</button>
           </div>
           <button onClick={() => nav("/patterns")} className="mt-3 w-full glass rounded-xl py-2.5 flex items-center justify-center gap-2 text-xs press">
-            <CandlestickChart className="size-4 text-gold-bright" />
+            <CandlestickChart className="size-4 text-mint-bright" />
             Candlestick patterns reference
           </button>
         </header>
@@ -56,8 +56,8 @@ function RRCalc() {
       <F label="Stop loss"><Input type="number" step="any" value={v.stop} onChange={(e)=>setV({...v,stop:e.target.value})} /></F>
       <F label="Take profit"><Input type="number" step="any" value={v.target} onChange={(e)=>setV({...v,target:e.target.value})} /></F>
       <div className="glass-strong rounded-2xl p-5 mt-4 text-center">
-        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Risk : Reward</div>
-        <div className="display text-5xl gold-text font-medium mt-2">
+        <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Risk : Reward</div>
+        <div className="display text-5xl mint-text font-medium mt-2">
           {r ? `1 : ${r.rr.toFixed(2)}` : "—"}
         </div>
         {r && (
@@ -88,8 +88,8 @@ function SizeCalc() {
       <F label="Entry price"><Input type="number" step="any" value={v.entry} onChange={(e)=>setV({...v,entry:e.target.value})} /></F>
       <F label="Stop loss"><Input type="number" step="any" value={v.stop} onChange={(e)=>setV({...v,stop:e.target.value})} /></F>
       <div className="glass-strong rounded-2xl p-5 mt-4 text-center">
-        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Position size</div>
-        <div className="display text-4xl gold-text font-medium mt-2">
+        <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Position size</div>
+        <div className="display text-4xl mint-text font-medium mt-2">
           {r ? r.size.toLocaleString(undefined, { maximumFractionDigits: 4 }) : "—"}
         </div>
         {r && (

@@ -38,20 +38,20 @@ export default function Paywall() {
 
         {!checkout ? (
           <div className="flex-1 flex flex-col mt-8 animate-fade-up">
-            <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright text-center">
+            <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright text-center">
               Lifetime access
             </div>
             <h1 className="display text-4xl font-medium text-center mt-3 leading-tight">
               The vault, <br />unlocked forever.
             </h1>
 
-            <div className="glass-strong rounded-3xl p-6 mt-8 gold-border">
+            <div className="glass-strong rounded-3xl p-6 mt-8 mint-border">
               <div className="text-center">
                 <div className="text-xs text-muted-foreground uppercase tracking-[0.24em]">
                   One-time payment
                 </div>
                 <div className="flex items-baseline justify-center gap-2 mt-2">
-                  <span className="display gold-text text-6xl font-medium leading-none">
+                  <span className="display mint-text text-6xl font-medium leading-none">
                     {Z1_PRICE_DISPLAY}
                   </span>
                 </div>
@@ -67,7 +67,7 @@ export default function Paywall() {
                     className="flex items-start gap-3 animate-fade-up"
                     style={{ animationDelay: `${i * 60}ms` }}
                   >
-                    <div className="size-5 rounded-full grid place-items-center bg-gold/15 text-gold-bright shrink-0 mt-0.5">
+                    <div className="size-5 rounded-full grid place-items-center bg-mint/15 text-mint-bright shrink-0 mt-0.5">
                       <Check className="size-3" strokeWidth={3} />
                     </div>
                     <div className="text-sm text-foreground/85">{p}</div>
@@ -78,7 +78,7 @@ export default function Paywall() {
 
             <Button
               onClick={() => setCheckout(true)}
-              className="mt-8 h-14 rounded-2xl gold-fill text-base font-medium shadow-glow press hover:shadow-glow-strong"
+              className="mt-8 h-14 rounded-2xl mint-fill text-base font-medium shadow-glow press hover:shadow-glow-strong"
             >
               Unlock the vault
             </Button>

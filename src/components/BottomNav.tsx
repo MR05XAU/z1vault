@@ -15,7 +15,7 @@ export function BottomNav() {
   const { isAdmin } = useAuth();
   const items = isAdmin ? [...baseItems, { to: "/admin", label: "Admin", icon: ShieldCheck }] : baseItems;
   return (
-    <nav className="glass-strong rounded-2xl px-2 py-2 flex items-center justify-around shadow-lift">
+    <nav className="rounded-2xl border border-border bg-card px-2 py-2 flex items-center justify-around">
       {items.map(({ to, label, icon: Icon }) => (
         <NavLink
           key={to}
@@ -24,7 +24,7 @@ export function BottomNav() {
             cn(
               "flex flex-col items-center gap-0.5 px-2.5 py-1.5 rounded-xl press min-w-[52px]",
               isActive
-                ? "text-gold-bright"
+                ? "text-mint-bright"
                 : "text-muted-foreground hover:text-foreground/80"
             )
           }
@@ -34,7 +34,7 @@ export function BottomNav() {
               <div
                 className={cn(
                   "p-1.5 rounded-lg transition-all",
-                  isActive && "bg-gold/15 shadow-glow"
+                  isActive && "bg-mint/15"
                 )}
               >
                 <Icon className="size-[18px]" strokeWidth={2} />

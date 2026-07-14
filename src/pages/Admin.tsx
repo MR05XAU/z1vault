@@ -76,12 +76,12 @@ export default function Admin() {
     return (
       <MobileShell>
         <div className="min-h-[60dvh] flex flex-col items-center justify-center text-center px-6">
-          <ShieldCheck className="size-12 text-gold-bright mb-3" />
+          <ShieldCheck className="size-12 text-mint-bright mb-3" />
           <h1 className="display text-2xl font-medium">Admin access</h1>
           <p className="text-sm text-muted-foreground mt-2 max-w-xs">
             If you are the first admin for this app, claim the role below. After the first admin is set, only existing admins can grant new ones.
           </p>
-          <Button onClick={bootstrap} disabled={bootstrapping} className="mt-6 gold-fill h-12 px-6 rounded-xl">
+          <Button onClick={bootstrap} disabled={bootstrapping} className="mt-6 mint-fill h-12 px-6 rounded-xl">
             {bootstrapping ? <Loader2 className="size-4 animate-spin mr-2" /> : null}
             Claim first-admin role
           </Button>
@@ -97,7 +97,7 @@ export default function Admin() {
     <MobileShell
       header={
         <header className="px-5 pt-6 safe-top">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Admin</div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Admin</div>
           <h1 className="display text-3xl font-medium mt-1">Content control.</h1>
           <p className="text-xs text-muted-foreground mt-1">
             Manage chapters, quizzes, and notebook pages. Changes go live instantly.
@@ -122,7 +122,7 @@ export default function Admin() {
                 key={t}
                 onClick={() => setTab(t)}
                 className={`flex-1 text-xs font-medium py-2 rounded-lg press capitalize whitespace-nowrap ${
-                  tab === t ? "bg-gold text-gold-foreground" : "text-muted-foreground"
+                  tab === t ? "bg-mint text-mint-foreground" : "text-muted-foreground"
                 }`}
               >
                 {t === "stats" && <BarChart3 className="size-3 inline mr-1" />}
@@ -155,7 +155,7 @@ export default function Admin() {
 }
 
 function FullSpinner() {
-  return <div className="min-h-[100dvh] vault-bg grid place-items-center"><Loader2 className="size-6 text-gold animate-spin" /></div>;
+  return <div className="min-h-[100dvh] vault-bg grid place-items-center"><Loader2 className="size-6 text-mint animate-spin" /></div>;
 }
 
 /* ---------- CHAPTERS ---------- */
@@ -180,12 +180,12 @@ function ChaptersPanel() {
   return (
     <div className="space-y-3 px-5">
       <Button onClick={() => setEditing({ chapter_number: (chapters.at(-1)?.chapter_number ?? 0) + 1, title: "", subtitle: "", content: "", estimated_minutes: 5, order_index: chapters.length + 1, published: true })}
-        className="w-full gold-fill h-11 rounded-xl">
+        className="w-full mint-fill h-11 rounded-xl">
         <Plus className="size-4 mr-1.5" /> New chapter
       </Button>
       {chapters.map((c) => (
         <div key={c.id} className="glass rounded-2xl p-4 flex items-center gap-3">
-          <div className="size-10 grid place-items-center rounded-lg bg-surface-elevated display gold-text font-medium text-sm">
+          <div className="size-10 grid place-items-center rounded-lg bg-surface-elevated display mint-text font-medium text-sm">
             {String(c.chapter_number).padStart(2, "0")}
           </div>
           <div className="flex-1 min-w-0">
@@ -266,7 +266,7 @@ function ChapterEditor({ chapter, onDone }: { chapter: any; onDone: () => void }
         <input type="checkbox" checked={c.published !== false} onChange={(e) => setC({ ...c, published: e.target.checked })} />
         Published (visible to readers)
       </label>
-      <Button onClick={save} disabled={saving} className="w-full gold-fill h-12 rounded-xl">
+      <Button onClick={save} disabled={saving} className="w-full mint-fill h-12 rounded-xl">
         {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}Save chapter
       </Button>
     </div>
@@ -307,11 +307,11 @@ function QuizzesPanel() {
       </select>
       {chapterId && (
         <Button onClick={() => setEditing({ chapter_id: chapterId, question: "", options: ["", "", "", ""], correct_answer: 0, explanation: "", order_index: quizzes.length + 1, published: true })}
-          className="w-full gold-fill h-11 rounded-xl"><Plus className="size-4 mr-1.5" />New question</Button>
+          className="w-full mint-fill h-11 rounded-xl"><Plus className="size-4 mr-1.5" />New question</Button>
       )}
       {quizzes.map((q, i) => (
         <div key={q.id} className="glass rounded-2xl p-4">
-          <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Q{i + 1}</div>
+          <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Q{i + 1}</div>
           <div className="text-sm mt-1 font-medium">{q.question}</div>
           <div className="text-xs text-muted-foreground mt-1">
             ✓ {Array.isArray(q.options) ? q.options[q.correct_answer] : "—"}
@@ -358,7 +358,7 @@ function QuizEditor({ q, onDone }: { q: any; onDone: () => void }) {
         </Field>
       ))}
       <Field label="Explanation"><Textarea value={v.explanation ?? ""} onChange={(e) => setV({ ...v, explanation: e.target.value })} /></Field>
-      <Button onClick={save} disabled={saving} className="w-full gold-fill h-12 rounded-xl">
+      <Button onClick={save} disabled={saving} className="w-full mint-fill h-12 rounded-xl">
         {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}Save question
       </Button>
     </div>
@@ -394,7 +394,7 @@ function NotebookPanel() {
   return (
     <div className="px-5 space-y-3">
       <Button onClick={() => setEditing({ slug: "", title: "", content: "", order_index: pages.length + 1, published: true })}
-        className="w-full gold-fill h-11 rounded-xl"><Plus className="size-4 mr-1.5" />New notebook page</Button>
+        className="w-full mint-fill h-11 rounded-xl"><Plus className="size-4 mr-1.5" />New notebook page</Button>
       {pages.map((p) => (
         <div key={p.id} className="glass rounded-2xl p-4 flex items-center gap-3">
           <div className="flex-1 min-w-0">
@@ -434,7 +434,7 @@ function NotebookEditor({ page, onDone }: { page: any; onDone: () => void }) {
       <Field label="Content (Markdown)">
         <Textarea value={p.content ?? ""} onChange={(e) => setP({ ...p, content: e.target.value })} className="min-h-[300px] font-mono text-xs" />
       </Field>
-      <Button onClick={save} disabled={saving} className="w-full gold-fill h-12 rounded-xl">
+      <Button onClick={save} disabled={saving} className="w-full mint-fill h-12 rounded-xl">
         {saving ? <Loader2 className="size-4 animate-spin mr-2" /> : null}Save page
       </Button>
     </div>
@@ -581,14 +581,14 @@ function UsersPanel() {
     <div className="px-5 space-y-2">
       <div className="flex gap-2">
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or email" className="h-10 rounded-xl" />
-        <Button onClick={() => setShowNew((v) => !v)} className="rounded-xl gold-fill h-10 px-3">
+        <Button onClick={() => setShowNew((v) => !v)} className="rounded-xl mint-fill h-10 px-3">
           <Plus className="size-4 mr-1" /> New
         </Button>
       </div>
       <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
         {(["all", "paid", "abandoned"] as const).map((t) => (
           <button key={t} onClick={() => setFilter(t)}
-            className={`flex-1 text-xs py-2 rounded-lg press capitalize ${filter === t ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>
+            className={`flex-1 text-xs py-2 rounded-lg press capitalize ${filter === t ? "bg-mint text-mint-foreground" : "text-muted-foreground"}`}>
             {t}{t === "abandoned" && abandonedCount ? ` (${abandonedCount})` : ""}
           </button>
         ))}
@@ -603,7 +603,7 @@ function UsersPanel() {
             Grant lifetime access immediately
           </label>
           <div className="flex gap-2">
-            <Button onClick={createUser} disabled={creating} className="flex-1 rounded-xl gold-fill h-10">
+            <Button onClick={createUser} disabled={creating} className="flex-1 rounded-xl mint-fill h-10">
               {creating ? <Loader2 className="size-4 animate-spin" /> : "Create user"}
             </Button>
             <Button variant="outline" onClick={() => setShowNew(false)} className="rounded-xl h-10">Cancel</Button>
@@ -611,7 +611,7 @@ function UsersPanel() {
           <p className="text-[10px] text-muted-foreground">User is created with email already confirmed. Share the temp password with them; they can change it from Account.</p>
         </div>
       )}
-      <p className="text-[11px] text-muted-foreground pt-2">{filtered.length} of {rows.length} users · gold dot = comped, green dot = paid.</p>
+      <p className="text-[11px] text-muted-foreground pt-2">{filtered.length} of {rows.length} users · mint dot = comped, green dot = paid.</p>
       {filtered.map((r) => {
         const ent = Array.isArray(r.entitlements) ? r.entitlements[0] : r.entitlements;
         const hasAccess = ent?.has_access;
@@ -624,7 +624,7 @@ function UsersPanel() {
                 <div className="text-sm font-medium truncate">{r.full_name || r.email}</div>
                 <div className="text-[11px] text-muted-foreground truncate flex items-center gap-1.5">
                   {r.email}
-                  {hasAccess && <span className={`size-1.5 rounded-full ${comped ? "bg-gold-bright" : "bg-success"}`} />}
+                  {hasAccess && <span className={`size-1.5 rounded-full ${comped ? "bg-mint-bright" : "bg-success"}`} />}
                 </div>
                 <div className="text-[10px] text-muted-foreground/70 mt-0.5">
                   Joined {new Date(r.created_at).toLocaleDateString()}
@@ -632,7 +632,7 @@ function UsersPanel() {
               </div>
               <Button size="sm" variant={hasAccess ? "outline" : "default"}
                 disabled={busy}
-                className={hasAccess ? "rounded-lg border-border-strong" : "rounded-lg gold-fill"}
+                className={hasAccess ? "rounded-lg border-border-strong" : "rounded-lg mint-fill"}
                 onClick={() => toggle(r.id, !hasAccess)}>
                 {busy ? <Loader2 className="size-3 animate-spin" /> : hasAccess ? "Revoke" : "Grant"}
               </Button>
@@ -695,7 +695,7 @@ function SingleEmailComposer({ user, onDone }: { user: any; onDone: () => void }
     <div className="px-5 space-y-3 pb-nav">
       <Button variant="ghost" onClick={onDone} className="text-xs">← Back to users</Button>
       <div className="glass rounded-2xl p-3">
-        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Sending to</div>
+        <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Sending to</div>
         <div className="text-sm font-medium mt-1">{user.full_name || user.email}</div>
         <div className="text-[11px] text-muted-foreground">{user.email} · {paid ? "paid user" : "abandoned signup"}</div>
       </div>
@@ -707,7 +707,7 @@ function SingleEmailComposer({ user, onDone }: { user: any; onDone: () => void }
         <Field label="CTA URL"><Input value={ctaUrl} onChange={(e) => setCtaUrl(e.target.value)} /></Field>
       </div>
       <Field label="Promo code (optional)"><Input value={promoCode} onChange={(e) => setPromoCode(e.target.value.toUpperCase())} placeholder="VIP20" /></Field>
-      <Button onClick={send} disabled={busy} className="w-full gold-fill h-12 rounded-xl">
+      <Button onClick={send} disabled={busy} className="w-full mint-fill h-12 rounded-xl">
         {busy ? <Loader2 className="size-4 animate-spin mr-2" /> : <Mail className="size-4 mr-2" />}
         Send to {user.email}
       </Button>
@@ -786,7 +786,7 @@ function StatsPanel() {
         <Stat label="Comped" value={stats.comped} />
       </div>
       <div className="glass rounded-2xl p-4">
-        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Revenue · 30d</div>
+        <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Revenue · 30d</div>
         <div className="text-2xl font-medium mt-1 display">
           {Object.keys(stats.revenue30).length === 0 ? "—" :
             Object.entries(stats.revenue30).map(([cur, v]: any) => fmt(cur, v)).join(" · ")}
@@ -794,7 +794,7 @@ function StatsPanel() {
         <div className="text-xs text-muted-foreground mt-1">{stats.purchases30Count} purchase{stats.purchases30Count === 1 ? "" : "s"}</div>
       </div>
       <div className="glass rounded-2xl p-4">
-        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Email delivery · 7d</div>
+        <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Email delivery · 7d</div>
         <div className="flex gap-3 mt-2 flex-wrap text-sm">
           {Object.keys(stats.emailStatusCounts).length === 0 && <span className="text-muted-foreground text-xs">No emails yet.</span>}
           {Object.entries(stats.emailStatusCounts).map(([s, n]: any) => (
@@ -805,7 +805,7 @@ function StatsPanel() {
         </div>
       </div>
       <div className="glass rounded-2xl p-4">
-        <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright mb-2">Latest signups</div>
+        <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright mb-2">Latest signups</div>
         {recent.length === 0 && <div className="text-xs text-muted-foreground">No users yet.</div>}
         {recent.map((u) => (
           <div key={u.id} className="flex items-center justify-between py-1.5 border-b border-border-strong/40 last:border-0">
@@ -824,7 +824,7 @@ function StatsPanel() {
 function Stat({ label, value, sub }: { label: string; value: any; sub?: string }) {
   return (
     <div className="glass rounded-2xl p-4">
-      <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">{label}</div>
+      <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">{label}</div>
       <div className="text-2xl font-medium display mt-1">{value ?? 0}</div>
       {sub && <div className="text-[10px] text-muted-foreground mt-0.5">{sub}</div>}
     </div>
@@ -896,7 +896,7 @@ function BroadcastPanel() {
         <Field label="Audience">
           <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
             {(["all", "paid", "free"] as const).map((a) => (
-              <button key={a} onClick={() => setAudience(a)} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${audience === a ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>
+              <button key={a} onClick={() => setAudience(a)} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${audience === a ? "bg-mint text-mint-foreground" : "text-muted-foreground"}`}>
                 {a}
               </button>
             ))}
@@ -923,7 +923,7 @@ function BroadcastPanel() {
         <Button onClick={() => call(true)} disabled={busy} variant="outline" className="flex-1 rounded-xl h-11 border-border-strong">
           {busy ? <Loader2 className="size-4 animate-spin" /> : "Send test to me"}
         </Button>
-        <Button onClick={() => call(false)} disabled={busy || !audienceCount} className="flex-1 rounded-xl gold-fill h-11">
+        <Button onClick={() => call(false)} disabled={busy || !audienceCount} className="flex-1 rounded-xl mint-fill h-11">
           {busy ? <Loader2 className="size-4 animate-spin" /> : `Send to ${audienceCount ?? 0}`}
         </Button>
       </div>
@@ -1056,7 +1056,7 @@ function DiscountsPanel() {
     <div className="px-5 space-y-3 pb-nav">
       <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
         {(["live", "sandbox"] as const).map((e) => (
-          <button key={e} onClick={() => setEnv(e)} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${env === e ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>
+          <button key={e} onClick={() => setEnv(e)} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${env === e ? "bg-mint text-mint-foreground" : "text-muted-foreground"}`}>
             {e}
           </button>
         ))}
@@ -1068,7 +1068,7 @@ function DiscountsPanel() {
             <button
               key={a}
               onClick={() => setEmailAudience(a)}
-              className={`flex-1 text-xs py-2 rounded-lg press capitalize ${emailAudience === a ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}
+              className={`flex-1 text-xs py-2 rounded-lg press capitalize ${emailAudience === a ? "bg-mint text-mint-foreground" : "text-muted-foreground"}`}
             >
               {a}
             </button>
@@ -1078,7 +1078,7 @@ function DiscountsPanel() {
           "Email code" on any promo sends a short branded blast with a fixed "Hi — here's X% off" message.
         </div>
       </div>
-      <Button onClick={() => setShowNew((v) => !v)} className="w-full gold-fill h-11 rounded-xl">
+      <Button onClick={() => setShowNew((v) => !v)} className="w-full mint-fill h-11 rounded-xl">
         <Plus className="size-4 mr-1.5" /> {showNew ? "Cancel" : "New promo code"}
       </Button>
 
@@ -1088,7 +1088,7 @@ function DiscountsPanel() {
           <Field label="Internal name (optional)"><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="Launch week 20% off" /></Field>
           <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
             {(["percent", "amount"] as const).map((m) => (
-              <button key={m} onClick={() => setF({ ...f, mode: m })} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${f.mode === m ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>
+              <button key={m} onClick={() => setF({ ...f, mode: m })} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${f.mode === m ? "bg-mint text-mint-foreground" : "text-muted-foreground"}`}>
                 {m === "percent" ? "% off" : "Fixed amount off"}
               </button>
             ))}
@@ -1104,7 +1104,7 @@ function DiscountsPanel() {
           <Field label="Duration">
             <div className="flex gap-1 bg-surface-elevated/60 rounded-xl p-1">
               {(["once", "repeating", "forever"] as const).map((d) => (
-                <button key={d} onClick={() => setF({ ...f, duration: d })} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${f.duration === d ? "bg-gold text-gold-foreground" : "text-muted-foreground"}`}>{d}</button>
+                <button key={d} onClick={() => setF({ ...f, duration: d })} className={`flex-1 text-xs py-2 rounded-lg press capitalize ${f.duration === d ? "bg-mint text-mint-foreground" : "text-muted-foreground"}`}>{d}</button>
               ))}
             </div>
           </Field>
@@ -1115,7 +1115,7 @@ function DiscountsPanel() {
             <Field label="Max redemptions (blank = unlimited)"><Input type="number" value={f.max_redemptions} onChange={(e) => setF({ ...f, max_redemptions: e.target.value })} /></Field>
             <Field label="Expires in N days (blank = never)"><Input type="number" value={f.expires_in_days} onChange={(e) => setF({ ...f, expires_in_days: Number(e.target.value) })} /></Field>
           </div>
-          <Button onClick={create} disabled={busy} className="w-full gold-fill h-11 rounded-xl">
+          <Button onClick={create} disabled={busy} className="w-full mint-fill h-11 rounded-xl">
             {busy ? <Loader2 className="size-4 animate-spin mr-2" /> : null}Create on Stripe ({env})
           </Button>
           <p className="text-[10px] text-muted-foreground">
@@ -1153,7 +1153,7 @@ function DiscountsPanel() {
                       size="sm"
                       onClick={() => emailCode(p)}
                       disabled={emailingId === p.id}
-                      className="flex-1 rounded-lg text-[11px] h-8 gold-fill"
+                      className="flex-1 rounded-lg text-[11px] h-8 mint-fill"
                     >
                       {emailingId === p.id ? (
                         <Loader2 className="size-3 animate-spin mr-1" />

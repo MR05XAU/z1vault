@@ -204,16 +204,16 @@ export default function Vault() {
 
         <Panel>
           <h3 className="mb-3 text-sm font-medium">Recent activity</h3>
-          <ul className="space-y-2 text-sm">
+          <ul className="space-y-2.5 text-sm">
             {recentActivity.map((p) => (
               <li key={p.chapter_id}>
                 <button
                   onClick={() => nav(`/read/${p.chapter_id}`)}
-                  className="flex w-full items-center justify-between border-b border-border pb-2 text-left last:border-b-0 last:pb-0"
+                  className="flex w-full flex-col gap-0.5 border-b border-border pb-2.5 text-left last:border-b-0 last:pb-0"
                 >
-                  <span className="truncate pr-2 font-medium">{p.chapter?.title}</span>
-                  <span className={`shrink-0 text-xs ${p.completed ? "mint-text" : "text-muted-foreground"}`}>
-                    {p.completed ? "Done" : `${Math.round(p.progress_percentage)}%`}
+                  <span className="font-medium leading-snug">{p.chapter?.title}</span>
+                  <span className={`text-xs ${p.completed ? "mint-text" : "text-muted-foreground"}`}>
+                    {p.completed ? "Done" : `${Math.round(p.progress_percentage)}% complete`}
                   </span>
                 </button>
               </li>

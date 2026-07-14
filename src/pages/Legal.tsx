@@ -24,13 +24,13 @@ export default function Legal() {
             <ArrowLeft className="size-4" />
           </button>
           <div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Legal</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Legal</div>
             <h1 className="display text-2xl font-medium mt-1">Policies.</h1>
           </div>
         </div>
         <div className="mt-4 flex gap-2">
           {(["privacy","terms","disclaimer"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} className={`px-3 py-1.5 rounded-full text-xs ${tab === t ? "bg-gold/15 text-gold-bright" : "glass text-muted-foreground"}`}>
+            <button key={t} onClick={() => setTab(t)} className={`px-3 py-1.5 rounded-full text-xs ${tab === t ? "bg-mint/15 text-mint-bright" : "glass text-muted-foreground"}`}>
               {t === "privacy" ? "Privacy" : t === "terms" ? "Terms" : "Risk"}
             </button>
           ))}

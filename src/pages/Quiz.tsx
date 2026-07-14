@@ -72,7 +72,7 @@ export default function Quiz() {
   if (loading) {
     return (
       <div className="min-h-[100dvh] vault-bg grid place-items-center">
-        <div className="size-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+        <div className="size-8 border-2 border-mint/30 border-t-mint rounded-full animate-spin" />
       </div>
     );
   }
@@ -100,7 +100,7 @@ export default function Quiz() {
                 <ArrowLeft className="size-4" />
               </button>
               <div className="flex-1">
-                <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright">Review</div>
+                <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright">Review</div>
                 <div className="text-sm font-medium">{chapter?.title}</div>
               </div>
               <div className="text-xs font-mono text-muted-foreground">{final}/{qs.length}</div>
@@ -135,7 +135,7 @@ export default function Quiz() {
                 );
               })}
             </div>
-            <Button onClick={() => nav("/library")} className="mt-6 h-14 rounded-2xl gold-fill press shadow-glow">
+            <Button onClick={() => nav("/library")} className="mt-6 h-14 rounded-2xl mint-fill press shadow-glow">
               Done
             </Button>
           </div>
@@ -146,13 +146,13 @@ export default function Quiz() {
       <div className="min-h-[100dvh] vault-bg grid place-items-center px-6">
         <div className="text-center animate-fade-up max-w-sm">
           <div className="relative inline-grid place-items-center">
-            <div className="absolute inset-0 -m-8 rounded-full bg-gold/20 blur-3xl animate-gold-pulse" />
-            <div className="size-24 rounded-3xl gold-fill grid place-items-center shadow-glow-strong relative">
+            <div className="absolute inset-0 -m-8 rounded-full bg-mint/20 blur-3xl animate-mint-pulse" />
+            <div className="size-24 rounded-3xl mint-fill grid place-items-center shadow-glow-strong relative">
               <Trophy className="size-12" />
             </div>
           </div>
-          <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright mt-6">Quiz complete</div>
-          <h1 className="display text-5xl font-medium mt-3 gold-text">{pct}%</h1>
+          <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright mt-6">Quiz complete</div>
+          <h1 className="display text-5xl font-medium mt-3 mint-text">{pct}%</h1>
           <p className="text-sm text-muted-foreground mt-2">
             {final} of {qs.length} correct
           </p>
@@ -165,7 +165,7 @@ export default function Quiz() {
             <Button onClick={() => setReview(true)} variant="outline" className="flex-1 h-12 rounded-xl border-border-strong">
               Review answers
             </Button>
-            <Button onClick={() => nav("/library")} className="flex-1 h-12 rounded-xl gold-fill press shadow-glow">
+            <Button onClick={() => nav("/library")} className="flex-1 h-12 rounded-xl mint-fill press shadow-glow">
               Next chapter
             </Button>
           </div>
@@ -185,7 +185,7 @@ export default function Quiz() {
             <ArrowLeft className="size-4" />
           </button>
           <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright">Quiz</div>
+            <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright">Quiz</div>
             <div className="text-sm font-medium">{chapter?.title}</div>
           </div>
           <div className="text-xs text-muted-foreground font-mono">{idx + 1}/{qs.length}</div>
@@ -193,7 +193,7 @@ export default function Quiz() {
 
         <div className="flex gap-1.5 mt-4">
           {qs.map((_, i) => (
-            <div key={i} className={`h-1 flex-1 rounded-full ${i < idx ? "bg-gold" : i === idx ? "bg-gold/60" : "bg-foreground/10"}`} />
+            <div key={i} className={`h-1 flex-1 rounded-full ${i < idx ? "bg-mint" : i === idx ? "bg-mint/60" : "bg-foreground/10"}`} />
           ))}
         </div>
 
@@ -248,7 +248,7 @@ export default function Quiz() {
 
             {picked !== null && current.explanation && (
               <div className="mt-5 glass rounded-2xl p-4 animate-fade-up">
-                <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright mb-1.5">Explanation</div>
+                <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright mb-1.5">Explanation</div>
                 <p className="text-sm text-foreground/85 leading-relaxed">{current.explanation}</p>
               </div>
             )}
@@ -258,7 +258,7 @@ export default function Quiz() {
         <Button
           onClick={next}
           disabled={picked === null}
-          className="mt-6 h-14 rounded-2xl gold-fill font-medium shadow-glow press disabled:opacity-30 disabled:shadow-none"
+          className="mt-6 h-14 rounded-2xl mint-fill font-medium shadow-glow press disabled:opacity-30 disabled:shadow-none"
         >
           {idx + 1 >= qs.length ? "Finish" : "Continue"}
         </Button>

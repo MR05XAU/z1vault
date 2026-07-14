@@ -34,11 +34,11 @@ export default function News() {
       bottomNav={<BottomNav />}
       header={
         <header className="px-5 pt-6 safe-top">
-          <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright mb-1">
+          <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright mb-1">
             Macro
           </div>
           <h1 className="display text-3xl font-medium flex items-center gap-2">
-            <CalendarDays className="size-6 text-gold-bright" />
+            <CalendarDays className="size-6 text-mint-bright" />
             Economic Calendar
           </h1>
           <p className="text-sm text-muted-foreground mt-1">

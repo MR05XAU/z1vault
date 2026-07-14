@@ -25,7 +25,7 @@ export default function Patterns() {
             <ArrowLeft className="size-4" />
           </button>
           <div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Reference</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Reference</div>
             <h1 className="display text-3xl font-medium mt-1">Candlestick patterns.</h1>
           </div>
         </div>
@@ -36,7 +36,7 @@ export default function Patterns() {
         </div>
         <div className="mt-3 flex gap-2">
           {(["all","bullish","bearish","neutral"] as const).map((t) => (
-            <button key={t} onClick={() => setFilter(t)} className={`px-3 py-1.5 rounded-full text-xs border ${filter === t ? "bg-gold/15 border-gold/40 text-gold-bright" : "glass border-transparent text-muted-foreground"}`}>
+            <button key={t} onClick={() => setFilter(t)} className={`px-3 py-1.5 rounded-full text-xs border ${filter === t ? "bg-mint/15 border-mint/40 text-mint-bright" : "glass border-transparent text-muted-foreground"}`}>
               {t[0].toUpperCase() + t.slice(1)}
             </button>
           ))}

@@ -46,14 +46,14 @@ export default function ShopProduct() {
             <img src={product.image} alt={product.title} className="size-full object-cover" />
           ) : (
             <div className="size-full grid place-items-center">
-              <ShoppingBag className="size-10 text-gold/40" />
+              <ShoppingBag className="size-10 text-mint/40" />
             </div>
           )}
         </div>
 
         <div className="mt-5">
           <h1 className="display text-2xl font-medium">{product.title}</h1>
-          <div className="text-lg gold-text font-medium mt-1.5">
+          <div className="text-lg mint-text font-medium mt-1.5">
             {formatMoney(product.price, product.currency)}
           </div>
         </div>
@@ -64,7 +64,7 @@ export default function ShopProduct() {
 
         <button
           onClick={() => nav("/paywall")}
-          className="mt-6 w-full gold-fill rounded-xl py-3.5 text-sm font-semibold press"
+          className="mt-6 w-full mint-fill rounded-xl py-3.5 text-sm font-semibold press"
         >
           Get lifetime access
         </button>

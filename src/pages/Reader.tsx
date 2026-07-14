@@ -223,7 +223,7 @@ export default function Reader() {
       note: note ?? null,
     });
     if (error) toast.error(error.message);
-    else toast.success("Highlighted in gold.");
+    else toast.success("Highlighted.");
     setSelectedText("");
     setActionSheet(null);
     setNoteText("");
@@ -297,7 +297,7 @@ export default function Reader() {
   if (!chapter) {
     return (
       <div className="min-h-[100dvh] vault-bg grid place-items-center">
-        <div className="size-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+        <div className="size-8 border-2 border-mint/30 border-t-mint rounded-full animate-spin" />
       </div>
     );
   }
@@ -310,7 +310,7 @@ export default function Reader() {
             <ArrowLeft className="size-4" />
           </button>
           <div className="flex-1 min-w-0 text-center">
-            <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright">
+            <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright">
               Chapter {chapter.chapter_number}
             </div>
             <div className="text-sm font-medium truncate">{chapter.title}</div>
@@ -321,7 +321,7 @@ export default function Reader() {
             title={downloaded ? "Remove offline copy" : "Save for offline"}
             className="size-9 grid place-items-center rounded-full glass press"
           >
-            {dlProgress ? <Loader2 className="size-4 animate-spin text-gold-bright" />
+            {dlProgress ? <Loader2 className="size-4 animate-spin text-mint-bright" />
               : downloaded ? <CheckCircle2 className="size-4 text-success" />
               : <Download className="size-4" />}
           </button>
@@ -342,7 +342,7 @@ export default function Reader() {
               <span>{dlProgress.loaded}/{dlProgress.total}</span>
             </div>
             <div className="h-1 bg-border-strong rounded-full overflow-hidden">
-              <div className="h-full gold-fill transition-all" style={{ width: `${(dlProgress.loaded / Math.max(1, dlProgress.total)) * 100}%` }} />
+              <div className="h-full mint-fill transition-all" style={{ width: `${(dlProgress.loaded / Math.max(1, dlProgress.total)) * 100}%` }} />
             </div>
           </div>
         )}
@@ -359,7 +359,7 @@ export default function Reader() {
           </div>
           {(audioBlobUrl || chapter.audio_url) && chapter.audio_url && (
             <div className="glass rounded-2xl p-3 mb-6 flex items-center gap-2">
-              <Headphones className="size-4 text-gold-bright" />
+              <Headphones className="size-4 text-mint-bright" />
               <audio controls src={audioBlobUrl ?? chapter.audio_url} className="flex-1 h-9" />
             </div>
           )}
@@ -378,7 +378,7 @@ export default function Reader() {
                   if (neighbors.next) nav(`/read/${neighbors.next.id}`);
                   else nav("/library");
                 }}
-                className="w-full h-14 rounded-2xl gold-fill font-medium shadow-glow press"
+                className="w-full h-14 rounded-2xl mint-fill font-medium shadow-glow press"
               >
                 <CheckCircle2 className="size-4 mr-2" /> Mark complete & continue
               </Button>
@@ -393,7 +393,7 @@ export default function Reader() {
                 }
                 nav(`/quiz/${chapter.id}`);
               }}
-              className="w-full h-14 rounded-2xl gold-fill font-medium shadow-glow press"
+              className="w-full h-14 rounded-2xl mint-fill font-medium shadow-glow press"
             >
               <Trophy className="size-4 mr-2" /> Take the chapter quiz
             </Button>
@@ -415,7 +415,7 @@ export default function Reader() {
 
         {selectedText && (
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 animate-slide-up">
-            <div className="glass-strong rounded-2xl px-2 py-2 flex items-center gap-1 shadow-lift gold-border">
+            <div className="glass-strong rounded-2xl px-2 py-2 flex items-center gap-1 shadow-lift mint-border">
               <ActionBtn icon={Highlighter} label="Highlight" onClick={() => saveHighlight()} />
               <ActionBtn icon={Bookmark} label="Note" onClick={() => { setActionSheet("note"); setNoteText(""); }} />
               <ActionBtn icon={Sparkles} label="Ask AI" onClick={() => { setActionSheet("ask"); setAskAnswer(""); askAI(); }} />
@@ -429,7 +429,7 @@ export default function Reader() {
         <Sheet open={actionSheet === "note"} onOpenChange={(o) => !o && setActionSheet(null)}>
           <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl">
             <SheetHeader>
-              <SheetTitle className="display gold-text">Add a note</SheetTitle>
+              <SheetTitle className="display mint-text">Add a note</SheetTitle>
             </SheetHeader>
             <p className="text-xs text-muted-foreground mt-2 italic line-clamp-3">"{selectedText}"</p>
             <Textarea
@@ -438,7 +438,7 @@ export default function Reader() {
               placeholder="Your thought on this passage…"
               className="mt-3 min-h-24 bg-background/50 border-border-strong rounded-xl"
             />
-            <Button onClick={() => saveHighlight(noteText)} className="mt-3 w-full gold-fill h-12 rounded-xl press">
+            <Button onClick={() => saveHighlight(noteText)} className="mt-3 w-full mint-fill h-12 rounded-xl press">
               Save highlight + note
             </Button>
           </SheetContent>
@@ -447,7 +447,7 @@ export default function Reader() {
         <Sheet open={actionSheet === "ask"} onOpenChange={(o) => !o && setActionSheet(null)}>
           <SheetContent side="bottom" className="bg-surface-elevated border-border-strong rounded-t-3xl max-h-[80dvh] overflow-y-auto">
             <SheetHeader>
-              <SheetTitle className="display gold-text flex items-center gap-2">
+              <SheetTitle className="display mint-text flex items-center gap-2">
                 <Sparkles className="size-4" /> AI Tutor
               </SheetTitle>
             </SheetHeader>
@@ -455,7 +455,7 @@ export default function Reader() {
             <div className="mt-4 prose-z1 text-sm min-h-20">
               {asking && !askAnswer ? (
                 <div className="flex items-center gap-2 text-muted-foreground">
-                  <div className="size-2 rounded-full bg-gold animate-pulse" />
+                  <div className="size-2 rounded-full bg-mint animate-pulse" />
                   Thinking…
                 </div>
               ) : (
@@ -481,7 +481,7 @@ export default function Reader() {
 function ActionBtn({ icon: Icon, label, onClick }: any) {
   return (
     <button onClick={onClick} className="flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl press hover:bg-foreground/5 text-foreground">
-      <Icon className="size-4 text-gold-bright" />
+      <Icon className="size-4 text-mint-bright" />
       <span className="text-[10px] tracking-wide">{label}</span>
     </button>
   );

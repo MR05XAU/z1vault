@@ -21,7 +21,7 @@ export default function Shop() {
               <ArrowLeft className="size-4" />
             </button>
             <div className="flex-1">
-              <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Store</div>
+              <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Store</div>
               <h1 className="display text-2xl font-medium">Shop.</h1>
             </div>
           </div>
@@ -51,13 +51,13 @@ function ProductCard({ product, delay, onClick }: { product: ShopProduct; delay:
           <img src={product.image} alt={product.title} className="size-full object-cover" />
         ) : (
           <div className="size-full grid place-items-center">
-            <ShoppingBag className="size-8 text-gold/40" />
+            <ShoppingBag className="size-8 text-mint/40" />
           </div>
         )}
       </div>
       <div className="p-3">
         <div className="text-sm font-medium line-clamp-2">{product.title}</div>
-        <div className="text-xs gold-text font-medium mt-1">{formatMoney(product.price, product.currency)}</div>
+        <div className="text-xs mint-text font-medium mt-1">{formatMoney(product.price, product.currency)}</div>
       </div>
     </button>
   );

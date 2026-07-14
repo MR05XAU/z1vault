@@ -74,6 +74,10 @@ export default {
           "0%, 100%": { boxShadow: "0 0 0 0 hsl(42 58% 60% / 0.5)" },
           "50%": { boxShadow: "0 0 40px 4px hsl(42 58% 60% / 0.25)" },
         },
+        "mint-pulse": {
+          "0%, 100%": { boxShadow: "0 0 0 0 hsl(152 65% 52% / 0.5)" },
+          "50%": { boxShadow: "0 0 40px 4px hsl(152 65% 52% / 0.25)" },
+        },
         "vault-reveal": {
           "0%": { opacity: "0", transform: "scale(0.85)", filter: "blur(10px)" },
           "100%": { opacity: "1", transform: "scale(1)", filter: "blur(0)" },
@@ -87,6 +91,7 @@ export default {
         "fade-up": "fade-up 0.6s var(--ease-out-soft) both",
         "scale-in": "scale-in 0.3s var(--ease-spring) both",
         "gold-pulse": "gold-pulse 2.4s ease-in-out infinite",
+        "mint-pulse": "mint-pulse 2.4s ease-in-out infinite",
         "vault-reveal": "vault-reveal 0.8s var(--ease-out-soft) both",
         "slide-up": "slide-up 0.35s var(--ease-out-soft) both",
       },

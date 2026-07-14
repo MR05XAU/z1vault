@@ -93,7 +93,7 @@ export default function Account() {
         </div>
 
         <div className="mt-8 animate-fade-up">
-          <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright">Account</div>
+          <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright">Account</div>
           <h1 className="display text-3xl font-medium mt-2">{user?.email}</h1>
           <div className="text-xs text-muted-foreground mt-2">
             {hasAccess ? "Lifetime access · Active" : "No active access"}
@@ -102,9 +102,9 @@ export default function Account() {
 
         {/* Product */}
         <section className="mt-6">
-          <div className="glass rounded-2xl p-4 flex items-center gap-3 gold-border">
-            <div className="size-10 rounded-xl bg-gold/10 grid place-items-center shrink-0">
-              <BookOpen className="size-4 text-gold-bright" />
+          <div className="glass rounded-2xl p-4 flex items-center gap-3 mint-border">
+            <div className="size-10 rounded-xl bg-mint/10 grid place-items-center shrink-0">
+              <BookOpen className="size-4 text-mint-bright" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium">Z1 INSIGHTS — Lifetime Vault</div>
@@ -118,12 +118,12 @@ export default function Account() {
         {/* Purchases */}
         <section className="mt-8">
           <div className="flex items-center gap-2 mb-3">
-            <Receipt className="size-4 text-gold-bright" />
+            <Receipt className="size-4 text-mint-bright" />
             <h2 className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Purchase history</h2>
           </div>
           <div className="glass rounded-2xl divide-y divide-border-strong">
             {loading ? (
-              <div className="p-6 grid place-items-center"><Loader2 className="size-4 animate-spin text-gold" /></div>
+              <div className="p-6 grid place-items-center"><Loader2 className="size-4 animate-spin text-mint" /></div>
             ) : purchases.length === 0 ? (
               <div className="p-6 text-sm text-muted-foreground text-center">No purchases yet.</div>
             ) : purchases.map((p) => (
@@ -138,7 +138,7 @@ export default function Account() {
                 </div>
                 {p.receipt_url ? (
                   <a href={p.receipt_url} target="_blank" rel="noopener noreferrer"
-                     className="text-xs text-gold-bright flex items-center gap-1 press">
+                     className="text-xs text-mint-bright flex items-center gap-1 press">
                     Receipt <ExternalLink className="size-3" />
                   </a>
                 ) : null}
@@ -150,7 +150,7 @@ export default function Account() {
         {/* Change email */}
         <section className="mt-8">
           <div className="flex items-center gap-2 mb-3">
-            <Mail className="size-4 text-gold-bright" />
+            <Mail className="size-4 text-mint-bright" />
             <h2 className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Change email</h2>
           </div>
           <div className="space-y-2">
@@ -170,7 +170,7 @@ export default function Account() {
         {/* Change password */}
         <section className="mt-6">
           <div className="flex items-center gap-2 mb-3">
-            <Lock className="size-4 text-gold-bright" />
+            <Lock className="size-4 text-mint-bright" />
             <h2 className="text-sm uppercase tracking-[0.2em] text-muted-foreground">Change password</h2>
           </div>
           <div className="space-y-2">
@@ -187,7 +187,7 @@ export default function Account() {
         <section className="mt-6">
           <a href="mailto:support@mr05xau.co.uk?subject=Z1%20INSIGHTS%20support"
             className="glass rounded-2xl p-4 flex items-center gap-3 press">
-            <LifeBuoy className="size-4 text-gold-bright" />
+            <LifeBuoy className="size-4 text-mint-bright" />
             <div className="text-sm">Contact support</div>
           </a>
           <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">

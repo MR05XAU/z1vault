@@ -32,16 +32,16 @@ export default function CheckoutReturn() {
     <div className="min-h-[100dvh] vault-bg grid place-items-center px-6">
       <div className="text-center max-w-sm animate-fade-up">
         <div className="flex justify-center mb-6 relative">
-          <div className="absolute inset-0 rounded-full bg-gold/20 blur-3xl animate-gold-pulse" />
+          <div className="absolute inset-0 rounded-full bg-mint/20 blur-3xl animate-mint-pulse" />
           {hasAccess ? (
-            <div className="size-20 grid place-items-center rounded-full gold-fill shadow-glow-strong relative">
+            <div className="size-20 grid place-items-center rounded-full mint-fill shadow-glow-strong relative">
               <Check className="size-10" strokeWidth={3} />
             </div>
           ) : (
             <Z1Logo size={80} className="relative animate-vault-reveal" />
           )}
         </div>
-        <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright">
+        <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright">
           {hasAccess ? "Access granted" : "Confirming payment"}
         </div>
         <h1 className="display text-3xl font-medium mt-3">
@@ -54,13 +54,13 @@ export default function CheckoutReturn() {
         </p>
         {!hasAccess && (
           <div className="mt-6 flex justify-center">
-            <Loader2 className="size-5 animate-spin text-gold" />
+            <Loader2 className="size-5 animate-spin text-mint" />
           </div>
         )}
         {hasAccess && (
           <Button
             onClick={() => nav("/vault")}
-            className="mt-8 h-12 px-8 rounded-xl gold-fill font-medium shadow-glow press"
+            className="mt-8 h-12 px-8 rounded-xl mint-fill font-medium shadow-glow press"
           >
             Enter the vault
           </Button>

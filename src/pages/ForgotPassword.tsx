@@ -53,7 +53,7 @@ export default function ForgotPassword() {
                   className="h-12 rounded-xl bg-surface-elevated/60 border-border-strong pl-11"
                 />
               </div>
-              <Button type="submit" disabled={busy} className="w-full h-12 rounded-xl gold-fill font-medium shadow-glow press">
+              <Button type="submit" disabled={busy} className="w-full h-12 rounded-xl mint-fill font-medium shadow-glow press">
                 {busy ? <Loader2 className="size-4 animate-spin" /> : "Send reset link"}
               </Button>
             </form>

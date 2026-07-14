@@ -140,7 +140,7 @@ export default function Auth() {
             <Button
               type="submit"
               disabled={busy}
-              className="w-full h-12 rounded-xl gold-fill font-medium shadow-glow press hover:shadow-glow-strong"
+              className="w-full h-12 rounded-xl mint-fill font-medium shadow-glow press hover:shadow-glow-strong"
             >
               {busy ? <Loader2 className="size-4 animate-spin" /> : mode === "signin" ? "Sign in" : "Create account"}
             </Button>
@@ -151,14 +151,14 @@ export default function Auth() {
             className="mt-6 text-sm text-muted-foreground text-center hover:text-foreground transition-colors"
           >
             {mode === "signin" ? (
-              <>New here? <span className="text-gold-bright">Create an account</span></>
+              <>New here? <span className="text-mint-bright">Create an account</span></>
             ) : (
-              <>Already in? <span className="text-gold-bright">Sign in</span></>
+              <>Already in? <span className="text-mint-bright">Sign in</span></>
             )}
           </button>
 
           {mode === "signin" && (
-            <Link to="/forgot-password" className="mt-2 block text-xs text-muted-foreground/80 text-center hover:text-gold-bright">
+            <Link to="/forgot-password" className="mt-2 block text-xs text-muted-foreground/80 text-center hover:text-mint-bright">
               Forgot password?
             </Link>
           )}

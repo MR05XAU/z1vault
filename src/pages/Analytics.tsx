@@ -57,7 +57,7 @@ export default function Analytics() {
       header={
         <header className="px-5 pt-6 safe-top flex justify-between items-start">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Analytics</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Analytics</div>
             <h1 className="display text-3xl font-medium mt-1">Your edge.</h1>
           </div>
           <button onClick={async () => { await signOut(); nav("/auth", { replace: true }); }} className="size-10 grid place-items-center rounded-full glass press text-muted-foreground">
@@ -66,7 +66,7 @@ export default function Analytics() {
         </header>
       }
     >
-      <div className="glass-strong rounded-3xl p-6 mt-6 gold-border flex flex-col items-center animate-fade-up">
+      <div className="glass-strong rounded-3xl p-6 mt-6 mint-border flex flex-col items-center animate-fade-up">
         <ProgressRing value={stats.pct} size={170} stroke={10} label="Total mastery" sub={`${stats.done}/${stats.chapters} chapters`} />
       </div>
 
@@ -90,7 +90,7 @@ export default function Analytics() {
               const ch = chapters[r.chapter_id];
               return (
                 <div key={i} className="glass rounded-2xl p-4 flex items-center gap-4">
-                  <div className="size-11 rounded-xl grid place-items-center font-mono text-sm gold-text bg-surface-elevated">
+                  <div className="size-11 rounded-xl grid place-items-center font-mono text-sm mint-text bg-surface-elevated">
                     {pct}%
                   </div>
                   <div className="flex-1 min-w-0">
@@ -117,9 +117,9 @@ function Tile({ icon: Icon, label, value }: any) {
   return (
     <div className="glass rounded-2xl p-4">
       <div className="flex items-center justify-between">
-        <Icon className="size-4 text-gold-bright" />
+        <Icon className="size-4 text-mint-bright" />
       </div>
-      <div className="display text-3xl gold-text font-medium mt-3">{value}</div>
+      <div className="display text-3xl mint-text font-medium mt-3">{value}</div>
       <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground mt-1">{label}</div>
     </div>
   );

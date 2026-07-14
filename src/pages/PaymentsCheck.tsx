@@ -107,18 +107,18 @@ export default function PaymentsCheck() {
     <div className="min-h-[100dvh] vault-bg text-foreground px-5 pt-[max(env(safe-area-inset-top),1rem)] pb-nav max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display text-2xl text-gold">Webhook & Entitlement Check</h1>
+          <h1 className="font-display text-2xl text-mint">Webhook & Entitlement Check</h1>
           <p className="text-xs text-muted-foreground mt-1">
             Live verification that one-time $197 unlock flips <code>has_access</code> to true.
           </p>
         </div>
-        <Link to="/admin" className="text-xs text-gold/80 hover:text-gold">← Admin</Link>
+        <Link to="/admin" className="text-xs text-mint/80 hover:text-mint">← Admin</Link>
       </div>
 
       {/* Environment */}
       <section className="glass-strong rounded-2xl p-5 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display text-sm uppercase tracking-wider text-gold/80">Stripe environment</h2>
+          <h2 className="font-display text-sm uppercase tracking-wider text-mint/80">Stripe environment</h2>
           <Pill ok={env === "live"}>{env === "live" ? "LIVE" : env === "sandbox" ? "TEST" : "NOT CONFIGURED"}</Pill>
         </div>
         {env === "missing" && (
@@ -145,7 +145,7 @@ export default function PaymentsCheck() {
       {/* Webhook reachability */}
       <section className="glass-strong rounded-2xl p-5 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display text-sm uppercase tracking-wider text-gold/80">Webhook reachability</h2>
+          <h2 className="font-display text-sm uppercase tracking-wider text-mint/80">Webhook reachability</h2>
           <Button size="sm" onClick={pingWebhook} disabled={pinging}>
             {pinging ? "Pinging…" : "Test endpoint"}
           </Button>
@@ -160,7 +160,7 @@ export default function PaymentsCheck() {
       {/* Entitlement */}
       <section className="glass-strong rounded-2xl p-5 mb-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-display text-sm uppercase tracking-wider text-gold/80">Your entitlement</h2>
+          <h2 className="font-display text-sm uppercase tracking-wider text-mint/80">Your entitlement</h2>
           <Pill ok={!!ent?.has_access}>{ent?.has_access ? "UNLOCKED" : "LOCKED"}</Pill>
         </div>
         <dl className="text-xs grid grid-cols-[120px_1fr] gap-y-1.5">
@@ -186,7 +186,7 @@ export default function PaymentsCheck() {
 
       {/* Purchases */}
       <section className="glass-strong rounded-2xl p-5">
-        <h2 className="font-display text-sm uppercase tracking-wider text-gold/80 mb-3">
+        <h2 className="font-display text-sm uppercase tracking-wider text-mint/80 mb-3">
           Recent purchases ({purchases.length})
         </h2>
         {purchases.length === 0 ? (
@@ -196,7 +196,7 @@ export default function PaymentsCheck() {
             {purchases.map((p) => (
               <li key={p.id} className="text-xs bg-black/30 rounded-lg p-3 border border-white/5">
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-medium text-gold">${(p.amount_cents / 100).toFixed(2)} {p.currency.toUpperCase()}</span>
+                  <span className="font-medium text-mint">${(p.amount_cents / 100).toFixed(2)} {p.currency.toUpperCase()}</span>
                   <Pill ok={p.status === "completed"}>{p.status}</Pill>
                 </div>
                 <div className="font-mono text-muted-foreground break-all">{p.stripe_payment_id ?? "(no payment id)"}</div>
@@ -208,11 +208,11 @@ export default function PaymentsCheck() {
       </section>
 
       <section className="mt-6 text-xs text-muted-foreground space-y-2">
-        <p className="font-medium text-gold/80">How end-to-end verification works:</p>
+        <p className="font-medium text-mint/80">How end-to-end verification works:</p>
         <ol className="list-decimal pl-5 space-y-1">
           <li>Confirm environment shows <strong>LIVE</strong> above.</li>
           <li>Click <strong>Test endpoint</strong> — expect "OK — endpoint reachable".</li>
-          <li>Complete a real $197 checkout from <Link to="/paywall" className="text-gold underline">/paywall</Link>.</li>
+          <li>Complete a real $197 checkout from <Link to="/paywall" className="text-mint underline">/paywall</Link>.</li>
           <li>Watch this screen — within seconds the entitlement pill flips to <strong>UNLOCKED</strong> and a purchase row appears.</li>
         </ol>
       </section>

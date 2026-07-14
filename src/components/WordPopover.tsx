@@ -51,12 +51,12 @@ export function WordPopover({ word, x, y, chapterId, onClose }: Props) {
 
   return (
     <div
-      className="fixed z-50 w-72 glass-strong rounded-2xl shadow-lift gold-border p-3 animate-fade-up"
+      className="fixed z-50 w-72 glass-strong rounded-2xl shadow-lift mint-border p-3 animate-fade-up"
       style={{ top, left }}
     >
       <div className="flex items-start gap-2">
         <div className="flex-1 min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Definition</div>
+          <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Definition</div>
           <div className="text-sm font-medium capitalize mt-0.5">{word}</div>
         </div>
         <button onClick={onClose} className="size-7 grid place-items-center rounded-lg glass press shrink-0">

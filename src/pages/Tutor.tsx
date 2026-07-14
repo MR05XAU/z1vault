@@ -99,10 +99,10 @@ export default function Tutor() {
         <header className="px-5 pt-6 pb-3 safe-top flex items-center gap-3 border-b border-border/40">
           <Z1Logo size={40} />
           <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">Offline Lookup</div>
+            <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Offline Lookup</div>
             <div className="text-sm font-medium">Dictionary + book search</div>
           </div>
-          <div className={`size-2 rounded-full ${dictReady ? "bg-success" : "bg-gold animate-pulse"}`} />
+          <div className={`size-2 rounded-full ${dictReady ? "bg-success" : "bg-mint animate-pulse"}`} />
         </header>
       }
     >
@@ -121,11 +121,11 @@ export default function Tutor() {
 
         {!dictReady && !dictError && (
           <div className="mt-6 glass rounded-2xl p-5 text-center animate-fade-up">
-            <Download className="size-6 mx-auto text-gold-bright" />
+            <Download className="size-6 mx-auto text-mint-bright" />
             <div className="text-sm mt-2 font-medium">Downloading offline dictionary</div>
             <div className="text-xs text-muted-foreground mt-1">~9 MB · one-time, cached on device</div>
             <div className="h-1.5 rounded-full bg-secondary mt-4 overflow-hidden">
-              <div className="h-full gold-fill transition-all" style={{ width: `${dictProgress}%` }} />
+              <div className="h-full mint-fill transition-all" style={{ width: `${dictProgress}%` }} />
             </div>
             <div className="text-[10px] text-muted-foreground mt-1">{dictProgress}%</div>
           </div>
@@ -140,7 +140,7 @@ export default function Tutor() {
         {dictReady && !query.trim() && (
           <div className="pt-6 animate-fade-up">
             <div className="text-center">
-              <div className="size-14 rounded-2xl gold-fill grid place-items-center mx-auto mb-3 shadow-glow">
+              <div className="size-14 rounded-2xl mint-fill grid place-items-center mx-auto mb-3 shadow-glow">
                 <BookOpen className="size-6" />
               </div>
               <h2 className="display text-xl font-medium">Ask anything from the book.</h2>
@@ -148,7 +148,7 @@ export default function Tutor() {
                 Curated answers below, plus an offline dictionary and full-text book search.
               </p>
             </div>
-            <div className="mt-6 text-[10px] uppercase tracking-[0.28em] text-gold-bright mb-2">
+            <div className="mt-6 text-[10px] uppercase tracking-[0.28em] text-mint-bright mb-2">
               Common questions
             </div>
             <div className="space-y-2">
@@ -160,7 +160,7 @@ export default function Tutor() {
                 >
                   <div className="text-sm font-medium">{f.q}</div>
                   {f.ref && (
-                    <div className="text-[10px] text-gold-bright/80 mt-0.5">{f.ref}</div>
+                    <div className="text-[10px] text-mint-bright/80 mt-0.5">{f.ref}</div>
                   )}
                 </button>
               ))}
@@ -171,8 +171,8 @@ export default function Tutor() {
         {dictReady && query.trim() && (
           <div className="mt-6 space-y-5">
             {faqHit && (
-              <section className="glass-strong rounded-2xl p-4 gold-border animate-fade-up">
-                <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">
+              <section className="glass-strong rounded-2xl p-4 mint-border animate-fade-up">
+                <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">
                   Answer {faqHit.ref ? `· ${faqHit.ref}` : ""}
                 </div>
                 <div className="text-base font-medium mt-1">{faqHit.q}</div>
@@ -184,7 +184,7 @@ export default function Tutor() {
 
             {definition && (
               <section className="glass rounded-2xl p-4 animate-fade-up">
-                <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">Definition</div>
+                <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Definition</div>
                 <div className="text-base font-medium capitalize mt-1">{query.trim()}</div>
                 <p className="text-sm text-foreground/90 mt-2 leading-relaxed">{definition}</p>
               </section>
@@ -223,14 +223,14 @@ export default function Tutor() {
                       onClick={() => nav(`/read/${h.chapter.id}`)}
                       className="w-full text-left glass rounded-2xl px-4 py-3 press hover:shadow-glow"
                     >
-                      <div className="text-[10px] uppercase tracking-[0.28em] text-gold-bright">
+                      <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">
                         Ch {h.chapter.chapter_number}
                       </div>
                       <div className="text-sm font-medium mt-0.5">{h.chapter.title}</div>
                       <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
                         {h.excerpt.split(new RegExp(`(${escapeReg(highlighted)})`, "ig")).map((part, i) =>
                           part.toLowerCase() === highlighted ? (
-                            <mark key={i} className="bg-gold/30 text-foreground rounded px-0.5">{part}</mark>
+                            <mark key={i} className="bg-mint/30 text-foreground rounded px-0.5">{part}</mark>
                           ) : (
                             <span key={i}>{part}</span>
                           )

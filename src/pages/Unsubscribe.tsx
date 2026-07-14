@@ -34,13 +34,13 @@ export default function Unsubscribe() {
 
   return (
     <div className="min-h-[100dvh] vault-bg grid place-items-center px-6">
-      <div className="glass-strong rounded-3xl p-8 max-w-sm w-full text-center gold-border">
+      <div className="glass-strong rounded-3xl p-8 max-w-sm w-full text-center mint-border">
         <Z1Logo size={48} className="mx-auto mb-4" />
-        <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright">Email preferences</div>
+        <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright">Email preferences</div>
 
         {state === "validating" && (
           <div className="mt-6 flex flex-col items-center gap-3">
-            <Loader2 className="size-6 animate-spin text-gold" />
+            <Loader2 className="size-6 animate-spin text-mint" />
             <p className="text-sm text-muted-foreground">Validating link…</p>
           </div>
         )}
@@ -51,14 +51,14 @@ export default function Unsubscribe() {
             <p className="text-sm text-muted-foreground mt-2">
               {email ? <>Stop sending emails to <strong className="text-foreground">{email}</strong>?</> : "Confirm to stop receiving emails."}
             </p>
-            <Button onClick={confirm} className="mt-6 w-full h-12 rounded-xl gold-fill">
+            <Button onClick={confirm} className="mt-6 w-full h-12 rounded-xl mint-fill">
               Confirm unsubscribe
             </Button>
           </>
         )}
 
         {state === "submitting" && (
-          <div className="mt-6"><Loader2 className="size-6 animate-spin text-gold mx-auto" /></div>
+          <div className="mt-6"><Loader2 className="size-6 animate-spin text-mint mx-auto" /></div>
         )}
 
         {state === "done" && (

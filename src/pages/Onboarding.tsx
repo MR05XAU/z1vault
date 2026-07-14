@@ -12,7 +12,7 @@ const slides = [
     body: "Z1 INSIGHTS is the elite trading academy that lives in your pocket — an interactive book, an AI mentor, and a quiz engine, all in one premium experience.",
     visual: (
       <div className="relative">
-        <div className="absolute inset-0 -m-10 rounded-full bg-gold/20 blur-3xl animate-gold-pulse" />
+        <div className="absolute inset-0 -m-10 rounded-full bg-mint/20 blur-3xl animate-mint-pulse" />
         <Z1Logo size={110} className="relative" />
       </div>
     ),
@@ -33,7 +33,7 @@ const slides = [
             className="glass aspect-square rounded-2xl grid place-items-center animate-fade-up"
             style={{ animationDelay: `${i * 120}ms` }}
           >
-            <Icon className="size-7 text-gold-bright mb-1" />
+            <Icon className="size-7 text-mint-bright mb-1" />
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
               {label}
             </div>
@@ -47,9 +47,9 @@ const slides = [
     title: "One payment. Forever.",
     body: "No subscriptions. No renewals. Unlock the entire vault — the book, the AI tutor, the quizzes, the analytics — once. Yours for life.",
     visual: (
-      <div className="glass rounded-3xl p-6 w-[280px] text-center gold-border">
+      <div className="glass rounded-3xl p-6 w-[280px] text-center mint-border">
         <div className="text-[10px] uppercase tracking-[0.3em] text-muted-foreground">Lifetime access</div>
-        <div className="display gold-text text-5xl font-medium mt-2">$197</div>
+        <div className="display mint-text text-5xl font-medium mt-2">$197</div>
         <div className="text-xs text-muted-foreground mt-1">One-time payment</div>
       </div>
     ),
@@ -74,7 +74,7 @@ export default function Onboarding() {
               <div
                 key={idx}
                 className={`h-1 rounded-full transition-all duration-500 ${
-                  idx === i ? "w-8 bg-gold" : idx < i ? "w-4 bg-gold/60" : "w-4 bg-foreground/10"
+                  idx === i ? "w-8 bg-mint" : idx < i ? "w-4 bg-mint/60" : "w-4 bg-foreground/10"
                 }`}
               />
             ))}
@@ -98,7 +98,7 @@ export default function Onboarding() {
               className="flex flex-col items-center"
             >
               <div className="my-6">{slide.visual}</div>
-              <div className="text-[10px] uppercase tracking-[0.32em] text-gold-bright mb-3">
+              <div className="text-[10px] uppercase tracking-[0.32em] text-mint-bright mb-3">
                 {slide.badge}
               </div>
               <h1 className="display text-4xl font-medium leading-[1.05] mb-4 px-4">
@@ -113,7 +113,7 @@ export default function Onboarding() {
 
         <Button
           onClick={next}
-          className="h-14 rounded-2xl gold-fill text-base font-medium tracking-wide shadow-glow press hover:shadow-glow-strong group"
+          className="h-14 rounded-2xl mint-fill text-base font-medium tracking-wide shadow-glow press hover:shadow-glow-strong group"
         >
           {i === slides.length - 1 ? "Get started" : "Continue"}
           <ArrowRight className="ml-2 size-5 transition-transform group-hover:translate-x-0.5" />

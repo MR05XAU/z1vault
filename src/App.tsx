@@ -41,7 +41,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 function GateLoading() {
   return (
     <div className="min-h-[100dvh] vault-bg grid place-items-center">
-      <div className="size-10 rounded-full border-2 border-gold/30 border-t-gold-bright animate-spin" />
+      <div className="size-10 rounded-full border-2 border-mint/30 border-t-mint-bright animate-spin" />
     </div>
   );
 }

@@ -42,21 +42,21 @@ export default function Library() {
         className="w-full glass rounded-2xl p-5 flex items-center gap-4 press hover:shadow-glow text-left animate-fade-up"
         style={{ animationDelay: `${i * 50}ms` }}
       >
-        <div className="size-12 rounded-xl bg-surface-elevated grid place-items-center display gold-text text-lg font-medium gold-border">
+        <div className="size-12 rounded-xl bg-surface-elevated grid place-items-center display mint-text text-lg font-medium mint-border">
           {String(c.chapter_number).padStart(2, "0")}
         </div>
         <div className="flex-1 min-w-0">
           <div className="text-[15px] font-medium truncate">{c.title}</div>
           <div className="text-xs text-muted-foreground truncate mt-0.5">{c.subtitle}</div>
           <div className="h-1 mt-2 bg-foreground/10 rounded-full overflow-hidden">
-            <div className="h-full bg-gold transition-all" style={{ width: `${Math.round(p.pct)}%` }} />
+            <div className="h-full bg-mint transition-all" style={{ width: `${Math.round(p.pct)}%` }} />
           </div>
           <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1.5">
             <span className="flex items-center gap-1"><Clock className="size-3" />{c.estimated_minutes ?? 8}m</span>
             {p.done ? (
               <span className="flex items-center gap-1 text-success"><Check className="size-3" />Complete</span>
             ) : p.pct > 0 ? (
-              <span className="text-gold-bright">{Math.round(p.pct)}% read</span>
+              <span className="text-mint-bright">{Math.round(p.pct)}% read</span>
             ) : (
               <span>Not started</span>
             )}
@@ -72,7 +72,7 @@ export default function Library() {
       bottomNav={<BottomNav />}
       header={
         <header className="px-5 pt-6 safe-top">
-          <div className="text-[10px] uppercase tracking-[0.3em] text-gold-bright">The Book</div>
+          <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">The Book</div>
           <h1 className="display text-3xl font-medium mt-1">Z1 Insights.</h1>
           <p className="text-sm text-muted-foreground mt-1">
             {chapters.length} chapters · A complete trading curriculum.
