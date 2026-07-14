@@ -214,6 +214,7 @@ export default function Journal() {
           <button onClick={() => nav("/vault")} className="mt-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs" style={{ color: EB.mutedForeground }}>
             <LogOut className="h-3.5 w-3.5" /> Back to Vault
           </button>
+          <div className="px-3 pt-1 text-[9px] tabular-nums" style={{ color: `${EB.mutedForeground}88` }}>build {__BUILD_ID__}</div>
         </div>
       </aside>
 
@@ -245,6 +246,7 @@ export default function Journal() {
               <LogOut className="h-4 w-4" /> Back to Vault
             </button>
           </div>
+          <div className="pt-2 text-center text-[9px] tabular-nums" style={{ color: `${EB.mutedForeground}88` }}>build {__BUILD_ID__}</div>
         </div>
       )}
 

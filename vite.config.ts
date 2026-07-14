@@ -4,6 +4,11 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig(() => ({
+  // Baked in at build time — surfaced in the UI so "am I on the new build or
+  // a cached/bundled old one?" is answerable at a glance.
+  define: {
+    __BUILD_ID__: JSON.stringify(new Date().toISOString().slice(0, 16).replace("T", " ") + " UTC"),
+  },
   server: {
     host: "::",
     port: 8080,

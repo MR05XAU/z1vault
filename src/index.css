@@ -217,14 +217,14 @@
   .page-flip-next {
     transform-origin: left center;
     backface-visibility: hidden;
-    animation: page-flip-next 0.95s cubic-bezier(0.25, 0.8, 0.35, 1) both;
+    animation: page-flip-next 1.5s cubic-bezier(0.3, 0.75, 0.35, 1) both;
   }
   .page-flip-prev {
     transform-origin: right center;
     backface-visibility: hidden;
-    animation: page-flip-prev 0.95s cubic-bezier(0.25, 0.8, 0.35, 1) both;
+    animation: page-flip-prev 1.5s cubic-bezier(0.3, 0.75, 0.35, 1) both;
   }
-  .page-settle { animation: page-settle 0.8s var(--ease-out-soft) both; }
+  .page-settle { animation: page-settle 1.2s var(--ease-out-soft) both; }
   @keyframes page-flip-next {
     0% { transform: rotateY(-72deg); filter: brightness(0.72); }
     55% { filter: brightness(1.04); }
