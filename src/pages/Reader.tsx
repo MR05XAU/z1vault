@@ -18,6 +18,13 @@ function stripChapterPrefix(title: string): string {
   return title.replace(/^chapter\s+\d+\s*[:.\-–]\s*/i, "");
 }
 
+// Chapter bodies are often authored with their own leading "# Chapter N:
+// Title" line — the opener above already presents the title in full, so
+// strip a leading H1 from the markdown to avoid rendering it twice.
+function stripLeadingH1(content: string): string {
+  return content.replace(/^\s*#\s+.+\r?\n+/, "");
+}
+
 export default function Reader() {
   const { chapterId } = useParams();
   const [searchParams] = useSearchParams();
@@ -311,7 +318,7 @@ export default function Reader() {
 
   return (
     <div className="h-[100dvh] vault-bg flex justify-center">
-      <div className="w-full max-w-md flex flex-col relative h-full">
+      <div className="w-full max-w-md md:max-w-xl lg:max-w-2xl flex flex-col relative h-full">
         <header className="sticky top-0 z-20 glass-strong px-4 py-3 safe-top flex items-center gap-3 border-b border-border/60">
           <button onClick={() => nav("/library")} className="size-9 grid place-items-center rounded-full glass press">
             <ArrowLeft className="size-4" />
@@ -377,7 +384,7 @@ export default function Reader() {
               <audio controls src={audioBlobUrl ?? chapter.audio_url} className="flex-1 h-9" />
             </div>
           )}
-          <ReactMarkdown>{chapter.content}</ReactMarkdown>
+          <ReactMarkdown>{stripLeadingH1(chapter.content)}</ReactMarkdown>
 
           {/* End-of-chapter ornament */}
           <div className="mt-10 flex items-center justify-center gap-2 text-mint/50">
