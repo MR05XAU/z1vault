@@ -48,6 +48,7 @@ type Trade = {
   opened_at: string; closed_at: string | null;
   setup: string | null; tags: string[] | null;
   stop_loss: number | null; take_profit: number | null;
+  mfe_price: number | null; mae_price: number | null; excursion_computed_at: string | null;
 };
 type Strategy = { id: string; name: string; color: string };
 type JournalEntry = { id: string; entry_date: string; mood: string | null; market_notes: string | null; lessons: string | null };
@@ -168,7 +169,7 @@ export default function Journal() {
           ) : view === "journal" ? (
             <JournalNotesView />
           ) : view === "analytics" ? (
-            <AnalyticsView trades={trades} />
+            <AnalyticsView trades={trades} strats={strats} />
           ) : (
             <SettingsView trades={trades} onChange={refresh} onOpenTrade={setDetailTrade} />
           )}
@@ -504,6 +505,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
   const [notes, setNotes] = useState(trade.notes ?? "");
   const [saving, setSaving] = useState(false);
   const [showSnapshot, setShowSnapshot] = useState(true);
+  const [computingExcursion, setComputingExcursion] = useState(false);
   const durationMs = trade.closed_at ? new Date(trade.closed_at).getTime() - new Date(trade.opened_at).getTime() : 0;
   const [liveInterval, setLiveInterval] = useState<"1" | "5" | "15" | "60" | "240" | "D">(
     durationMs && durationMs <= 2 * 3600_000 ? "5" : durationMs && durationMs <= 18 * 3600_000 ? "60" : "D",
@@ -519,6 +521,21 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
     const { data, error } = await sb.from("trades").update(payload).eq("id", trade.id).select().single();
     setSaving(false);
     if (error) toast.error(error.message); else { toast.success("Trade updated."); onChange(data as Trade); }
+  };
+
+  const computeExcursion = async () => {
+    setComputingExcursion(true);
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    const { data, error } = await supabase.functions.invoke("compute-excursion", {
+      body: { tradeId: trade.id },
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    setComputingExcursion(false);
+    if (error || data?.error) { toast.error(data?.error ?? error?.message ?? "Couldn't compute MFE/MAE."); return; }
+    const { data: fresh } = await sb.from("trades").select("*").eq("id", trade.id).single();
+    if (fresh) onChange(fresh as Trade);
+    toast.success("MFE/MAE computed.");
   };
 
   return (
@@ -553,6 +570,28 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
           </Card>
         ))}
       </div>
+
+      {trade.closed_at && (
+        <div className="flex items-center gap-3">
+          {trade.mfe_price != null && trade.mae_price != null ? (
+            <div className="grid flex-1 grid-cols-2 gap-2 text-center">
+              <Card className="p-2">
+                <div className="text-[9px] uppercase tracking-wide" style={{ color: EB.mutedForeground }}>MFE (best)</div>
+                <div className="text-sm font-medium mt-0.5" style={{ color: EB.win }}>{trade.mfe_price}</div>
+              </Card>
+              <Card className="p-2">
+                <div className="text-[9px] uppercase tracking-wide" style={{ color: EB.mutedForeground }}>MAE (worst)</div>
+                <div className="text-sm font-medium mt-0.5" style={{ color: EB.loss }}>{trade.mae_price}</div>
+              </Card>
+            </div>
+          ) : (
+            <button onClick={computeExcursion} disabled={computingExcursion} className="flex items-center gap-1.5 text-[11px]" style={{ color: EB.primary }}>
+              {computingExcursion && <Loader2 className="size-3 animate-spin" />}
+              Compute MFE/MAE (best/worst price during trade)
+            </button>
+          )}
+        </div>
+      )}
 
       <button onClick={() => setShowSnapshot((s) => !s)} className="text-[11px]" style={{ color: EB.primary }}>
         {showSnapshot ? "Hide price snapshot" : "Show price snapshot (entry/exit markers)"}
@@ -888,7 +927,23 @@ function JournalNotesView() {
 }
 
 /* ---------- Analytics ---------- */
-function AnalyticsView({ trades }: { trades: Trade[] }) {
+function computeR(t: Trade): number | null {
+  if (t.stop_loss == null || t.exit_price == null) return null;
+  const risk = Math.abs(t.entry_price - t.stop_loss);
+  if (risk === 0) return null;
+  const move = t.direction === "long" ? t.exit_price - t.entry_price : t.entry_price - t.exit_price;
+  return move / risk;
+}
+
+function durationBucket(ms: number): string {
+  const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
+  if (ms < 15 * MIN) return "Scalp (<15m)";
+  if (ms < 4 * HOUR) return "Intraday (15m–4h)";
+  if (ms < 2 * DAY) return "Swing (4h–2d)";
+  return "Position (>2d)";
+}
+
+function AnalyticsView({ trades, strats }: { trades: Trade[]; strats: Strategy[] }) {
   const closed = trades.filter((t) => t.pnl != null);
   const bySymbol = useMemo(() => {
     const m = new Map<string, { symbol: string; pnl: number; n: number }>();
@@ -913,6 +968,90 @@ function AnalyticsView({ trades }: { trades: Trade[] }) {
     const m = days.map((d) => ({ day: d, pnl: 0 }));
     for (const t of closed) m[new Date(t.closed_at ?? t.opened_at).getDay()].pnl += t.pnl ?? 0;
     return m;
+  }, [closed]);
+
+  const byPlaybook = useMemo(() => {
+    const m = new Map<string, { name: string; color: string; pnl: number; n: number; wins: number; rSum: number; rN: number }>();
+    for (const t of closed) {
+      const strat = strats.find((s) => s.id === t.strategy_id);
+      const key = strat?.id ?? "none";
+      const row = m.get(key) ?? { name: strat?.name ?? "No playbook", color: strat?.color ?? EB.mutedForeground, pnl: 0, n: 0, wins: 0, rSum: 0, rN: 0 };
+      row.pnl += t.pnl ?? 0; row.n += 1; if ((t.pnl ?? 0) > 0) row.wins += 1;
+      const r = computeR(t);
+      if (r != null) { row.rSum += r; row.rN += 1; }
+      m.set(key, row);
+    }
+    return Array.from(m.values()).sort((a, b) => b.pnl - a.pnl);
+  }, [closed, strats]);
+
+  const rStats = useMemo(() => {
+    const rValues = closed.map(computeR).filter((r): r is number => r != null);
+    const buckets = [
+      { label: "<-2R", min: -Infinity, max: -2, n: 0 },
+      { label: "-2..-1R", min: -2, max: -1, n: 0 },
+      { label: "-1..0R", min: -1, max: 0, n: 0 },
+      { label: "0..1R", min: 0, max: 1, n: 0 },
+      { label: "1..2R", min: 1, max: 2, n: 0 },
+      { label: "2..3R", min: 2, max: 3, n: 0 },
+      { label: ">3R", min: 3, max: Infinity, n: 0 },
+    ];
+    for (const r of rValues) {
+      const b = buckets.find((b) => r >= b.min && r < b.max) ?? buckets[buckets.length - 1];
+      b.n += 1;
+    }
+    const expectancy = rValues.length ? rValues.reduce((a, b) => a + b, 0) / rValues.length : null;
+    return { buckets, expectancy, n: rValues.length };
+  }, [closed]);
+
+  const calendar = useMemo(() => {
+    const byDay = new Map<string, number>();
+    for (const t of closed) {
+      const d = new Date(t.closed_at ?? t.opened_at);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      byDay.set(key, (byDay.get(key) ?? 0) + (t.pnl ?? 0));
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(today);
+    start.setDate(start.getDate() - 83); // 12 weeks back
+    const startSunday = new Date(start);
+    startSunday.setDate(startSunday.getDate() - startSunday.getDay());
+    const days: { date: Date; pnl: number | null }[] = [];
+    for (let i = 0; i < 91; i++) {
+      const d = new Date(startSunday);
+      d.setDate(d.getDate() + i);
+      const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+      days.push({ date: d, pnl: d > today ? null : byDay.get(key) ?? 0 });
+    }
+    const maxAbs = Math.max(1, ...days.map((d) => Math.abs(d.pnl ?? 0)));
+    return { days, maxAbs };
+  }, [closed]);
+
+  const timeOfDay = useMemo(() => {
+    const grid: { hour: number; dow: number; pnl: number; n: number }[][] = Array.from({ length: 7 }, (_, dow) =>
+      Array.from({ length: 24 }, (_, hour) => ({ hour, dow, pnl: 0, n: 0 })),
+    );
+    for (const t of closed) {
+      const d = new Date(t.opened_at);
+      grid[d.getDay()][d.getHours()].pnl += t.pnl ?? 0;
+      grid[d.getDay()][d.getHours()].n += 1;
+    }
+    const maxAbs = Math.max(1, ...grid.flat().map((c) => (c.n ? Math.abs(c.pnl / c.n) : 0)));
+    return { grid, maxAbs };
+  }, [closed]);
+
+  const holdBuckets = useMemo(() => {
+    const m = new Map<string, { bucket: string; n: number; wins: number; pnl: number }>();
+    for (const t of closed) {
+      if (!t.closed_at) continue;
+      const ms = new Date(t.closed_at).getTime() - new Date(t.opened_at).getTime();
+      const key = durationBucket(ms);
+      const row = m.get(key) ?? { bucket: key, n: 0, wins: 0, pnl: 0 };
+      row.n += 1; if ((t.pnl ?? 0) > 0) row.wins += 1; row.pnl += t.pnl ?? 0;
+      m.set(key, row);
+    }
+    const order = ["Scalp (<15m)", "Intraday (15m–4h)", "Swing (4h–2d)", "Position (>2d)"];
+    return order.map((b) => m.get(b)).filter((r): r is NonNullable<typeof r> => !!r);
   }, [closed]);
 
   return (
@@ -973,6 +1112,143 @@ function AnalyticsView({ trades }: { trades: Trade[] }) {
             {bySetup.length === 0 && <tr><td colSpan={5} className="p-8 text-center" style={{ color: EB.mutedForeground }}>Log some trades to see analytics.</td></tr>}
           </tbody>
         </table>
+      </Card>
+
+      <Card className="overflow-x-auto p-0">
+        <div className="p-4 text-sm font-medium" style={{ borderBottom: `1px solid ${EB.border}` }}>Playbook performance</div>
+        <table className="w-full text-sm">
+          <thead className="text-xs uppercase" style={{ color: EB.mutedForeground }}>
+            <tr style={{ borderBottom: `1px solid ${EB.border}` }}>
+              <th className="px-4 py-2.5 text-left font-medium">Playbook</th><th className="px-4 py-2.5 text-right font-medium">Trades</th>
+              <th className="px-4 py-2.5 text-right font-medium">Win rate</th><th className="px-4 py-2.5 text-right font-medium">Avg R</th>
+              <th className="px-4 py-2.5 text-right font-medium">Net P&L</th><th className="px-4 py-2.5 text-right font-medium">Expectancy</th>
+            </tr>
+          </thead>
+          <tbody>
+            {byPlaybook.map((p) => (
+              <tr key={p.name} style={{ borderBottom: `1px solid ${EB.border}` }}>
+                <td className="px-4 py-2.5 font-medium">
+                  <span className="mr-1.5 inline-block size-2 rounded-full" style={{ background: p.color }} />{p.name}
+                </td>
+                <td className="px-4 py-2.5 text-right">{p.n}</td>
+                <td className="px-4 py-2.5 text-right">{fmtPct(p.wins / p.n)}</td>
+                <td className="px-4 py-2.5 text-right">{p.rN ? `${(p.rSum / p.rN).toFixed(2)}R` : "—"}</td>
+                <td className="px-4 py-2.5 text-right font-medium" style={{ color: pnlColor(p.pnl) }}>{fmtMoney(p.pnl, { sign: true })}</td>
+                <td className="px-4 py-2.5 text-right" style={{ color: pnlColor(p.pnl) }}>{fmtMoney(p.pnl / p.n, { sign: true })}</td>
+              </tr>
+            ))}
+            {byPlaybook.length === 0 && <tr><td colSpan={6} className="p-8 text-center" style={{ color: EB.mutedForeground }}>Tag trades with a playbook to see performance per strategy.</td></tr>}
+          </tbody>
+        </table>
+      </Card>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-medium">R-multiple distribution</h3>
+            <span className="text-xs" style={{ color: EB.mutedForeground }}>
+              Expectancy: <span style={{ color: rStats.expectancy != null ? pnlColor(rStats.expectancy) : EB.mutedForeground }}>{rStats.expectancy != null ? `${rStats.expectancy.toFixed(2)}R` : "—"}</span>
+            </span>
+          </div>
+          {rStats.n === 0 ? (
+            <div className="grid h-72 place-items-center text-xs" style={{ color: EB.mutedForeground }}>Set a stop loss on trades to see R-multiple analytics.</div>
+          ) : (
+            <div className="h-72">
+              <ResponsiveContainer>
+                <BarChart data={rStats.buckets}>
+                  <CartesianGrid stroke={EB.border} strokeDasharray="3 3" />
+                  <XAxis dataKey="label" tick={{ fill: EB.mutedForeground, fontSize: 10 }} />
+                  <YAxis tick={{ fill: EB.mutedForeground, fontSize: 11 }} allowDecimals={false} />
+                  <Tooltip contentStyle={{ background: EB.card, border: `1px solid ${EB.border}`, borderRadius: 8, fontSize: 12 }} />
+                  <Bar dataKey="n" isAnimationActive={false}>{rStats.buckets.map((b, i) => <Cell key={i} fill={b.max <= 0 ? EB.loss : EB.win} />)}</Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+        </Card>
+
+        <Card className="overflow-x-auto">
+          <h3 className="mb-3 text-sm font-medium">Hold-time buckets</h3>
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase" style={{ color: EB.mutedForeground }}>
+              <tr style={{ borderBottom: `1px solid ${EB.border}` }}>
+                <th className="py-2 text-left font-medium">Bucket</th><th className="py-2 text-right font-medium">Trades</th>
+                <th className="py-2 text-right font-medium">Win rate</th><th className="py-2 text-right font-medium">Net P&L</th>
+              </tr>
+            </thead>
+            <tbody>
+              {holdBuckets.map((b) => (
+                <tr key={b.bucket} style={{ borderBottom: `1px solid ${EB.border}` }}>
+                  <td className="py-2 font-medium">{b.bucket}</td>
+                  <td className="py-2 text-right">{b.n}</td>
+                  <td className="py-2 text-right">{fmtPct(b.wins / b.n)}</td>
+                  <td className="py-2 text-right font-medium" style={{ color: pnlColor(b.pnl) }}>{fmtMoney(b.pnl, { sign: true })}</td>
+                </tr>
+              ))}
+              {holdBuckets.length === 0 && <tr><td colSpan={4} className="py-8 text-center" style={{ color: EB.mutedForeground }}>No closed trades yet.</td></tr>}
+            </tbody>
+          </table>
+        </Card>
+      </div>
+
+      <Card>
+        <h3 className="mb-3 text-sm font-medium">Daily P&L (last 13 weeks)</h3>
+        <div className="flex gap-[3px] overflow-x-auto pb-1">
+          {Array.from({ length: 13 }, (_, week) => (
+            <div key={week} className="flex flex-col gap-[3px]">
+              {calendar.days.slice(week * 7, week * 7 + 7).map((d, i) => {
+                const intensity = d.pnl == null ? 0 : Math.min(1, Math.abs(d.pnl) / calendar.maxAbs);
+                const bg = d.pnl == null
+                  ? "transparent"
+                  : d.pnl === 0
+                  ? EB.muted
+                  : d.pnl > 0
+                  ? `oklch(0.78 0.18 155 / ${0.15 + intensity * 0.75})`
+                  : `oklch(0.66 0.22 25 / ${0.15 + intensity * 0.75})`;
+                return (
+                  <div
+                    key={i}
+                    title={d.pnl == null ? "" : `${d.date.toLocaleDateString()}: ${fmtMoney(d.pnl, { sign: true })}`}
+                    className="size-3 rounded-sm"
+                    style={{ background: bg, border: `1px solid ${EB.border}` }}
+                  />
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="mb-3 text-sm font-medium">Expectancy by hour × weekday</h3>
+        <div className="overflow-x-auto">
+          <div className="inline-flex flex-col gap-[3px]">
+            {timeOfDay.grid.map((row, dow) => (
+              <div key={dow} className="flex items-center gap-[3px]">
+                <span className="w-7 shrink-0 text-[10px]" style={{ color: EB.mutedForeground }}>{["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"][dow]}</span>
+                {row.map((cell) => {
+                  const avg = cell.n ? cell.pnl / cell.n : 0;
+                  const intensity = cell.n ? Math.min(1, Math.abs(avg) / timeOfDay.maxAbs) : 0;
+                  const bg = !cell.n
+                    ? "transparent"
+                    : avg === 0
+                    ? EB.muted
+                    : avg > 0
+                    ? `oklch(0.78 0.18 155 / ${0.15 + intensity * 0.75})`
+                    : `oklch(0.66 0.22 25 / ${0.15 + intensity * 0.75})`;
+                  return (
+                    <div
+                      key={cell.hour}
+                      title={cell.n ? `${cell.hour}:00 ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][dow]}: ${fmtMoney(avg, { sign: true })} avg (${cell.n} trades)` : ""}
+                      className="size-3 rounded-sm"
+                      style={{ background: bg, border: `1px solid ${EB.border}` }}
+                    />
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
       </Card>
     </div>
   );
