@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -143,6 +143,22 @@ export default function Journal() {
   const maxTradesHit = riskSettings?.max_trades_per_day != null && todaysTrades.length >= riskSettings.max_trades_per_day;
   const guardrailBlocked = dailyLimitHit || maxTradesHit;
 
+  // Keyboard shortcut: N opens "log a trade", ignored while typing in a field.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
+      if (typing || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key.toLowerCase() === "n" && !sheet && !detailTrade) {
+        e.preventDefault();
+        if (guardrailBlocked) { toast.error("Blocked by today's risk guardrail."); return; }
+        setSheet("new");
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [sheet, detailTrade, guardrailBlocked]);
+
   return (
     <div className="min-h-screen" style={{ background: EB.background, color: EB.foreground }}>
       {/* Sidebar (desktop) */}
@@ -196,6 +212,7 @@ export default function Journal() {
       )}
 
       <main className="md:pl-56">
+        <SyncStatusBanner />
         {guardrailBlocked && (
           <div className="px-4 pt-4 md:px-8 md:pt-8">
             <div className="rounded-md px-4 py-2.5 text-sm font-medium" style={{ background: `${EB.destructive}22`, border: `1px solid ${EB.destructive}`, color: EB.destructive }}>
@@ -209,7 +226,7 @@ export default function Journal() {
           {loading ? (
             <div className="grid place-items-center py-24 text-sm" style={{ color: EB.mutedForeground }}>Loading…</div>
           ) : view === "dashboard" ? (
-            <DashboardView trades={trades} onOpenTrade={setDetailTrade} />
+            <DashboardView trades={trades} onOpenTrade={setDetailTrade} onGoImport={() => setView("import")} onGoSettings={() => setView("settings")} onAdd={() => setSheet("new")} />
           ) : view === "trades" ? (
             <TradesView
               trades={trades} strats={strats} onOpenTrade={setDetailTrade} onChange={refresh}
@@ -245,6 +262,38 @@ export default function Journal() {
   );
 }
 
+function SyncStatusBanner() {
+  const { user } = useAuth();
+  const [accountCount, setAccountCount] = useState(0);
+  const [lastLog, setLastLog] = useState<{ finished_at: string | null; status: string; error: string | null } | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    sb.from("brokerage_accounts").select("id", { count: "exact", head: true }).eq("user_id", user.id)
+      .then(({ count }: any) => setAccountCount(count ?? 0));
+    sb.from("broker_sync_log").select("finished_at, status, error").eq("user_id", user.id).order("started_at", { ascending: false }).limit(1)
+      .then(({ data }: any) => setLastLog(data?.[0] ?? null));
+  }, [user]);
+
+  if (accountCount === 0) return null;
+  const errored = lastLog?.status === "error";
+
+  return (
+    <div className="px-4 pt-4 md:px-8 md:pt-8">
+      <div
+        className="flex items-center justify-between rounded-md px-3 py-1.5 text-xs"
+        style={errored ? { background: `${EB.destructive}15`, border: `1px solid ${EB.destructive}55`, color: EB.destructive } : { border: `1px solid ${EB.border}`, color: EB.mutedForeground }}
+      >
+        <span>
+          {accountCount} broker account{accountCount === 1 ? "" : "s"} connected · last synced{" "}
+          {lastLog?.finished_at ? new Date(lastLog.finished_at).toLocaleString() : "never"}
+        </span>
+        {errored && <span>Sync error: {lastLog?.error?.slice(0, 80) ?? "unknown"}</span>}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- shared bits ---------- */
 function Card({ children, className = "", ...rest }: any) {
   return <div className={`rounded-md p-4 ${className}`} style={{ background: EB.card, border: `1px solid ${EB.border}` }} {...rest}>{children}</div>;
@@ -258,7 +307,7 @@ function Field({ label, children, className }: { label: string; children: React.
 function fieldStyle(): React.CSSProperties { return { background: EB.input, borderColor: EB.border, color: EB.foreground }; }
 
 /* ---------- Dashboard ---------- */
-function DashboardView({ trades, onOpenTrade }: { trades: Trade[]; onOpenTrade: (t: Trade) => void }) {
+function DashboardView({ trades, onOpenTrade, onGoImport, onGoSettings, onAdd }: { trades: Trade[]; onOpenTrade: (t: Trade) => void; onGoImport: () => void; onGoSettings: () => void; onAdd: () => void }) {
   const closed = useMemo(() => trades.filter((t) => t.pnl != null), [trades]);
   const kpis = useMemo(() => {
     const net = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
@@ -284,6 +333,23 @@ function DashboardView({ trades, onOpenTrade }: { trades: Trade[]; onOpenTrade: 
           <p className="text-sm" style={{ color: EB.mutedForeground }}>Your edge at a glance.</p>
         </div>
       </div>
+
+      {trades.length === 0 && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Card className="cursor-pointer transition-colors hover:border-mint" onClick={onGoImport} style={{ borderColor: EB.border }}>
+            <div className="mb-1 text-sm font-medium">Import CSV</div>
+            <p className="text-xs" style={{ color: EB.mutedForeground }}>Upload a broker export — we auto-detect the format.</p>
+          </Card>
+          <Card className="cursor-pointer transition-colors hover:border-mint" onClick={onGoSettings} style={{ borderColor: EB.border }}>
+            <div className="mb-1 text-sm font-medium">Connect a broker</div>
+            <p className="text-xs" style={{ color: EB.mutedForeground }}>SnapTrade, Tradovate, or Rithmic — auto-sync fills.</p>
+          </Card>
+          <Card className="cursor-pointer transition-colors hover:border-mint" onClick={onAdd} style={{ borderColor: EB.border }}>
+            <div className="mb-1 text-sm font-medium">Log a trade manually</div>
+            <p className="text-xs" style={{ color: EB.mutedForeground }}>Press <span className="font-mono">N</span> anywhere, or click here.</p>
+          </Card>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Kpi label="Net P&L" value={fmtMoney(kpis.net, { sign: true })} tone={kpis.net} />
@@ -419,14 +485,28 @@ function detectTiltTradeIds(trades: Trade[]): Set<string> {
 
 /* ---------- Trades ---------- */
 function TradesView({ trades, strats, onOpenTrade, onChange, onAdd }: { trades: Trade[]; strats: Strategy[]; onOpenTrade: (t: Trade) => void; onChange: () => void; onAdd: () => void }) {
-  const [q, setQ] = useState("");
-  const [side, setSide] = useState<"all" | "long" | "short">("all");
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const side = (params.get("side") as "all" | "long" | "short") ?? "all";
+  const stratFilter = params.get("playbook") ?? "all";
+  const fromDate = params.get("from") ?? "";
+  const toDate = params.get("to") ?? "";
+
+  const setFilter = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (!value || value === "all") next.delete(key); else next.set(key, value);
+    setParams(next, { replace: true });
+  };
+
   const tiltIds = useMemo(() => detectTiltTradeIds(trades), [trades]);
   const rows = useMemo(() => trades.filter((t) => {
     if (side !== "all" && t.direction !== side) return false;
+    if (stratFilter !== "all" && t.strategy_id !== stratFilter) return false;
+    if (fromDate && (t.closed_at ?? t.opened_at).slice(0, 10) < fromDate) return false;
+    if (toDate && (t.closed_at ?? t.opened_at).slice(0, 10) > toDate) return false;
     if (q && !`${t.pair} ${t.setup ?? ""} ${(t.tags ?? []).join(" ")}`.toLowerCase().includes(q.toLowerCase())) return false;
     return true;
-  }), [trades, q, side]);
+  }), [trades, q, side, stratFilter, fromDate, toDate]);
 
   const del = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -442,16 +522,26 @@ function TradesView({ trades, strats, onOpenTrade, onChange, onAdd }: { trades: 
           <h1 className="text-2xl font-semibold tracking-tight">Trades</h1>
           <p className="text-sm" style={{ color: EB.mutedForeground }}>{rows.length} of {trades.length}</p>
         </div>
-        <Button onClick={onAdd} style={{ background: EB.primary, color: EB.primaryForeground }}>Add trade</Button>
+        <Button onClick={onAdd} style={{ background: EB.primary, color: EB.primaryForeground }}>Add trade <span className="ml-1.5 text-[10px] opacity-60">(N)</span></Button>
       </div>
 
       <Card>
-        <div className="flex flex-wrap gap-2">
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search symbol, setup, tag…" className="max-w-xs" style={fieldStyle()} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Input value={q} onChange={(e) => setFilter("q", e.target.value)} placeholder="Search symbol, setup, tag…" className="max-w-xs" style={fieldStyle()} />
           {(["all", "long", "short"] as const).map((s) => (
-            <button key={s} onClick={() => setSide(s)} className="rounded-md px-3 py-1.5 text-xs capitalize"
+            <button key={s} onClick={() => setFilter("side", s)} className="rounded-md px-3 py-1.5 text-xs capitalize"
               style={side === s ? { background: EB.primary, color: EB.primaryForeground } : { border: `1px solid ${EB.border}`, color: EB.mutedForeground }}>{s}</button>
           ))}
+          <select value={stratFilter} onChange={(e) => setFilter("playbook", e.target.value)} className="h-9 rounded-md px-2 text-xs" style={fieldStyle()}>
+            <option value="all">All playbooks</option>
+            {strats.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+          </select>
+          <Input type="date" value={fromDate} onChange={(e) => setFilter("from", e.target.value)} className="w-36" style={fieldStyle()} />
+          <span className="text-xs" style={{ color: EB.mutedForeground }}>to</span>
+          <Input type="date" value={toDate} onChange={(e) => setFilter("to", e.target.value)} className="w-36" style={fieldStyle()} />
+          {(q || side !== "all" || stratFilter !== "all" || fromDate || toDate) && (
+            <button onClick={() => setParams({}, { replace: true })} className="text-xs" style={{ color: EB.primary }}>Clear filters</button>
+          )}
         </div>
       </Card>
 
