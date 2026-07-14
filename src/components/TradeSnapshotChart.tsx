@@ -20,7 +20,19 @@ type Props = {
  * (Yahoo Finance, no API key) — best-effort, so a missing symbol just shows
  * a fallback message rather than blocking the trade detail view.
  */
-export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entryPrice, exitPrice, height = 260 }: Props) {
+function PriceLabel({ viewBox, text, color }: any) {
+  if (!viewBox) return null;
+  const { x, y } = viewBox;
+  const width = text.length * 5.5 + 10;
+  return (
+    <g>
+      <rect x={x + 2} y={y - 9} width={width} height={16} rx={4} fill="hsl(var(--surface-elevated))" stroke={color} strokeOpacity={0.6} strokeWidth={1} />
+      <text x={x + 7} y={y + 3} fontSize={10} fontWeight={600} fill={color}>{text}</text>
+    </g>
+  );
+}
+
+export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entryPrice, exitPrice, height = 320 }: Props) {
   const from = openedAt;
   const to = closedAt ?? openedAt;
 
@@ -99,19 +111,23 @@ export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entr
               return [String(val), String(name)];
             }}
           />
-          <Bar dataKey="lowHigh" barSize={1} isAnimationActive={false}>
+          <Bar dataKey="lowHigh" barSize={2} isAnimationActive={false}>
             {rows.map((r, i) => <Cell key={`w${i}`} fill={r.up ? "hsl(var(--success))" : "hsl(var(--danger))"} />)}
           </Bar>
-          <Bar dataKey="body" barSize={5} isAnimationActive={false}>
+          <Bar dataKey="body" barSize={7} isAnimationActive={false}>
             {rows.map((r, i) => <Cell key={`b${i}`} fill={r.up ? "hsl(var(--success))" : "hsl(var(--danger))"} />)}
           </Bar>
-          <ReferenceLine y={entryPrice} stroke="hsl(var(--mint))" strokeDasharray="4 3" label={{ value: `Entry ${entryPrice}`, position: "insideLeft", fill: "hsl(var(--mint-bright))", fontSize: 9 }} />
-          {exitPrice != null && (
-            <ReferenceLine y={exitPrice} stroke={win ? "hsl(var(--success))" : "hsl(var(--danger))"} strokeDasharray="4 3" label={{ value: `Exit ${exitPrice}`, position: "insideLeft", fill: win ? "hsl(var(--success))" : "hsl(var(--danger))", fontSize: 9 }} />
+          <ReferenceLine x={entryMs} stroke="hsl(var(--mint))" strokeOpacity={0.35} strokeDasharray="2 2" />
+          {exitMs != null && (
+            <ReferenceLine x={exitMs} stroke={win ? "hsl(var(--success))" : "hsl(var(--danger))"} strokeOpacity={0.35} strokeDasharray="2 2" />
           )}
-          <ReferenceDot x={entryMs} y={entryPrice} r={4} fill="hsl(var(--mint))" stroke="hsl(var(--surface))" strokeWidth={2} />
+          <ReferenceLine y={entryPrice} stroke="hsl(var(--mint))" strokeDasharray="4 3" label={<PriceLabel text={`Entry ${entryPrice}`} color="hsl(var(--mint-bright))" />} />
+          {exitPrice != null && (
+            <ReferenceLine y={exitPrice} stroke={win ? "hsl(var(--success))" : "hsl(var(--danger))"} strokeDasharray="4 3" label={<PriceLabel text={`Exit ${exitPrice}`} color={win ? "hsl(var(--success))" : "hsl(var(--danger))"} />} />
+          )}
+          <ReferenceDot x={entryMs} y={entryPrice} r={5} fill="hsl(var(--mint))" stroke="hsl(var(--surface))" strokeWidth={2} />
           {exitMs != null && exitPrice != null && (
-            <ReferenceDot x={exitMs} y={exitPrice} r={4} fill={win ? "hsl(var(--success))" : "hsl(var(--danger))"} stroke="hsl(var(--surface))" strokeWidth={2} />
+            <ReferenceDot x={exitMs} y={exitPrice} r={5} fill={win ? "hsl(var(--success))" : "hsl(var(--danger))"} stroke="hsl(var(--surface))" strokeWidth={2} />
           )}
         </ComposedChart>
       </ResponsiveContainer>

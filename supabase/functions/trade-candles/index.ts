@@ -53,9 +53,11 @@ Deno.serve(async (req) => {
     const toMs = new Date(to).getTime();
     if (Number.isNaN(fromMs) || Number.isNaN(toMs)) return json({ error: "Invalid date" }, 400);
 
-    // Pad the window so entry/exit sit inside the chart, not at the edge.
-    const span = Math.max(toMs - fromMs, 60 * 60 * 1000);
-    const pad = Math.max(span * 0.4, 30 * 60 * 1000);
+    // Pad the window so entry/exit sit inside the chart, not at the edge —
+    // kept tight so a short trade isn't diluted by an hour of unrelated
+    // price action on either side.
+    const span = Math.max(toMs - fromMs, 60 * 1000);
+    const pad = Math.max(span * 0.15, 8 * 60 * 1000);
     const period1 = Math.floor((fromMs - pad) / 1000);
     const period2 = Math.floor((toMs + pad) / 1000);
 
