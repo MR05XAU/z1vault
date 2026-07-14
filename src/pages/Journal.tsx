@@ -558,7 +558,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
         {showSnapshot ? "Hide price snapshot" : "Show price snapshot (entry/exit markers)"}
       </button>
       {showSnapshot && (
-        <TradeSnapshotChart symbol={trade.pair} direction={trade.direction} openedAt={trade.opened_at} closedAt={trade.closed_at} entryPrice={trade.entry_price} exitPrice={trade.exit_price} height={300} />
+        <TradeSnapshotChart symbol={trade.pair} direction={trade.direction} openedAt={trade.opened_at} closedAt={trade.closed_at} entryPrice={trade.entry_price} exitPrice={trade.exit_price} height="clamp(260px, 38vh, 460px)" />
       )}
 
       <div className="grid grid-cols-2 gap-2">

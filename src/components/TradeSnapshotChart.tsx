@@ -11,8 +11,20 @@ type Props = {
   closedAt?: string | null;
   entryPrice: number;
   exitPrice?: number | null;
-  height?: number;
+  height?: number | string;
 };
+
+function ArrowMarker({ cx, cy, up, color }: { cx?: number; cy?: number; up: boolean; color: string }) {
+  if (cx == null || cy == null) return null;
+  // Entry/exit arrow: points up into a long fill or down into a short/exit fill, offset above/below the price so it doesn't sit on top of the candle.
+  const size = 7;
+  const yOffset = up ? size + 4 : -(size + 4);
+  const y = cy + yOffset;
+  const points = up
+    ? `${cx},${y - size} ${cx - size},${y + size} ${cx + size},${y + size}`
+    : `${cx},${y + size} ${cx - size},${y - size} ${cx + size},${y - size}`;
+  return <polygon points={points} fill={color} stroke="hsl(var(--surface))" strokeWidth={1.5} />;
+}
 
 /**
  * Candlestick-style snapshot of the price action around a logged trade, with
@@ -125,9 +137,17 @@ export function TradeSnapshotChart({ symbol, direction, openedAt, closedAt, entr
           {exitPrice != null && (
             <ReferenceLine y={exitPrice} stroke={win ? "hsl(var(--success))" : "hsl(var(--danger))"} strokeDasharray="4 3" label={<PriceLabel text={`Exit ${exitPrice}`} color={win ? "hsl(var(--success))" : "hsl(var(--danger))"} />} />
           )}
-          <ReferenceDot x={entryMs} y={entryPrice} r={5} fill="hsl(var(--mint))" stroke="hsl(var(--surface))" strokeWidth={2} />
+          <ReferenceDot
+            x={entryMs} y={entryPrice} r={5}
+            fill="hsl(var(--mint))" stroke="hsl(var(--surface))" strokeWidth={2}
+            shape={(props: any) => <ArrowMarker {...props} up={direction === "long"} color="hsl(var(--mint))" />}
+          />
           {exitMs != null && exitPrice != null && (
-            <ReferenceDot x={exitMs} y={exitPrice} r={5} fill={win ? "hsl(var(--success))" : "hsl(var(--danger))"} stroke="hsl(var(--surface))" strokeWidth={2} />
+            <ReferenceDot
+              x={exitMs} y={exitPrice} r={5}
+              fill={win ? "hsl(var(--success))" : "hsl(var(--danger))"} stroke="hsl(var(--surface))" strokeWidth={2}
+              shape={(props: any) => <ArrowMarker {...props} up={direction === "short"} color={win ? "hsl(var(--success))" : "hsl(var(--danger))"} />}
+            />
           )}
         </ComposedChart>
       </ResponsiveContainer>
