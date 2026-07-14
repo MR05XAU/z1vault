@@ -503,8 +503,11 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
   const [takeProfit, setTakeProfit] = useState(trade.take_profit?.toString() ?? "");
   const [notes, setNotes] = useState(trade.notes ?? "");
   const [saving, setSaving] = useState(false);
-  const [showLive, setShowLive] = useState(false);
-  const [liveInterval, setLiveInterval] = useState<"1" | "5" | "15" | "60" | "240" | "D">("D");
+  const [showSnapshot, setShowSnapshot] = useState(false);
+  const durationMs = trade.closed_at ? new Date(trade.closed_at).getTime() - new Date(trade.opened_at).getTime() : 0;
+  const [liveInterval, setLiveInterval] = useState<"1" | "5" | "15" | "60" | "240" | "D">(
+    durationMs && durationMs <= 2 * 3600_000 ? "5" : durationMs && durationMs <= 18 * 3600_000 ? "60" : "D",
+  );
 
   const save = async () => {
     setSaving(true);
@@ -530,7 +533,17 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
         </div>
       </div>
 
-      <TradeSnapshotChart symbol={trade.pair} direction={trade.direction} openedAt={trade.opened_at} closedAt={trade.closed_at} entryPrice={trade.entry_price} exitPrice={trade.exit_price} />
+      <div className="space-y-2">
+        <div className="flex gap-1 overflow-x-auto">
+          {(["1", "5", "15", "60", "240", "D"] as const).map((i) => (
+            <button key={i} onClick={() => setLiveInterval(i)} className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11px]"
+              style={liveInterval === i ? { background: EB.primary, color: EB.primaryForeground } : { border: `1px solid ${EB.border}`, color: EB.mutedForeground }}>
+              {i === "D" ? "1D" : i === "60" ? "1h" : i === "240" ? "4h" : `${i}m`}
+            </button>
+          ))}
+        </div>
+        <TradingViewChart symbol={trade.pair} interval={liveInterval} height={380} />
+      </div>
 
       <div className="grid grid-cols-3 gap-2 text-center">
         {[["Entry", trade.entry_price], ["Exit", trade.exit_price ?? "—"], ["Size", trade.size]].map(([label, value]) => (
@@ -541,21 +554,11 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
         ))}
       </div>
 
-      <button onClick={() => setShowLive((s) => !s)} className="text-[11px]" style={{ color: EB.primary }}>
-        {showLive ? "Hide live chart" : "Show live chart"}
+      <button onClick={() => setShowSnapshot((s) => !s)} className="text-[11px]" style={{ color: EB.primary }}>
+        {showSnapshot ? "Hide price snapshot" : "Show price snapshot (entry/exit markers)"}
       </button>
-      {showLive && (
-        <div className="space-y-2">
-          <div className="flex gap-1 overflow-x-auto">
-            {(["1", "5", "15", "60", "240", "D"] as const).map((i) => (
-              <button key={i} onClick={() => setLiveInterval(i)} className="whitespace-nowrap rounded-full px-2.5 py-1 text-[11px]"
-                style={liveInterval === i ? { background: EB.primary, color: EB.primaryForeground } : { border: `1px solid ${EB.border}`, color: EB.mutedForeground }}>
-                {i === "D" ? "1D" : i === "60" ? "1h" : i === "240" ? "4h" : `${i}m`}
-              </button>
-            ))}
-          </div>
-          <TradingViewChart symbol={trade.pair} interval={liveInterval} height={360} />
-        </div>
+      {showSnapshot && (
+        <TradeSnapshotChart symbol={trade.pair} direction={trade.direction} openedAt={trade.opened_at} closedAt={trade.closed_at} entryPrice={trade.entry_price} exitPrice={trade.exit_price} />
       )}
 
       <div className="grid grid-cols-2 gap-2">
