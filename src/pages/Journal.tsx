@@ -8,11 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   TrendingUp, LayoutDashboard, ListChecks, Upload, NotebookPen, BarChart3, Settings as SettingsIcon,
-  LogOut, Menu, Trash2, Check, FileText,
+  LogOut, Menu, Trash2, Check, FileText, Loader2,
 } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
 import { parseTradesCsv, parseCsvRows, detectDelimiter, stripBom } from "@/lib/csvImport";
+import { dupeKey, findDuplicateGroups } from "@/lib/dupeDetection";
 import { TradeSnapshotChart } from "@/components/TradeSnapshotChart";
 import { TradingViewChart } from "@/components/TradingViewChart";
 import { BrokerConnections } from "@/components/BrokerConnections";
@@ -161,13 +162,13 @@ export default function Journal() {
           ) : view === "trades" ? (
             <TradesView trades={trades} strats={strats} onOpenTrade={setDetailTrade} onChange={refresh} onAdd={() => setSheet("new")} />
           ) : view === "import" ? (
-            <ImportView user={user} strats={strats} onDone={refresh} />
+            <ImportView user={user} strats={strats} trades={trades} onDone={refresh} />
           ) : view === "journal" ? (
             <JournalNotesView />
           ) : view === "analytics" ? (
             <AnalyticsView trades={trades} />
           ) : (
-            <SettingsView />
+            <SettingsView trades={trades} onChange={refresh} onOpenTrade={setDetailTrade} />
           )}
         </div>
       </main>
@@ -574,7 +575,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
 }
 
 /* ---------- Import ---------- */
-function ImportView({ user, strats, onDone }: { user: any; strats: Strategy[]; onDone: () => void }) {
+function ImportView({ user, strats, trades, onDone }: { user: any; strats: Strategy[]; trades: Trade[]; onDone: () => void }) {
   const [fileName, setFileName] = useState("");
   const [rawText, setRawText] = useState("");
   const [pending, setPending] = useState<{ trades: ReturnType<typeof parseTradesCsv>["trades"]; errors: string[] } | null>(null);
@@ -602,6 +603,9 @@ function ImportView({ user, strats, onDone }: { user: any; strats: Strategy[]; o
         const { data: created } = await sb.from("strategies").insert(newNames.map((name, i) => ({ user_id: user.id, name, color: palette[i % palette.length] }))).select();
         (created ?? []).forEach((s: Strategy) => stratByName.set(s.name.toLowerCase(), s.id));
       }
+      const existingKeys = new Set(trades.map(dupeKey));
+      const seenInFile = new Set<string>();
+      let dupes = 0;
       const payload = pending.trades.map((t) => {
         const pnl = t.pnl !== undefined ? t.pnl : t.exit_price != null ? (t.exit_price - t.entry_price) * t.size * (t.direction === "long" ? 1 : -1) - t.fees : null;
         return {
@@ -609,10 +613,20 @@ function ImportView({ user, strats, onDone }: { user: any; strats: Strategy[]; o
           size: t.size, fees: t.fees, pnl, strategy_id: t.strategy ? stratByName.get(t.strategy.toLowerCase()) ?? null : null,
           notes: t.notes, opened_at: t.opened_at, closed_at: t.closed_at,
         };
+      }).filter((t) => {
+        const key = dupeKey(t);
+        if (existingKeys.has(key) || seenInFile.has(key)) { dupes++; return false; }
+        seenInFile.add(key);
+        return true;
       });
+      if (payload.length === 0) {
+        toast.info(`All ${dupes} row(s) look like duplicates of trades you already have — nothing imported.`);
+        setImporting(false);
+        return;
+      }
       const { error } = await sb.from("trades").insert(payload);
       if (error) throw error;
-      toast.success(`Imported ${payload.length} trades`);
+      toast.success(`Imported ${payload.length} trade${payload.length === 1 ? "" : "s"}${dupes ? ` (skipped ${dupes} likely duplicate${dupes === 1 ? "" : "s"})` : ""}.`);
       setPending(null); setFileName(""); onDone();
     } catch (e: any) {
       toast.error(e.message || "Import failed");
@@ -646,14 +660,26 @@ function ImportView({ user, strats, onDone }: { user: any; strats: Strategy[]; o
             <Button variant="ghost" size="sm" onClick={() => { setFileName(""); setAdvanced(false); }}>Choose different file</Button>
           </div>
           <AdvancedMapper text={rawText} onImport={async (built) => {
+            const existingKeys = new Set(trades.map(dupeKey));
+            const seenInFile = new Set<string>();
+            let dupes = 0;
             const payload = built.map((t) => {
               const fees = t.fees ?? 0;
               const pnl = t.exit_price != null && t.entry_price != null && t.size != null ? (t.exit_price - t.entry_price) * t.size * (t.direction === "long" ? 1 : -1) - fees : null;
               return { user_id: user.id, pair: (t.pair ?? "").toUpperCase(), direction: t.direction, entry_price: t.entry_price, exit_price: t.exit_price ?? null, size: t.size, fees, pnl, strategy_id: null, notes: t.notes ?? null, opened_at: t.opened_at, closed_at: t.closed_at ?? null, setup: t.setup ?? null, tags: [], stop_loss: null, take_profit: null };
+            }).filter((t) => {
+              const key = dupeKey(t as any);
+              if (existingKeys.has(key) || seenInFile.has(key)) { dupes++; return false; }
+              seenInFile.add(key);
+              return true;
             });
+            if (payload.length === 0) {
+              toast.info(`All ${dupes} row(s) look like duplicates of trades you already have — nothing imported.`);
+              return;
+            }
             const { error } = await sb.from("trades").insert(payload);
             if (error) { toast.error(error.message); return; }
-            toast.success(`Imported ${payload.length} trades`);
+            toast.success(`Imported ${payload.length} trade${payload.length === 1 ? "" : "s"}${dupes ? ` (skipped ${dupes} likely duplicate${dupes === 1 ? "" : "s"})` : ""}.`);
             setFileName(""); setAdvanced(false); onDone();
           }} onCancel={() => { setFileName(""); setAdvanced(false); }} />
         </Card>
@@ -936,16 +962,80 @@ function AnalyticsView({ trades }: { trades: Trade[] }) {
 }
 
 /* ---------- Settings ---------- */
-function SettingsView() {
+function SettingsView({ trades, onChange, onOpenTrade }: { trades: Trade[]; onChange: () => void; onOpenTrade: (t: Trade) => void }) {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm" style={{ color: EB.mutedForeground }}>Broker connections.</p>
+        <p className="text-sm" style={{ color: EB.mutedForeground }}>Broker connections and data hygiene.</p>
       </div>
       <Card>
         <BrokerConnections />
       </Card>
+      <Card>
+        <DuplicateTrades trades={trades} onChange={onChange} onOpenTrade={onOpenTrade} />
+      </Card>
+    </div>
+  );
+}
+
+function DuplicateTrades({ trades, onChange, onOpenTrade }: { trades: Trade[]; onChange: () => void; onOpenTrade: (t: Trade) => void }) {
+  const groups = useMemo(() => findDuplicateGroups(trades), [trades]);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const del = async (id: string) => {
+    setDeletingId(id);
+    const { error } = await sb.from("trades").delete().eq("id", id);
+    setDeletingId(null);
+    if (error) toast.error(error.message); else { toast.success("Trade deleted."); onChange(); }
+  };
+
+  const keepFirst = async (group: Trade[]) => {
+    const rest = group.slice(1);
+    for (const t of rest) await sb.from("trades").delete().eq("id", t.id);
+    toast.success(`Removed ${rest.length} duplicate${rest.length === 1 ? "" : "s"}.`);
+    onChange();
+  };
+
+  return (
+    <div>
+      <div className="mb-1 flex items-center justify-between">
+        <h3 className="text-sm font-medium">Duplicate trades</h3>
+        {groups.length > 0 && <span className="text-xs" style={{ color: EB.mutedForeground }}>{groups.length} group{groups.length === 1 ? "" : "s"}</span>}
+      </div>
+      <p className="mb-3 text-xs" style={{ color: EB.mutedForeground }}>
+        Trades sharing the same pair, direction, size, entry price, and open minute — usually from re-importing a CSV or syncing overlapping broker history.
+      </p>
+      {groups.length === 0 ? (
+        <div className="rounded-md p-4 text-sm" style={{ border: `1px dashed ${EB.border}`, color: EB.mutedForeground }}>No duplicates found.</div>
+      ) : (
+        <div className="space-y-3">
+          {groups.map((group, i) => (
+            <div key={i} className="rounded-md p-3" style={{ border: `1px solid ${EB.border}` }}>
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-sm font-medium">
+                  {group[0].pair} <span className="text-xs uppercase" style={{ color: EB.mutedForeground }}>{group[0].direction}</span>
+                  <span className="ml-2 text-xs" style={{ color: EB.mutedForeground }}>{group.length} copies</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => keepFirst(group)}>Keep 1, delete rest</Button>
+              </div>
+              <div className="space-y-1">
+                {group.map((t) => (
+                  <div key={t.id} className="flex items-center justify-between rounded px-2 py-1.5 text-xs" style={{ background: EB.accent }}>
+                    <button onClick={() => onOpenTrade(t)} className="flex-1 text-left">
+                      {new Date(t.opened_at).toLocaleString()} · entry {t.entry_price} · size {t.size}
+                      {t.notes ? ` · ${t.notes}` : ""}
+                    </button>
+                    <button onClick={() => del(t.id)} disabled={deletingId === t.id} style={{ color: EB.mutedForeground }}>
+                      {deletingId === t.id ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
