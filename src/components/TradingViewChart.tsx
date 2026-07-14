@@ -4,7 +4,7 @@ import { toTradingViewSymbol } from "@/lib/futuresSymbols";
 type Props = {
   symbol: string;
   interval?: "1" | "5" | "15" | "60" | "240" | "D" | "W";
-  height?: number;
+  height?: number | string;
 };
 
 /**

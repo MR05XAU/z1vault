@@ -503,7 +503,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
   const [takeProfit, setTakeProfit] = useState(trade.take_profit?.toString() ?? "");
   const [notes, setNotes] = useState(trade.notes ?? "");
   const [saving, setSaving] = useState(false);
-  const [showSnapshot, setShowSnapshot] = useState(false);
+  const [showSnapshot, setShowSnapshot] = useState(true);
   const durationMs = trade.closed_at ? new Date(trade.closed_at).getTime() - new Date(trade.opened_at).getTime() : 0;
   const [liveInterval, setLiveInterval] = useState<"1" | "5" | "15" | "60" | "240" | "D">(
     durationMs && durationMs <= 2 * 3600_000 ? "5" : durationMs && durationMs <= 18 * 3600_000 ? "60" : "D",
@@ -542,7 +542,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
             </button>
           ))}
         </div>
-        <TradingViewChart symbol={trade.pair} interval={liveInterval} height={380} />
+        <TradingViewChart symbol={trade.pair} interval={liveInterval} height="clamp(220px, 55vw, 380px)" />
       </div>
 
       <div className="grid grid-cols-3 gap-2 text-center">
@@ -558,7 +558,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
         {showSnapshot ? "Hide price snapshot" : "Show price snapshot (entry/exit markers)"}
       </button>
       {showSnapshot && (
-        <TradeSnapshotChart symbol={trade.pair} direction={trade.direction} openedAt={trade.opened_at} closedAt={trade.closed_at} entryPrice={trade.entry_price} exitPrice={trade.exit_price} />
+        <TradeSnapshotChart symbol={trade.pair} direction={trade.direction} openedAt={trade.opened_at} closedAt={trade.closed_at} entryPrice={trade.entry_price} exitPrice={trade.exit_price} height={260} />
       )}
 
       <div className="grid grid-cols-2 gap-2">
