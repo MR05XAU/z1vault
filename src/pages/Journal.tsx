@@ -121,6 +121,15 @@ export default function Journal() {
   const [detailTrade, setDetailTrade] = useState<Trade | null>(null);
   const [quickLogParams, setQuickLogParams] = useSearchParams();
 
+  // Hold the branded splash for a beat even if data loads instantly — a
+  // sub-200ms flash reads as a glitch rather than a transition.
+  const [splashHold, setSplashHold] = useState(true);
+  useEffect(() => {
+    const t = setTimeout(() => setSplashHold(false), 1500);
+    return () => clearTimeout(t);
+  }, []);
+  const showSplash = loading || splashHold;
+
   // PWA home-screen shortcut ("Quick log a trade") lands on /journal?quicklog=1
   // — jump straight into the log-trade sheet instead of the dashboard.
   useEffect(() => {
@@ -193,6 +202,12 @@ export default function Journal() {
               <n.icon className="h-4 w-4" /> {n.label}
             </button>
           ))}
+          <button onClick={() => setSheet("calc")}
+            className="flex w-full items-center gap-2.5 rounded-md px-3 py-2 text-left text-sm transition-colors"
+            style={{ color: EB.mutedForeground }}
+          >
+            <CalcIcon className="h-4 w-4" /> Calculator
+          </button>
         </nav>
         <div className="p-3" style={{ borderTop: `1px solid ${EB.sidebarBorder}` }}>
           <div className="truncate px-3 py-1 text-xs" style={{ color: EB.mutedForeground }}>{user?.email}</div>
@@ -208,9 +223,14 @@ export default function Journal() {
           <div className="grid h-6 w-6 place-items-center rounded" style={{ background: EB.primary, color: EB.primaryForeground }}><TrendingUp className="h-3.5 w-3.5" /></div>
           Edgebook
         </div>
-        <button onClick={() => setMobileMenu((v) => !v)} className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs" style={{ border: `1px solid ${EB.border}` }}>
-          <Menu className="h-3.5 w-3.5" /> Menu
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setSheet("calc")} className="grid h-8 w-8 place-items-center rounded-md" style={{ border: `1px solid ${EB.border}` }} title="Calculator">
+            <CalcIcon className="h-3.5 w-3.5" />
+          </button>
+          <button onClick={() => setMobileMenu((v) => !v)} className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs" style={{ border: `1px solid ${EB.border}` }}>
+            <Menu className="h-3.5 w-3.5" /> Menu
+          </button>
+        </div>
       </header>
       {mobileMenu && (
         <div className="p-3 md:hidden" style={{ borderBottom: `1px solid ${EB.border}`, background: "hsl(220 10% 5% / 0.85)", backdropFilter: "blur(16px)" }}>
@@ -240,8 +260,8 @@ export default function Journal() {
           </div>
         )}
         <div className="mx-auto max-w-7xl p-4 md:p-8">
-          {loading ? (
-            /* Branded splash while the journal loads */
+          {showSplash ? (
+            /* Branded splash while the journal loads (held ≥1.5s) */
             <div className="grid place-items-center py-32">
               <div className="flex flex-col items-center gap-3 animate-fade-up">
                 <div className="grid h-12 w-12 place-items-center rounded-2xl animate-mint-pulse" style={{ background: EB.primary, color: EB.primaryForeground }}>
@@ -251,21 +271,27 @@ export default function Journal() {
                 <div className="text-sm" style={{ color: EB.mutedForeground }}>Your all-in-one journal</div>
               </div>
             </div>
-          ) : view === "dashboard" ? (
-            <DashboardView trades={trades} onOpenTrade={setDetailTrade} onGoImport={() => setView("import")} onGoSettings={() => setView("settings")} onAdd={() => setSheet("new")} onOpenCalc={() => setSheet("calc")} />
-          ) : view === "trades" ? (
-            <TradesView
-              trades={trades} strats={strats} onOpenTrade={setDetailTrade} onChange={refresh}
-              onAdd={() => { if (guardrailBlocked) { toast.error("Blocked by today's risk guardrail."); return; } setSheet("new"); }}
-            />
-          ) : view === "import" ? (
-            <ImportView user={user} strats={strats} trades={trades} onDone={refresh} />
-          ) : view === "journal" ? (
-            <JournalNotesView trades={trades} />
-          ) : view === "analytics" ? (
-            <AnalyticsView trades={trades} strats={strats} />
           ) : (
-            <SettingsView trades={trades} riskSettings={riskSettings} onChange={refresh} onOpenTrade={setDetailTrade} />
+            /* key={view} remounts on section change so the fade-up transition
+               replays when switching between Edgebook sections */
+            <div key={view} className="animate-fade-up">
+              {view === "dashboard" ? (
+                <DashboardView trades={trades} onOpenTrade={setDetailTrade} onGoImport={() => setView("import")} onGoSettings={() => setView("settings")} onAdd={() => setSheet("new")} onOpenCalc={() => setSheet("calc")} />
+              ) : view === "trades" ? (
+                <TradesView
+                  trades={trades} strats={strats} onOpenTrade={setDetailTrade} onChange={refresh}
+                  onAdd={() => { if (guardrailBlocked) { toast.error("Blocked by today's risk guardrail."); return; } setSheet("new"); }}
+                />
+              ) : view === "import" ? (
+                <ImportView user={user} strats={strats} trades={trades} onDone={refresh} />
+              ) : view === "journal" ? (
+                <JournalNotesView trades={trades} />
+              ) : view === "analytics" ? (
+                <AnalyticsView trades={trades} strats={strats} />
+              ) : (
+                <SettingsView trades={trades} riskSettings={riskSettings} onChange={refresh} onOpenTrade={setDetailTrade} />
+              )}
+            </div>
           )}
         </div>
       </main>
