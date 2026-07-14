@@ -182,6 +182,10 @@ export default function Reader() {
         out[p + 1].unshift(page.pop()!);
       }
     }
+    // Closing leaf: end-of-chapter actions (quiz / next chapter) get their
+    // own paper page, so the book stays the same size on every page instead
+    // of shrinking to make room for buttons below it.
+    out.push([]);
     setPageMap(out);
   }, [blocks, stageSize, pagesPerView]);
 
@@ -527,6 +531,7 @@ export default function Reader() {
               {visibleSpecs.map((blockIdxs, i) => {
                 const absoluteIndex = pageIndex + i;
                 const isFirstOfSpread = i === 0;
+                const isClosingLeaf = absoluteIndex === totalPages - 1;
                 return (
                   <div
                     key={absoluteIndex}
@@ -538,16 +543,62 @@ export default function Reader() {
                     ].join(" ")}
                   >
                     <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/10 to-transparent" />
-                    {absoluteIndex === 0 && opener}
-                    {/* Blocks are wrapped exactly like the measurer's, so the
-                        rendered height always matches the measured height —
-                        joined rendering collapsed margins differently and
-                        clipped the tail of the page. */}
-                    {blockIdxs.map((bi) => (
-                      <div key={bi} className={bi === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
-                        <ReactMarkdown>{blocks[bi]}</ReactMarkdown>
+                    {isClosingLeaf ? (
+                      /* Closing leaf: end-of-chapter actions on the paper
+                         itself, so the book keeps its size on every page. */
+                      <div className="flex h-full flex-col items-center justify-center text-center">
+                        <div className="mb-6 flex items-center justify-center gap-2 text-mint/60">
+                          <span className="h-px w-8 bg-current" />
+                          <span className="size-1 rounded-full bg-current" />
+                          <span className="h-px w-8 bg-current" />
+                        </div>
+                        <div className="display text-xl font-medium text-foreground">
+                          End of {chapter.is_background ? "appendix" : `Chapter ${chapter.chapter_number}`}
+                        </div>
+                        <div className="mt-6 w-full max-w-xs space-y-3">
+                          {chapter.is_background ? (
+                            <Button
+                              onClick={() => completeChapter(() => neighbors.next ? nav(`/read/${neighbors.next.id}`) : nav("/library"))}
+                              className="w-full h-12 rounded-2xl mint-fill font-medium press"
+                            >
+                              <CheckCircle2 className="size-4 mr-2" /> Mark complete & continue
+                            </Button>
+                          ) : (
+                            <Button
+                              onClick={() => completeChapter(() => nav(`/quiz/${chapter.id}`))}
+                              className="w-full h-12 rounded-2xl mint-fill font-medium press"
+                            >
+                              <Trophy className="size-4 mr-2" /> Take the chapter quiz
+                            </Button>
+                          )}
+                          <div className="flex gap-2">
+                            {neighbors.prev && (
+                              <Button variant="outline" onClick={() => nav(`/read/${neighbors.prev.id}`)} className="flex-1 h-11 rounded-xl border-border-strong">
+                                <ChevronLeft className="size-4 mr-1" /> Previous
+                              </Button>
+                            )}
+                            {neighbors.next && (
+                              <Button variant="outline" onClick={() => nav(`/read/${neighbors.next.id}`)} className="flex-1 h-11 rounded-xl border-border-strong">
+                                Next <ChevronRight className="size-4 ml-1" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    ))}
+                    ) : (
+                      <>
+                        {absoluteIndex === 0 && opener}
+                        {/* Blocks are wrapped exactly like the measurer's, so
+                            the rendered height always matches the measured
+                            height — joined rendering collapsed margins
+                            differently and clipped the tail of the page. */}
+                        {blockIdxs.map((bi) => (
+                          <div key={bi} className={bi === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
+                            <ReactMarkdown>{blocks[bi]}</ReactMarkdown>
+                          </div>
+                        ))}
+                      </>
+                    )}
                     <div className="absolute inset-x-0 bottom-3 text-center text-[11px] text-muted-foreground/70 tabular-nums">{absoluteIndex + 1}</div>
                   </div>
                 );

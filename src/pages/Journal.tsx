@@ -172,9 +172,11 @@ export default function Journal() {
   }, [sheet, detailTrade, guardrailBlocked]);
 
   return (
-    <div className="min-h-screen" style={{ background: EB.background, color: EB.foreground }}>
+    // vault-bg (the site-wide radial mint-glow gradient) instead of Edgebook's
+    // own flat slate, so the journal reads as part of the same app.
+    <div className="min-h-screen vault-bg" style={{ color: EB.foreground }}>
       {/* Sidebar (desktop) */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 md:flex md:flex-col" style={{ background: EB.sidebar, borderRight: `1px solid ${EB.sidebarBorder}` }}>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-56 md:flex md:flex-col" style={{ background: "hsl(220 10% 5% / 0.6)", backdropFilter: "blur(20px)", borderRight: `1px solid ${EB.sidebarBorder}` }}>
         <div className="flex h-14 items-center gap-2 px-5 font-semibold" style={{ borderBottom: `1px solid ${EB.sidebarBorder}` }}>
           <div className="grid h-7 w-7 place-items-center rounded-md" style={{ background: EB.primary, color: EB.primaryForeground }}><TrendingUp className="h-4 w-4" /></div>
           Edgebook
@@ -198,7 +200,7 @@ export default function Journal() {
       </aside>
 
       {/* Mobile header */}
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between px-4 md:hidden" style={{ borderBottom: `1px solid ${EB.border}`, background: EB.background, backdropFilter: "blur(8px)" }}>
+      <header className="sticky top-0 z-20 flex h-14 items-center justify-between px-4 md:hidden" style={{ borderBottom: `1px solid ${EB.border}`, background: "hsl(220 10% 5% / 0.7)", backdropFilter: "blur(16px)" }}>
         <div className="flex items-center gap-2 font-semibold">
           <div className="grid h-6 w-6 place-items-center rounded" style={{ background: EB.primary, color: EB.primaryForeground }}><TrendingUp className="h-3.5 w-3.5" /></div>
           Edgebook
@@ -208,7 +210,7 @@ export default function Journal() {
         </button>
       </header>
       {mobileMenu && (
-        <div className="p-3 md:hidden" style={{ borderBottom: `1px solid ${EB.border}`, background: EB.sidebar }}>
+        <div className="p-3 md:hidden" style={{ borderBottom: `1px solid ${EB.border}`, background: "hsl(220 10% 5% / 0.85)", backdropFilter: "blur(16px)" }}>
           <div className="grid grid-cols-2 gap-2">
             {NAV.map((n) => (
               <button key={n.key} onClick={() => { setView(n.key); setMobileMenu(false); }}
@@ -308,7 +310,9 @@ function SyncStatusBanner() {
 
 /* ---------- shared bits ---------- */
 function Card({ children, className = "", ...rest }: any) {
-  return <div className={`rounded-md p-4 ${className}`} style={{ background: EB.card, border: `1px solid ${EB.border}` }} {...rest}>{children}</div>;
+  // Semi-transparent + blur so the site-wide vault gradient shows through,
+  // matching the glass cards used across the rest of the app.
+  return <div className={`rounded-md p-4 ${className}`} style={{ background: "hsl(220 10% 10% / 0.55)", backdropFilter: "blur(16px)", border: `1px solid ${EB.border}` }} {...rest}>{children}</div>;
 }
 function Label({ children }: { children: React.ReactNode }) {
   return <div className="mb-1.5 text-xs" style={{ color: EB.mutedForeground }}>{children}</div>;

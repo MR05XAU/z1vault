@@ -40,32 +40,41 @@ export default function Library() {
 
   const doneCount = chapters.filter((c) => progress[c.id]?.done).length;
 
-  // A table-of-contents row: chapter number, title, dotted leader, page/status —
-  // set in the display serif, not the app's UI sans-serif, and separated by
-  // hairline rules instead of individual bordered "glass" cards.
+  // A chapter card: serif numeral, title, and read state. Cards flow into a
+  // two-column grid on desktop so the contents fill the panel instead of
+  // stretching into sparse full-width TOC rows.
   const renderRow = (c: any, i: number, numeral: string) => {
     const p = progress[c.id] ?? { pct: 0, done: false };
     return (
       <button
         key={c.id}
         onClick={() => nav(`/read/${c.id}`)}
-        className="group flex w-full items-baseline gap-3 border-b border-border/60 py-4 text-left press animate-fade-up first:pt-0"
-        style={{ animationDelay: `${i * 40}ms` }}
+        className="group relative overflow-hidden rounded-2xl border border-border bg-surface-elevated/40 p-4 text-left press animate-fade-up hover:border-border-strong transition-colors"
+        style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}
       >
-        <span className="display shrink-0 text-sm text-muted-foreground tabular-nums">{numeral}</span>
-        <span className="display shrink-0 text-[15px] font-medium group-hover:mint-text transition-colors">
-          {stripChapterPrefix(c.title)}
-        </span>
-        <span className="min-w-[1rem] flex-1 overflow-hidden border-b border-dotted border-border translate-y-[-3px]" />
-        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
-          {p.done ? (
-            <span className="flex items-center gap-1 mint-text"><Check className="size-3" /> Read</span>
-          ) : p.pct > 0 ? (
-            <span className="text-mint-bright">{Math.round(p.pct)}%</span>
-          ) : (
-            `${c.estimated_minutes ?? 8}m`
-          )}
-        </span>
+        <div className="flex items-start gap-3">
+          <span className="display shrink-0 text-lg text-muted-foreground/70 tabular-nums leading-6">{numeral}</span>
+          <div className="min-w-0 flex-1">
+            <div className="display text-[15px] font-medium leading-6 group-hover:mint-text transition-colors">
+              {stripChapterPrefix(c.title)}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
+              {p.done ? (
+                <span className="flex items-center gap-1 mint-text"><Check className="size-3" /> Read</span>
+              ) : p.pct > 0 ? (
+                <span className="text-mint-bright">{Math.round(p.pct)}% read</span>
+              ) : (
+                <span>{c.estimated_minutes ?? 8} min</span>
+              )}
+            </div>
+          </div>
+        </div>
+        {/* Thin progress strip along the card's bottom edge */}
+        {!p.done && p.pct > 0 && (
+          <div className="absolute inset-x-0 bottom-0 h-0.5 bg-border/60">
+            <div className="h-full mint-fill" style={{ width: `${p.pct}%` }} />
+          </div>
+        )}
       </button>
     );
   };
@@ -102,21 +111,21 @@ export default function Library() {
   const contents = (
     <>
       <section>
-        <div className="mb-1 flex items-baseline justify-between">
+        <div className="mb-3 flex items-baseline justify-between">
           <h2 className="display text-lg font-medium">Contents</h2>
         </div>
-        <div>
+        <div className="grid gap-3 sm:grid-cols-2">
           {coreChapters.map((c, i) => renderRow(c, i, String(i + 1).padStart(2, "0")))}
         </div>
       </section>
 
       {bgChapters.length > 0 && (
         <section className="mt-10">
-          <div className="mb-1 flex items-baseline justify-between">
+          <div className="mb-3 flex items-baseline justify-between">
             <h2 className="display text-lg font-medium">Background Reading</h2>
             <span className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">No quiz</span>
           </div>
-          <div>
+          <div className="grid gap-3 sm:grid-cols-2">
             {bgChapters.map((c, i) => renderRow(c, i, "app. " + String.fromCharCode(65 + i)))}
           </div>
         </section>
