@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   TrendingUp, LayoutDashboard, ListChecks, Upload, NotebookPen, BarChart3, Settings as SettingsIcon,
-  LogOut, Menu, Trash2, Check, FileText, Loader2,
+  LogOut, Menu, Trash2, Check, FileText, Loader2, RotateCcw,
 } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { toast } from "sonner";
@@ -581,16 +581,20 @@ function ImportView({ user, strats, trades, onDone }: { user: any; strats: Strat
   const [pending, setPending] = useState<{ trades: ReturnType<typeof parseTradesCsv>["trades"]; errors: string[] } | null>(null);
   const [advanced, setAdvanced] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [lastFile, setLastFile] = useState<{ name: string; text: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = async (file: File) => {
-    setFileName(file.name);
-    const text = await file.text();
+  const loadText = (name: string, text: string) => {
+    setFileName(name);
     setRawText(text);
+    setLastFile({ name, text });
     const { trades: parsed, errors } = parseTradesCsv(text);
     if (parsed.length === 0) { setAdvanced(true); setPending(null); }
     else { setPending({ trades: parsed, errors }); setAdvanced(false); }
   };
+
+  const handleFile = async (file: File) => loadText(file.name, await file.text());
+  const redoLastImport = () => { if (lastFile) loadText(lastFile.name, lastFile.text); };
 
   const doSimpleImport = async () => {
     if (!pending || !user) return;
@@ -652,6 +656,14 @@ function ImportView({ user, strats, trades, onDone }: { user: any; strats: Strat
             </div>
             <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
           </label>
+          {lastFile && (
+            <div className="mt-4 flex items-center justify-between rounded-md px-3 py-2 text-xs" style={{ border: `1px solid ${EB.border}` }}>
+              <span style={{ color: EB.mutedForeground }}>Last file: {lastFile.name}</span>
+              <Button variant="outline" size="sm" onClick={redoLastImport} className="gap-1.5">
+                <RotateCcw className="h-3.5 w-3.5" /> Redo last import
+              </Button>
+            </div>
+          )}
         </Card>
       ) : advanced ? (
         <Card>
