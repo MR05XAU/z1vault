@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import {
   TrendingUp, LayoutDashboard, ListChecks, Upload, NotebookPen, BarChart3, Settings as SettingsIcon,
-  LogOut, Menu, Trash2, Check, FileText, Loader2, RotateCcw,
+  LogOut, Menu, Trash2, Check, FileText, Loader2, RotateCcw, Calculator as CalcIcon,
 } from "lucide-react";
 import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Legend } from "recharts";
 import { toast } from "sonner";
@@ -117,7 +117,7 @@ export default function Journal() {
   const [strats, setStrats] = useState<Strategy[]>([]);
   const [riskSettings, setRiskSettings] = useState<RiskSettings | null>(null);
   const [loading, setLoading] = useState(true);
-  const [sheet, setSheet] = useState<null | "new">(null);
+  const [sheet, setSheet] = useState<null | "new" | "calc">(null);
   const [detailTrade, setDetailTrade] = useState<Trade | null>(null);
   const [quickLogParams, setQuickLogParams] = useSearchParams();
 
@@ -252,7 +252,7 @@ export default function Journal() {
               </div>
             </div>
           ) : view === "dashboard" ? (
-            <DashboardView trades={trades} onOpenTrade={setDetailTrade} onGoImport={() => setView("import")} onGoSettings={() => setView("settings")} onAdd={() => setSheet("new")} />
+            <DashboardView trades={trades} onOpenTrade={setDetailTrade} onGoImport={() => setView("import")} onGoSettings={() => setView("settings")} onAdd={() => setSheet("new")} onOpenCalc={() => setSheet("calc")} />
           ) : view === "trades" ? (
             <TradesView
               trades={trades} strats={strats} onOpenTrade={setDetailTrade} onChange={refresh}
@@ -274,6 +274,12 @@ export default function Journal() {
         <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto" style={{ background: EB.card, borderColor: EB.border }}>
           <SheetHeader><SheetTitle style={{ color: EB.foreground }}>Log a trade</SheetTitle></SheetHeader>
           <TradeForm strats={strats} checklistRules={riskSettings?.checklist_rules ?? []} onSaved={() => { setSheet(null); refresh(); }} />
+        </SheetContent>
+      </Sheet>
+      <Sheet open={sheet === "calc"} onOpenChange={(o) => !o && setSheet(null)}>
+        <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto" style={{ background: EB.card, borderColor: EB.border }}>
+          <SheetHeader><SheetTitle style={{ color: EB.foreground }}>Trade calculator</SheetTitle></SheetHeader>
+          <RRCalculator />
         </SheetContent>
       </Sheet>
       <Sheet open={detailTrade != null} onOpenChange={(o) => !o && setDetailTrade(null)}>
@@ -334,8 +340,59 @@ function Field({ label, children, className }: { label: string; children: React.
 }
 function fieldStyle(): React.CSSProperties { return { background: EB.input, borderColor: EB.border, color: EB.foreground }; }
 
+/* ---------- R:R / position-size calculator ---------- */
+function RRCalculator() {
+  const [v, setV] = useState({ symbol: "", entry: "", stop: "", target: "", account: "", riskPct: "1" });
+  const entry = Number(v.entry) || 0, stop = Number(v.stop) || 0, target = Number(v.target) || 0;
+  const account = Number(v.account) || 0, riskPct = Number(v.riskPct) || 0;
+  const mult = symbolMultiplier(v.symbol.trim().toUpperCase() || "");
+  const isLong = entry && stop ? stop < entry : true;
+  const riskPts = entry && stop ? Math.abs(entry - stop) : 0;
+  const rewardPts = entry && target ? Math.abs(target - entry) : 0;
+  const rr = riskPts > 0 && rewardPts > 0 ? rewardPts / riskPts : null;
+  const riskDollars = account && riskPct ? account * (riskPct / 100) : null;
+  const perUnitRisk = riskPts * mult;
+  const rawSize = riskDollars != null && perUnitRisk > 0 ? riskDollars / perUnitRisk : null;
+  const contracts = rawSize != null ? Math.max(0, Math.floor(rawSize)) : null;
+  const lossAtSize = contracts ? contracts * perUnitRisk : null;
+  const gainAtSize = contracts ? contracts * rewardPts * mult : null;
+
+  const stat = (label: string, value: string, color?: string) => (
+    <div className="flex items-center justify-between rounded-md px-3 py-2 text-sm" style={{ border: `1px solid ${EB.border}` }}>
+      <span style={{ color: EB.mutedForeground }}>{label}</span>
+      <span className="font-medium tabular-nums" style={color ? { color } : undefined}>{value}</span>
+    </div>
+  );
+
+  return (
+    <div className="mt-3 grid grid-cols-2 gap-3 pb-6">
+      <Field label="Symbol (for futures $/pt)" className="col-span-2">
+        <Input value={v.symbol} onChange={(e) => setV({ ...v, symbol: e.target.value })} placeholder="MGCQ6, ES, AAPL… (blank = $1/pt)" style={fieldStyle()} />
+      </Field>
+      <Field label="Entry"><Input type="number" value={v.entry} onChange={(e) => setV({ ...v, entry: e.target.value })} style={fieldStyle()} /></Field>
+      <Field label="Stop loss"><Input type="number" value={v.stop} onChange={(e) => setV({ ...v, stop: e.target.value })} style={fieldStyle()} /></Field>
+      <Field label="Target"><Input type="number" value={v.target} onChange={(e) => setV({ ...v, target: e.target.value })} style={fieldStyle()} /></Field>
+      <Field label="Account size ($)"><Input type="number" value={v.account} onChange={(e) => setV({ ...v, account: e.target.value })} style={fieldStyle()} /></Field>
+      <Field label="Risk per trade (%)" className="col-span-2">
+        <Input type="number" step="0.25" value={v.riskPct} onChange={(e) => setV({ ...v, riskPct: e.target.value })} style={fieldStyle()} />
+      </Field>
+
+      <div className="col-span-2 space-y-2">
+        {rr != null && stat("Risk : Reward", `1 : ${rr.toFixed(2)}`, rr >= 2 ? EB.win : rr >= 1 ? EB.warn : EB.loss)}
+        {riskPts > 0 && stat("Direction (from stop)", isLong ? "Long" : "Short")}
+        {riskPts > 0 && stat("Risk", `${riskPts.toFixed(2)} pts${mult !== 1 ? ` · ${fmtMoney(perUnitRisk)} /contract` : ""}`)}
+        {riskDollars != null && stat("Max risk budget", fmtMoney(riskDollars))}
+        {contracts != null && stat("Position size", `${contracts} ${mult !== 1 ? "contract" : "unit"}${contracts === 1 ? "" : "s"}${rawSize != null && rawSize < 1 ? " (risk > budget at 1)" : ""}`)}
+        {lossAtSize != null && lossAtSize > 0 && stat("Loss if stopped", fmtMoney(-lossAtSize, { sign: true }), EB.loss)}
+        {gainAtSize != null && gainAtSize > 0 && stat("Gain at target", fmtMoney(gainAtSize, { sign: true }), EB.win)}
+        {rr == null && <p className="text-xs" style={{ color: EB.mutedForeground }}>Fill in entry, stop, and target to see R:R — add account size and risk % for position sizing.</p>}
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Dashboard ---------- */
-function DashboardView({ trades, onOpenTrade, onGoImport, onGoSettings, onAdd }: { trades: Trade[]; onOpenTrade: (t: Trade) => void; onGoImport: () => void; onGoSettings: () => void; onAdd: () => void }) {
+function DashboardView({ trades, onOpenTrade, onGoImport, onGoSettings, onAdd, onOpenCalc }: { trades: Trade[]; onOpenTrade: (t: Trade) => void; onGoImport: () => void; onGoSettings: () => void; onAdd: () => void; onOpenCalc: () => void }) {
   const closed = useMemo(() => trades.filter((t) => t.pnl != null), [trades]);
   const kpis = useMemo(() => {
     const net = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
@@ -360,6 +417,9 @@ function DashboardView({ trades, onOpenTrade, onGoImport, onGoSettings, onAdd }:
           <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm" style={{ color: EB.mutedForeground }}>Your edge at a glance.</p>
         </div>
+        <button onClick={onOpenCalc} className="flex items-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium" style={{ border: `1px solid ${EB.border}`, color: EB.foreground }}>
+          <CalcIcon className="h-3.5 w-3.5" /> Calculator
+        </button>
       </div>
 
       {trades.length === 0 && (
