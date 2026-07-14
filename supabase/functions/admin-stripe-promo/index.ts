@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
 
       const coupon = await stripe.coupons.create(couponParams);
 
-      const promoParams: any = { coupon: coupon.id, code };
+      const promoParams: any = { promotion: { type: "coupon", coupon: coupon.id }, code };
       if (body.max_redemptions) promoParams.max_redemptions = Number(body.max_redemptions);
       if (body.expires_in_days) {
         promoParams.expires_at = Math.floor(Date.now() / 1000) + Number(body.expires_in_days) * 86400;
