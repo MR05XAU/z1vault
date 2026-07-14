@@ -542,7 +542,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
             </button>
           ))}
         </div>
-        <TradingViewChart symbol={trade.pair} interval={liveInterval} height="clamp(220px, 55vw, 380px)" />
+        <TradingViewChart symbol={trade.pair} interval={liveInterval} height="clamp(300px, 48vh, 560px)" />
       </div>
 
       <div className="grid grid-cols-3 gap-2 text-center">
@@ -558,7 +558,7 @@ function TradeDetail({ trade, strats, onChange, onClose }: { trade: Trade; strat
         {showSnapshot ? "Hide price snapshot" : "Show price snapshot (entry/exit markers)"}
       </button>
       {showSnapshot && (
-        <TradeSnapshotChart symbol={trade.pair} direction={trade.direction} openedAt={trade.opened_at} closedAt={trade.closed_at} entryPrice={trade.entry_price} exitPrice={trade.exit_price} height={260} />
+        <TradeSnapshotChart symbol={trade.pair} direction={trade.direction} openedAt={trade.opened_at} closedAt={trade.closed_at} entryPrice={trade.entry_price} exitPrice={trade.exit_price} height={300} />
       )}
 
       <div className="grid grid-cols-2 gap-2">
