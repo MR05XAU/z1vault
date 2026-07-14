@@ -210,34 +210,52 @@
   .pb-nav { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
   .hide-scrollbar::-webkit-scrollbar { display: none; }
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  /* Real book page-flip: the stage supplies 3D perspective; the incoming
-     leaf swings open around the spine edge with a brightness sweep, like a
-     physical page falling flat. The other leaf of a spread just settles. */
-  .book-stage { perspective: 1800px; }
-  .page-flip-next {
+  /* Real book page-flip: the OLD page is kept mounted as a two-faced leaf
+     that physically lifts and turns over the spine (front = the page you
+     were reading, back = blank paper stock), revealing the new page already
+     sitting underneath — exactly how a paper book turns. */
+  .book-stage { perspective: 2200px; }
+  .flip-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    pointer-events: none;
+    perspective: 2200px;
+  }
+  .flip-leaf {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+  }
+  .flip-leaf-next {
     transform-origin: left center;
-    backface-visibility: hidden;
-    animation: page-flip-next 1.5s cubic-bezier(0.3, 0.75, 0.35, 1) both;
+    animation: leaf-over-next 1.35s cubic-bezier(0.42, 0.05, 0.28, 1) both;
   }
-  .page-flip-prev {
+  .flip-leaf-prev {
     transform-origin: right center;
+    animation: leaf-over-prev 1.35s cubic-bezier(0.42, 0.05, 0.28, 1) both;
+  }
+  @keyframes leaf-over-next {
+    0% { transform: rotateY(0deg); }
+    100% { transform: rotateY(-178deg); }
+  }
+  @keyframes leaf-over-prev {
+    0% { transform: rotateY(0deg); }
+    100% { transform: rotateY(178deg); }
+  }
+  .flip-face {
+    position: absolute;
+    inset: 0;
     backface-visibility: hidden;
-    animation: page-flip-prev 1.5s cubic-bezier(0.3, 0.75, 0.35, 1) both;
+    -webkit-backface-visibility: hidden;
+    overflow: hidden;
   }
-  .page-settle { animation: page-settle 1.2s var(--ease-out-soft) both; }
-  @keyframes page-flip-next {
-    0% { transform: rotateY(-72deg); filter: brightness(0.72); }
-    55% { filter: brightness(1.04); }
-    100% { transform: rotateY(0deg); filter: brightness(1); }
-  }
-  @keyframes page-flip-prev {
-    0% { transform: rotateY(72deg); filter: brightness(0.72); }
-    55% { filter: brightness(1.04); }
-    100% { transform: rotateY(0deg); filter: brightness(1); }
-  }
-  @keyframes page-settle {
-    0% { opacity: 0.3; }
-    100% { opacity: 1; }
+  .flip-face-back { transform: rotateY(180deg); }
+  /* The revealed page brightens as the leaf lifts off it */
+  .page-reveal { animation: page-reveal 1.35s cubic-bezier(0.42, 0.05, 0.28, 1) both; }
+  @keyframes page-reveal {
+    0% { filter: brightness(0.82); }
+    100% { filter: brightness(1); }
   }
 
   /* Paper grain: procedural SVG fractal noise + a faint warm mottle, layered

@@ -83,10 +83,12 @@ export default function Reader() {
   const [wordLookup, setWordLookup] = useState<{ word: string; x: number; y: number } | null>(null);
 
   const [pageIndex, setPageIndex] = useState(0);
-  const [turnDir, setTurnDir] = useState<"next" | "prev">("next");
   const [turnKey, setTurnKey] = useState(0);
   const [isWide, setIsWide] = useState(false);
   const touchStartX = useRef<number | null>(null);
+
+  // The outgoing page kept mounted while it physically turns over the spine.
+  const [flight, setFlight] = useState<{ dir: "next" | "prev"; spec: number[]; fromAbs: number; wasSpread: boolean } | null>(null);
 
   // Measurement-driven pagination: blocks are measured off-screen at the real
   // page width, then greedily packed into pages that fit the real page height.
@@ -284,7 +286,14 @@ export default function Reader() {
   const goToPage = (newIndex: number, dir: "next" | "prev") => {
     const clamped = Math.max(0, Math.min(newIndex, Math.max(0, totalPages - 1)));
     if (clamped === pageIndex) return;
-    setTurnDir(dir);
+    // Capture the outgoing page for the flip: on "next" the right leaf of the
+    // old spread turns over; on "prev" the left leaf turns back.
+    const specs = pageMap.slice(pageIndex, pageIndex + pagesPerView);
+    if (specs.length > 0) {
+      const wasSpread = specs.length === 2;
+      const leafPos = dir === "next" ? specs.length - 1 : 0;
+      setFlight({ dir, spec: specs[leafPos], fromAbs: pageIndex + leafPos, wasSpread });
+    }
     setPageIndex(clamped);
     setTurnKey((k) => k + 1);
     saveProgress(clamped);
@@ -454,6 +463,75 @@ export default function Reader() {
   // halved (minus the 2px gap) when showing two pages.
   const measureW = pagesPerView === 2 ? Math.floor((stageSize.w - 2) / 2) : stageSize.w;
 
+  // The inside of one paper page — shared by the live leaves and the
+  // in-flight (turning) leaf's front face so the flip shows the exact page
+  // that was just on screen.
+  const pageInner = (blockIdxs: number[], absoluteIndex: number) => {
+    const isClosingLeaf = totalPages > 0 && absoluteIndex === totalPages - 1;
+    return (
+      <>
+        {isClosingLeaf ? (
+          <div className="flex h-full flex-col items-center justify-center text-center">
+            <div className="mb-6 flex items-center justify-center gap-2 text-mint/60">
+              <span className="h-px w-8 bg-current" />
+              <span className="size-1 rounded-full bg-current" />
+              <span className="h-px w-8 bg-current" />
+            </div>
+            <div className="display text-xl font-medium text-foreground">
+              End of {chapter.is_background ? "appendix" : `Chapter ${chapter.chapter_number}`}
+            </div>
+            <div className="mt-6 w-full max-w-xs space-y-3">
+              {chapter.is_background ? (
+                <Button
+                  onClick={() => completeChapter(() => neighbors.next ? nav(`/read/${neighbors.next.id}`) : nav("/library"))}
+                  className="w-full h-12 rounded-2xl mint-fill font-medium press"
+                >
+                  <CheckCircle2 className="size-4 mr-2" /> Mark complete & continue
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => completeChapter(() => nav(`/quiz/${chapter.id}`))}
+                  className="w-full h-12 rounded-2xl mint-fill font-medium press"
+                >
+                  <Trophy className="size-4 mr-2" /> Take the chapter quiz
+                </Button>
+              )}
+              <div className="flex gap-2">
+                {neighbors.prev && (
+                  <Button variant="outline" onClick={() => nav(`/read/${neighbors.prev.id}`)} className="flex-1 h-11 rounded-xl border-border-strong">
+                    <ChevronLeft className="size-4 mr-1" /> Previous
+                  </Button>
+                )}
+                {neighbors.next && (
+                  <Button variant="outline" onClick={() => nav(`/read/${neighbors.next.id}`)} className="flex-1 h-11 rounded-xl border-border-strong">
+                    Next <ChevronRight className="size-4 ml-1" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {absoluteIndex === 0 && opener}
+            {blockIdxs.map((bi) => (
+              <div key={bi} className={bi === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
+                <ReactMarkdown>{blocks[bi]}</ReactMarkdown>
+              </div>
+            ))}
+          </>
+        )}
+        <div className="absolute inset-x-0 bottom-3 text-center text-[11px] text-muted-foreground/70 tabular-nums">{absoluteIndex + 1}</div>
+      </>
+    );
+  };
+
+  // Paper-leaf chrome shared by live pages and the flight leaf's faces.
+  const leafClass = (isFirstOfSpread: boolean) => [
+    "paper-texture relative flex-1 min-w-0 overflow-hidden px-6 py-8 md:px-10 md:py-10 prose-z1",
+    "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.65)]",
+    isFirstOfSpread ? "rounded-l-md rounded-r-[2px]" : "rounded-r-md rounded-l-[2px]",
+  ].join(" ");
+
   return (
     <div className="h-[100dvh] vault-bg flex flex-col items-center">
       <div className="w-full max-w-md md:max-w-3xl lg:max-w-6xl xl:max-w-7xl flex flex-col relative h-full">
@@ -520,7 +598,6 @@ export default function Reader() {
             <div className="size-8 border-2 border-mint/30 border-t-mint rounded-full animate-spin" />
           ) : (
             <div
-              key={turnKey}
               ref={pageRef}
               onMouseUp={onMouseUp}
               onDoubleClick={onDoubleClick}
@@ -531,90 +608,59 @@ export default function Reader() {
               {visibleSpecs.map((blockIdxs, i) => {
                 const absoluteIndex = pageIndex + i;
                 const isFirstOfSpread = i === 0;
-                const isClosingLeaf = absoluteIndex === totalPages - 1;
-                const isSpread = visibleSpecs.length === 2;
-                // On "next", the right leaf (or the single page) swings open
-                // from the spine; on "prev" the left leaf swings back. The
-                // opposite leaf of a spread just settles into place.
-                const flipClass =
-                  turnDir === "next"
-                    ? (!isSpread || i === 1 ? "page-flip-next" : "page-settle")
-                    : (!isSpread || i === 0 ? "page-flip-prev" : "page-settle");
+                // The side the old leaf is lifting off gets a brighten-in.
+                const revealing =
+                  flight != null &&
+                  (visibleSpecs.length !== 2 || (flight.dir === "next" ? i === 1 : i === 0));
                 return (
                   <div
                     key={absoluteIndex}
                     style={PAPER_VARS}
-                    className={[
-                      "paper-texture relative flex-1 min-w-0 overflow-hidden px-6 py-8 md:px-10 md:py-10 prose-z1",
-                      "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.65)]",
-                      isFirstOfSpread ? "rounded-l-md rounded-r-[2px]" : "rounded-r-md rounded-l-[2px]",
-                      flipClass,
-                    ].join(" ")}
+                    className={`${leafClass(isFirstOfSpread)}${revealing ? " page-reveal" : ""}`}
                   >
                     <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/10 to-transparent" />
-                    {isClosingLeaf ? (
-                      /* Closing leaf: end-of-chapter actions on the paper
-                         itself, so the book keeps its size on every page. */
-                      <div className="flex h-full flex-col items-center justify-center text-center">
-                        <div className="mb-6 flex items-center justify-center gap-2 text-mint/60">
-                          <span className="h-px w-8 bg-current" />
-                          <span className="size-1 rounded-full bg-current" />
-                          <span className="h-px w-8 bg-current" />
-                        </div>
-                        <div className="display text-xl font-medium text-foreground">
-                          End of {chapter.is_background ? "appendix" : `Chapter ${chapter.chapter_number}`}
-                        </div>
-                        <div className="mt-6 w-full max-w-xs space-y-3">
-                          {chapter.is_background ? (
-                            <Button
-                              onClick={() => completeChapter(() => neighbors.next ? nav(`/read/${neighbors.next.id}`) : nav("/library"))}
-                              className="w-full h-12 rounded-2xl mint-fill font-medium press"
-                            >
-                              <CheckCircle2 className="size-4 mr-2" /> Mark complete & continue
-                            </Button>
-                          ) : (
-                            <Button
-                              onClick={() => completeChapter(() => nav(`/quiz/${chapter.id}`))}
-                              className="w-full h-12 rounded-2xl mint-fill font-medium press"
-                            >
-                              <Trophy className="size-4 mr-2" /> Take the chapter quiz
-                            </Button>
-                          )}
-                          <div className="flex gap-2">
-                            {neighbors.prev && (
-                              <Button variant="outline" onClick={() => nav(`/read/${neighbors.prev.id}`)} className="flex-1 h-11 rounded-xl border-border-strong">
-                                <ChevronLeft className="size-4 mr-1" /> Previous
-                              </Button>
-                            )}
-                            {neighbors.next && (
-                              <Button variant="outline" onClick={() => nav(`/read/${neighbors.next.id}`)} className="flex-1 h-11 rounded-xl border-border-strong">
-                                Next <ChevronRight className="size-4 ml-1" />
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {absoluteIndex === 0 && opener}
-                        {/* Blocks are wrapped exactly like the measurer's, so
-                            the rendered height always matches the measured
-                            height — joined rendering collapsed margins
-                            differently and clipped the tail of the page. */}
-                        {blockIdxs.map((bi) => (
-                          <div key={bi} className={bi === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
-                            <ReactMarkdown>{blocks[bi]}</ReactMarkdown>
-                          </div>
-                        ))}
-                      </>
-                    )}
-                    <div className="absolute inset-x-0 bottom-3 text-center text-[11px] text-muted-foreground/70 tabular-nums">{absoluteIndex + 1}</div>
+                    {pageInner(blockIdxs, absoluteIndex)}
                   </div>
                 );
               })}
               {/* Binding shadow between two facing pages */}
               {visibleSpecs.length === 2 && (
                 <div className="pointer-events-none absolute inset-y-0 left-1/2 w-6 -translate-x-1/2 bg-gradient-to-r from-black/25 via-black/10 to-black/25" />
+              )}
+
+              {/* The outgoing page, physically turning over the spine: front
+                  face is the page that was just on screen, back face is blank
+                  paper stock — removed from the DOM when the turn finishes. */}
+              {flight && (
+                <div className="flip-overlay" key={turnKey}>
+                  <div
+                    style={
+                      visibleSpecs.length === 2 || flight.wasSpread
+                        ? flight.dir === "next"
+                          ? { position: "absolute", top: 0, bottom: 0, left: "calc(50% + 1px)", right: 0 }
+                          : { position: "absolute", top: 0, bottom: 0, left: 0, right: "calc(50% + 1px)" }
+                        : { position: "absolute", inset: 0 }
+                    }
+                  >
+                    <div
+                      className={`flip-leaf ${flight.dir === "next" ? "flip-leaf-next" : "flip-leaf-prev"}`}
+                      onAnimationEnd={() => setFlight(null)}
+                    >
+                      <div
+                        style={PAPER_VARS}
+                        className={`flip-face paper-texture px-6 py-8 md:px-10 md:py-10 prose-z1 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] ${flight.dir === "next" ? "rounded-r-md rounded-l-[2px]" : "rounded-l-md rounded-r-[2px]"}`}
+                      >
+                        <div className="relative h-full overflow-hidden">{pageInner(flight.spec, flight.fromAbs)}</div>
+                      </div>
+                      <div
+                        style={PAPER_VARS}
+                        className={`flip-face flip-face-back paper-texture ${flight.dir === "next" ? "rounded-l-md rounded-r-[2px]" : "rounded-r-md rounded-l-[2px]"}`}
+                      >
+                        <div className="h-full w-full" style={{ background: "linear-gradient(105deg, hsl(42 38% 90%) 0%, hsl(42 34% 85%) 55%, hsl(40 30% 80%) 100%)" }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
