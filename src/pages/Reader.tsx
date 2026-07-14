@@ -428,7 +428,7 @@ export default function Reader() {
                       <div className="mt-4 text-[10px] uppercase tracking-[0.4em] text-mint-bright">
                         {chapter.is_background ? "Appendix" : `Chapter ${chapter.chapter_number}`}
                       </div>
-                      <h1 className="display mt-2 text-[26px] font-medium leading-tight">{stripChapterPrefix(chapter.title)}</h1>
+                      <h1 className="display mt-2 text-[26px] font-medium leading-tight text-foreground">{stripChapterPrefix(chapter.title)}</h1>
                       {chapter.subtitle && <p className="mt-2 text-sm italic text-muted-foreground">{chapter.subtitle}</p>}
                       <div className="mx-auto mt-4 h-px w-8 bg-mint/50" />
                     </div>
