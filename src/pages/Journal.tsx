@@ -89,15 +89,17 @@ export default function Journal() {
   const [sheet, setSheet] = useState<null | "new">(null);
   const [detailTrade, setDetailTrade] = useState<Trade | null>(null);
 
-  const refresh = async () => {
-    if (!user) return;
+  const refresh = async (): Promise<Trade[]> => {
+    if (!user) return [];
     const [t, s] = await Promise.all([
       sb.from("trades").select("*").eq("user_id", user.id).order("opened_at", { ascending: false }),
       sb.from("strategies").select("*").eq("user_id", user.id).order("name"),
     ]);
-    setTrades(t.data ?? []);
+    const freshTrades = t.data ?? [];
+    setTrades(freshTrades);
     setStrats(s.data ?? []);
     setLoading(false);
+    return freshTrades;
   };
   useEffect(() => { refresh(); }, [user]);
 
@@ -974,7 +976,7 @@ function AnalyticsView({ trades }: { trades: Trade[] }) {
 }
 
 /* ---------- Settings ---------- */
-function SettingsView({ trades, onChange, onOpenTrade }: { trades: Trade[]; onChange: () => void; onOpenTrade: (t: Trade) => void }) {
+function SettingsView({ trades, onChange, onOpenTrade }: { trades: Trade[]; onChange: () => Promise<Trade[]>; onOpenTrade: (t: Trade) => void }) {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
@@ -991,9 +993,10 @@ function SettingsView({ trades, onChange, onOpenTrade }: { trades: Trade[]; onCh
   );
 }
 
-function DuplicateTrades({ trades, onChange, onOpenTrade }: { trades: Trade[]; onChange: () => void; onOpenTrade: (t: Trade) => void }) {
+function DuplicateTrades({ trades, onChange, onOpenTrade }: { trades: Trade[]; onChange: () => Promise<Trade[]>; onOpenTrade: (t: Trade) => void }) {
   const groups = useMemo(() => findDuplicateGroups(trades), [trades]);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
 
   const del = async (id: string) => {
     setDeletingId(id);
@@ -1009,11 +1012,28 @@ function DuplicateTrades({ trades, onChange, onOpenTrade }: { trades: Trade[]; o
     onChange();
   };
 
+  const refreshAndCheck = async () => {
+    setChecking(true);
+    try {
+      const fresh = await onChange();
+      const freshGroups = findDuplicateGroups(fresh);
+      if (freshGroups.length === 0) toast.success("Refreshed — no duplicates found.");
+      else toast.warning(`Refreshed — found ${freshGroups.length} duplicate group${freshGroups.length === 1 ? "" : "s"}.`);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   return (
     <div>
       <div className="mb-1 flex items-center justify-between">
         <h3 className="text-sm font-medium">Duplicate trades</h3>
-        {groups.length > 0 && <span className="text-xs" style={{ color: EB.mutedForeground }}>{groups.length} group{groups.length === 1 ? "" : "s"}</span>}
+        <div className="flex items-center gap-2">
+          {groups.length > 0 && <span className="text-xs" style={{ color: EB.mutedForeground }}>{groups.length} group{groups.length === 1 ? "" : "s"}</span>}
+          <Button size="sm" variant="outline" onClick={refreshAndCheck} disabled={checking} className="gap-1.5">
+            {checking ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RotateCcw className="h-3.5 w-3.5" />} Refresh & check
+          </Button>
+        </div>
       </div>
       <p className="mb-3 text-xs" style={{ color: EB.mutedForeground }}>
         Trades sharing the same pair, direction, size, entry price, and open minute — usually from re-importing a CSV or syncing overlapping broker history.
