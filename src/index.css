@@ -210,16 +210,28 @@
   .pb-nav { padding-bottom: calc(6.5rem + env(safe-area-inset-bottom)); }
   .hide-scrollbar::-webkit-scrollbar { display: none; }
   .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-  .prose-z1 p { @apply mb-4 text-[15px] leading-[1.75] text-foreground/85; }
+  .prose-z1 { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif; }
+  .prose-z1 p { @apply mb-4 text-[16px] leading-[1.85] text-foreground/85; }
   .prose-z1 h1 { @apply text-3xl mb-4 mt-2 font-medium; }
-  .prose-z1 h2 { @apply text-xl mb-3 mt-6 font-medium gold-text; }
+  .prose-z1 h2 { @apply text-xl mb-3 mt-6 font-medium mint-text; }
   .prose-z1 h3 { @apply text-lg mb-2 mt-5 font-medium; }
-  .prose-z1 strong { @apply text-foreground; color: hsl(var(--gold-bright)); font-weight: 600; }
+  .prose-z1 strong { @apply text-foreground; color: hsl(var(--mint-bright)); font-weight: 600; }
   .prose-z1 em { @apply italic text-foreground/90; }
   .prose-z1 ul { @apply list-disc pl-5 mb-4 space-y-1 text-foreground/85; }
   .prose-z1 ol { @apply list-decimal pl-5 mb-4 space-y-1 text-foreground/85; }
   .prose-z1 code { @apply font-mono text-sm px-1.5 py-0.5 rounded bg-secondary text-foreground/90; }
   .prose-z1 blockquote { @apply border-l-2 border-primary/60 pl-4 italic text-foreground/75 my-4; }
+  /* Drop cap on the chapter's opening paragraph — a real-book flourish */
+  .prose-z1 > p:first-of-type::first-letter {
+    font-family: Georgia, "Iowan Old Style", Palatino, serif;
+    float: left;
+    font-size: 3.4em;
+    line-height: 0.85;
+    font-weight: 600;
+    padding-right: 0.08em;
+    padding-top: 0.04em;
+    color: hsl(var(--mint-bright));
+  }
 }
 
 @keyframes shimmer {
