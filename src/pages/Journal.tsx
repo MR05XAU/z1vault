@@ -40,6 +40,7 @@ const EB = {
   sidebarBorder: "oklch(0.24 0.015 260)",
 };
 
+type ChecklistItem = { rule: string; passed: boolean };
 type Trade = {
   id: string; pair: string; direction: "long" | "short";
   entry_price: number; exit_price: number | null; size: number;
@@ -49,9 +50,14 @@ type Trade = {
   setup: string | null; tags: string[] | null;
   stop_loss: number | null; take_profit: number | null;
   mfe_price: number | null; mae_price: number | null; excursion_computed_at: string | null;
+  checklist: ChecklistItem[] | null;
 };
 type Strategy = { id: string; name: string; color: string };
-type JournalEntry = { id: string; entry_date: string; mood: string | null; market_notes: string | null; lessons: string | null };
+type JournalEntry = {
+  id: string; entry_date: string; mood: string | null; market_notes: string | null; lessons: string | null;
+  sleep_hours: number | null; screen_time_minutes: number | null;
+};
+type RiskSettings = { user_id: string; daily_loss_limit: number | null; max_trades_per_day: number | null; checklist_rules: string[] };
 
 const sb = supabase as any;
 
@@ -86,23 +92,33 @@ export default function Journal() {
   const [mobileMenu, setMobileMenu] = useState(false);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [strats, setStrats] = useState<Strategy[]>([]);
+  const [riskSettings, setRiskSettings] = useState<RiskSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [sheet, setSheet] = useState<null | "new">(null);
   const [detailTrade, setDetailTrade] = useState<Trade | null>(null);
 
   const refresh = async (): Promise<Trade[]> => {
     if (!user) return [];
-    const [t, s] = await Promise.all([
+    const [t, s, r] = await Promise.all([
       sb.from("trades").select("*").eq("user_id", user.id).order("opened_at", { ascending: false }),
       sb.from("strategies").select("*").eq("user_id", user.id).order("name"),
+      sb.from("risk_settings").select("*").eq("user_id", user.id).maybeSingle(),
     ]);
     const freshTrades = t.data ?? [];
     setTrades(freshTrades);
     setStrats(s.data ?? []);
+    setRiskSettings(r.data ?? null);
     setLoading(false);
     return freshTrades;
   };
   useEffect(() => { refresh(); }, [user]);
+
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const todaysTrades = trades.filter((t) => (t.closed_at ?? t.opened_at).slice(0, 10) === todayKey);
+  const todaysPnl = todaysTrades.reduce((a, t) => a + (t.pnl ?? 0), 0);
+  const dailyLimitHit = riskSettings?.daily_loss_limit != null && todaysPnl <= -Math.abs(riskSettings.daily_loss_limit);
+  const maxTradesHit = riskSettings?.max_trades_per_day != null && todaysTrades.length >= riskSettings.max_trades_per_day;
+  const guardrailBlocked = dailyLimitHit || maxTradesHit;
 
   return (
     <div className="min-h-screen" style={{ background: EB.background, color: EB.foreground }}>
@@ -157,21 +173,33 @@ export default function Journal() {
       )}
 
       <main className="md:pl-56">
+        {guardrailBlocked && (
+          <div className="px-4 pt-4 md:px-8 md:pt-8">
+            <div className="rounded-md px-4 py-2.5 text-sm font-medium" style={{ background: `${EB.destructive}22`, border: `1px solid ${EB.destructive}`, color: EB.destructive }}>
+              {dailyLimitHit
+                ? `Daily loss limit hit (${fmtMoney(todaysPnl, { sign: true })} today). New trades are blocked until tomorrow.`
+                : `Max trades for today reached (${todaysTrades.length}/${riskSettings?.max_trades_per_day}). New trades are blocked until tomorrow.`}
+            </div>
+          </div>
+        )}
         <div className="mx-auto max-w-7xl p-4 md:p-8">
           {loading ? (
             <div className="grid place-items-center py-24 text-sm" style={{ color: EB.mutedForeground }}>Loading…</div>
           ) : view === "dashboard" ? (
             <DashboardView trades={trades} onOpenTrade={setDetailTrade} />
           ) : view === "trades" ? (
-            <TradesView trades={trades} strats={strats} onOpenTrade={setDetailTrade} onChange={refresh} onAdd={() => setSheet("new")} />
+            <TradesView
+              trades={trades} strats={strats} onOpenTrade={setDetailTrade} onChange={refresh}
+              onAdd={() => { if (guardrailBlocked) { toast.error("Blocked by today's risk guardrail."); return; } setSheet("new"); }}
+            />
           ) : view === "import" ? (
             <ImportView user={user} strats={strats} trades={trades} onDone={refresh} />
           ) : view === "journal" ? (
-            <JournalNotesView />
+            <JournalNotesView trades={trades} />
           ) : view === "analytics" ? (
             <AnalyticsView trades={trades} strats={strats} />
           ) : (
-            <SettingsView trades={trades} onChange={refresh} onOpenTrade={setDetailTrade} />
+            <SettingsView trades={trades} riskSettings={riskSettings} onChange={refresh} onOpenTrade={setDetailTrade} />
           )}
         </div>
       </main>
@@ -179,7 +207,7 @@ export default function Journal() {
       <Sheet open={sheet === "new"} onOpenChange={(o) => !o && setSheet(null)}>
         <SheetContent side="bottom" className="max-h-[92dvh] overflow-y-auto" style={{ background: EB.card, borderColor: EB.border }}>
           <SheetHeader><SheetTitle style={{ color: EB.foreground }}>Log a trade</SheetTitle></SheetHeader>
-          <TradeForm strats={strats} onSaved={() => { setSheet(null); refresh(); }} />
+          <TradeForm strats={strats} checklistRules={riskSettings?.checklist_rules ?? []} onSaved={() => { setSheet(null); refresh(); }} />
         </SheetContent>
       </Sheet>
       <Sheet open={detailTrade != null} onOpenChange={(o) => !o && setDetailTrade(null)}>
@@ -347,10 +375,30 @@ function CalendarHeatmap({ trades }: { trades: Trade[] }) {
   );
 }
 
+// Revenge-trade / tilt heuristic: an entry opened within 2 minutes of the
+// prior trade closing at a loss, with size above the trader's average —
+// bigger size right after a loss, in a hurry, is the classic tilt signature.
+function detectTiltTradeIds(trades: Trade[]): Set<string> {
+  const closed = trades.filter((t) => t.closed_at);
+  if (closed.length < 2) return new Set();
+  const avgSize = closed.reduce((a, t) => a + t.size, 0) / closed.length;
+  const sorted = [...closed].sort((a, b) => new Date(a.opened_at).getTime() - new Date(b.opened_at).getTime());
+  const tilted = new Set<string>();
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1];
+    const cur = sorted[i];
+    if ((prev.pnl ?? 0) >= 0) continue;
+    const gapMs = new Date(cur.opened_at).getTime() - new Date(prev.closed_at!).getTime();
+    if (gapMs >= 0 && gapMs < 2 * 60_000 && cur.size > avgSize) tilted.add(cur.id);
+  }
+  return tilted;
+}
+
 /* ---------- Trades ---------- */
 function TradesView({ trades, strats, onOpenTrade, onChange, onAdd }: { trades: Trade[]; strats: Strategy[]; onOpenTrade: (t: Trade) => void; onChange: () => void; onAdd: () => void }) {
   const [q, setQ] = useState("");
   const [side, setSide] = useState<"all" | "long" | "short">("all");
+  const tiltIds = useMemo(() => detectTiltTradeIds(trades), [trades]);
   const rows = useMemo(() => trades.filter((t) => {
     if (side !== "all" && t.direction !== side) return false;
     if (q && !`${t.pair} ${t.setup ?? ""} ${(t.tags ?? []).join(" ")}`.toLowerCase().includes(q.toLowerCase())) return false;
@@ -402,6 +450,9 @@ function TradesView({ trades, strats, onOpenTrade, onChange, onAdd }: { trades: 
                   <td className="px-3 py-2.5 font-medium">
                     {t.pair}
                     {strat && <span className="ml-1.5 rounded px-1 py-px text-[10px]" style={{ background: strat.color + "33", color: strat.color }}>{strat.name}</span>}
+                    {tiltIds.has(t.id) && (
+                      <span className="ml-1.5 rounded px-1 py-px text-[10px]" style={{ background: `${EB.warn}33`, color: EB.warn }} title="Opened <2min after a loss, above-average size">Tilt</span>
+                    )}
                   </td>
                   <td className="px-3 py-2.5 text-xs uppercase" style={{ color: t.direction === "long" ? EB.win : EB.loss }}>{t.direction}</td>
                   <td className="px-3 py-2.5">{t.size}</td>
@@ -430,7 +481,7 @@ function TradesView({ trades, strats, onOpenTrade, onChange, onAdd }: { trades: 
   );
 }
 
-function TradeForm({ strats, onSaved }: { strats: Strategy[]; onSaved: () => void }) {
+function TradeForm({ strats, checklistRules, onSaved }: { strats: Strategy[]; checklistRules: string[]; onSaved: () => void }) {
   const { user } = useAuth();
   const [v, setV] = useState<any>({
     pair: "", direction: "long", entry_price: "", exit_price: "", size: "",
@@ -438,6 +489,7 @@ function TradeForm({ strats, onSaved }: { strats: Strategy[]; onSaved: () => voi
     opened_at: new Date().toISOString().slice(0, 16), closed_at: "",
   });
   const [saving, setSaving] = useState(false);
+  const [checklist, setChecklist] = useState<ChecklistItem[]>(() => checklistRules.map((rule) => ({ rule, passed: false })));
 
   const pnlPreview = useMemo(() => {
     const e = Number(v.entry_price), x = Number(v.exit_price), s = Number(v.size), f = Number(v.fees) || 0;
@@ -458,6 +510,7 @@ function TradeForm({ strats, onSaved }: { strats: Strategy[]; onSaved: () => voi
       closed_at: v.closed_at ? new Date(v.closed_at).toISOString() : (v.exit_price ? new Date().toISOString() : null),
       setup: v.setup || null, tags: v.tags ? v.tags.split(",").map((s: string) => s.trim()).filter(Boolean) : [],
       stop_loss: v.stop_loss ? Number(v.stop_loss) : null, take_profit: v.take_profit ? Number(v.take_profit) : null,
+      checklist,
     };
     const { error } = await sb.from("trades").insert(payload);
     setSaving(false);
@@ -483,6 +536,20 @@ function TradeForm({ strats, onSaved }: { strats: Strategy[]; onSaved: () => voi
       <Field label="Setup" className="col-span-2"><Input value={v.setup} onChange={(e) => setV({ ...v, setup: e.target.value })} placeholder="Breakout, VWAP reclaim…" style={fieldStyle()} /></Field>
       <Field label="Tags (comma separated)" className="col-span-2"><Input value={v.tags} onChange={(e) => setV({ ...v, tags: e.target.value })} placeholder="momentum, gap-up" style={fieldStyle()} /></Field>
       <Field label="Notes" className="col-span-2"><Textarea rows={3} value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} style={fieldStyle()} /></Field>
+      {checklist.length > 0 && (
+        <div className="col-span-2 space-y-1.5 rounded-md p-3" style={{ border: `1px solid ${EB.border}` }}>
+          <div className="mb-1 text-xs" style={{ color: EB.mutedForeground }}>Pre-trade checklist</div>
+          {checklist.map((item, i) => (
+            <label key={item.rule} className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox" checked={item.passed}
+                onChange={(e) => setChecklist((c) => c.map((x, xi) => (xi === i ? { ...x, passed: e.target.checked } : x)))}
+              />
+              {item.rule}
+            </label>
+          ))}
+        </div>
+      )}
       {pnlPreview !== null && (
         <div className="col-span-2 flex justify-between rounded-md px-3 py-2 text-xs" style={{ border: `1px solid ${EB.border}` }}>
           <span style={{ color: EB.mutedForeground }}>Estimated P&L</span>
@@ -862,13 +929,15 @@ function AdvancedMapper({ text, onImport, onCancel }: { text: string; onImport: 
 }
 
 /* ---------- Journal ---------- */
-function JournalNotesView() {
+function JournalNotesView({ trades }: { trades: Trade[] }) {
   const { user } = useAuth();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [mood, setMood] = useState("");
   const [notes, setNotes] = useState("");
   const [lessons, setLessons] = useState("");
+  const [sleepHours, setSleepHours] = useState("");
+  const [screenTime, setScreenTime] = useState("");
   const [saving, setSaving] = useState(false);
 
   const refresh = async () => {
@@ -882,14 +951,57 @@ function JournalNotesView() {
     setDate(d);
     const e = list.find((x) => x.entry_date === d);
     setMood(e?.mood ?? ""); setNotes(e?.market_notes ?? ""); setLessons(e?.lessons ?? "");
+    setSleepHours(e?.sleep_hours?.toString() ?? ""); setScreenTime(e?.screen_time_minutes?.toString() ?? "");
   };
   const save = async () => {
     if (!user) return;
     setSaving(true);
-    const { error } = await sb.from("journal_entries").upsert({ user_id: user.id, entry_date: date, mood: mood || null, market_notes: notes || null, lessons: lessons || null }, { onConflict: "user_id,entry_date" });
+    const { error } = await sb.from("journal_entries").upsert(
+      {
+        user_id: user.id, entry_date: date, mood: mood || null, market_notes: notes || null, lessons: lessons || null,
+        sleep_hours: sleepHours ? Number(sleepHours) : null, screen_time_minutes: screenTime ? Number(screenTime) : null,
+      },
+      { onConflict: "user_id,entry_date" },
+    );
     setSaving(false);
     if (error) toast.error(error.message); else { toast.success("Journal saved"); refresh(); }
   };
+
+  const dailyPnl = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of trades) {
+      if (t.pnl == null) continue;
+      const key = (t.closed_at ?? t.opened_at).slice(0, 10);
+      m.set(key, (m.get(key) ?? 0) + t.pnl);
+    }
+    return m;
+  }, [trades]);
+
+  const moodCorrelation = useMemo(() => {
+    const m = new Map<string, { mood: string; pnl: number; n: number }>();
+    for (const e of entries) {
+      if (!e.mood || !dailyPnl.has(e.entry_date)) continue;
+      const row = m.get(e.mood) ?? { mood: e.mood, pnl: 0, n: 0 };
+      row.pnl += dailyPnl.get(e.entry_date)!; row.n += 1;
+      m.set(e.mood, row);
+    }
+    return Array.from(m.values()).sort((a, b) => b.pnl / b.n - a.pnl / a.n);
+  }, [entries, dailyPnl]);
+
+  const sleepCorrelation = useMemo(() => {
+    const buckets = [
+      { label: "<5h", min: 0, max: 5, pnl: 0, n: 0 },
+      { label: "5-7h", min: 5, max: 7, pnl: 0, n: 0 },
+      { label: "7-8h", min: 7, max: 8, pnl: 0, n: 0 },
+      { label: ">8h", min: 8, max: Infinity, pnl: 0, n: 0 },
+    ];
+    for (const e of entries) {
+      if (e.sleep_hours == null || !dailyPnl.has(e.entry_date)) continue;
+      const b = buckets.find((b) => e.sleep_hours! >= b.min && e.sleep_hours! < b.max) ?? buckets[buckets.length - 1];
+      b.pnl += dailyPnl.get(e.entry_date)!; b.n += 1;
+    }
+    return buckets.filter((b) => b.n > 0);
+  }, [entries, dailyPnl]);
 
   return (
     <div className="space-y-6">
@@ -915,6 +1027,10 @@ function JournalNotesView() {
         </Card>
         <Card className="space-y-4">
           <Field label="Mood / conviction"><Input value={mood} onChange={(e) => setMood(e.target.value)} placeholder="Focused · patient · aggressive · tilted…" style={fieldStyle()} /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Sleep (hours)"><Input type="number" step="0.5" value={sleepHours} onChange={(e) => setSleepHours(e.target.value)} placeholder="7.5" style={fieldStyle()} /></Field>
+            <Field label="Screen time before trading (min)"><Input type="number" value={screenTime} onChange={(e) => setScreenTime(e.target.value)} placeholder="30" style={fieldStyle()} /></Field>
+          </div>
           <Field label="Market notes"><Textarea rows={6} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="What did the market do today? Levels, catalysts, plan…" style={fieldStyle()} /></Field>
           <Field label="Lessons"><Textarea rows={5} value={lessons} onChange={(e) => setLessons(e.target.value)} placeholder="What worked, what didn't, what to change tomorrow." style={fieldStyle()} /></Field>
           <div className="flex justify-end">
@@ -922,6 +1038,43 @@ function JournalNotesView() {
           </div>
         </Card>
       </div>
+
+      {(moodCorrelation.length > 0 || sleepCorrelation.length > 0) && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {moodCorrelation.length > 0 && (
+            <Card className="overflow-x-auto">
+              <h3 className="mb-3 text-sm font-medium">P&L by mood</h3>
+              <table className="w-full text-sm">
+                <tbody>
+                  {moodCorrelation.map((m) => (
+                    <tr key={m.mood} style={{ borderBottom: `1px solid ${EB.border}` }}>
+                      <td className="py-2">{m.mood}</td>
+                      <td className="py-2 text-right" style={{ color: EB.mutedForeground }}>{m.n} day{m.n === 1 ? "" : "s"}</td>
+                      <td className="py-2 text-right font-medium" style={{ color: pnlColor(m.pnl / m.n) }}>{fmtMoney(m.pnl / m.n, { sign: true })}/day</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </Card>
+          )}
+          {sleepCorrelation.length > 0 && (
+            <Card>
+              <h3 className="mb-3 text-sm font-medium">P&L by sleep the night before</h3>
+              <div className="h-56">
+                <ResponsiveContainer>
+                  <BarChart data={sleepCorrelation}>
+                    <CartesianGrid stroke={EB.border} strokeDasharray="3 3" />
+                    <XAxis dataKey="label" tick={{ fill: EB.mutedForeground, fontSize: 11 }} />
+                    <YAxis tick={{ fill: EB.mutedForeground, fontSize: 11 }} tickFormatter={(v) => `$${v}`} />
+                    <Tooltip contentStyle={{ background: EB.card, border: `1px solid ${EB.border}`, borderRadius: 8, fontSize: 12 }} formatter={(v: any, _n, p: any) => [fmtMoney(v / p.payload.n, { sign: true }) + "/day", "Avg P&L"]} />
+                    <Bar dataKey="pnl" isAnimationActive={false}>{sleepCorrelation.map((b, i) => <Cell key={i} fill={b.pnl >= 0 ? EB.win : EB.loss} />)}</Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1054,12 +1207,69 @@ function AnalyticsView({ trades, strats }: { trades: Trade[]; strats: Strategy[]
     return order.map((b) => m.get(b)).filter((r): r is NonNullable<typeof r> => !!r);
   }, [closed]);
 
+  const discipline = useMemo(() => {
+    const withChecklist = closed.filter((t) => t.checklist && t.checklist.length > 0);
+    if (withChecklist.length === 0) return null;
+    const scores = withChecklist.map((t) => t.checklist!.filter((c) => c.passed).length / t.checklist!.length);
+    const overall = scores.reduce((a, b) => a + b, 0) / scores.length;
+    // Weekly trend so a slipping discipline score is visible before it shows up in P&L.
+    const byWeek = new Map<string, number[]>();
+    for (const t of withChecklist) {
+      const d = new Date(t.opened_at);
+      const weekStart = new Date(d);
+      weekStart.setDate(d.getDate() - d.getDay());
+      const key = weekStart.toISOString().slice(0, 10);
+      const score = t.checklist!.filter((c) => c.passed).length / t.checklist!.length;
+      (byWeek.get(key) ?? byWeek.set(key, []).get(key)!).push(score);
+    }
+    const trend = Array.from(byWeek.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([week, scores]) => ({ week: week.slice(5), score: Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 100) }));
+    return { overall, trend, n: withChecklist.length };
+  }, [closed]);
+
+  const tiltCount = useMemo(() => detectTiltTradeIds(trades).size, [trades]);
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Analytics</h1>
         <p className="text-sm" style={{ color: EB.mutedForeground }}>Where your edge comes from — and where it leaks.</p>
       </div>
+
+      {(discipline || tiltCount > 0) && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          {discipline && (
+            <Card>
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="text-sm font-medium">Discipline score</h3>
+                <span className="text-lg font-semibold" style={{ color: discipline.overall >= 0.8 ? EB.win : discipline.overall >= 0.5 ? EB.warn : EB.loss }}>
+                  {Math.round(discipline.overall * 100)}%
+                </span>
+              </div>
+              <p className="mb-2 text-xs" style={{ color: EB.mutedForeground }}>Checklist pass rate across {discipline.n} trades, by week.</p>
+              <div className="h-32">
+                <ResponsiveContainer>
+                  <BarChart data={discipline.trend}>
+                    <XAxis dataKey="week" tick={{ fill: EB.mutedForeground, fontSize: 9 }} />
+                    <YAxis domain={[0, 100]} tick={{ fill: EB.mutedForeground, fontSize: 9 }} tickFormatter={(v) => `${v}%`} />
+                    <Tooltip contentStyle={{ background: EB.card, border: `1px solid ${EB.border}`, borderRadius: 8, fontSize: 12 }} formatter={(v: any) => [`${v}%`, "Pass rate"]} />
+                    <Bar dataKey="score" isAnimationActive={false}>{discipline.trend.map((d, i) => <Cell key={i} fill={d.score >= 80 ? EB.win : d.score >= 50 ? EB.warn : EB.loss} />)}</Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          )}
+          {tiltCount > 0 && (
+            <Card>
+              <h3 className="mb-3 text-sm font-medium">Tilt trades</h3>
+              <div className="text-2xl font-semibold" style={{ color: EB.loss }}>{tiltCount}</div>
+              <p className="mt-1 text-xs" style={{ color: EB.mutedForeground }}>Entries opened &lt;2 minutes after a loss, at above-average size. Flagged in the Trades tab.</p>
+            </Card>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <h3 className="mb-3 text-sm font-medium">P&L by symbol</h3>
@@ -1255,7 +1465,7 @@ function AnalyticsView({ trades, strats }: { trades: Trade[]; strats: Strategy[]
 }
 
 /* ---------- Settings ---------- */
-function SettingsView({ trades, onChange, onOpenTrade }: { trades: Trade[]; onChange: () => Promise<Trade[]>; onOpenTrade: (t: Trade) => void }) {
+function SettingsView({ trades, riskSettings, onChange, onOpenTrade }: { trades: Trade[]; riskSettings: RiskSettings | null; onChange: () => Promise<Trade[]>; onOpenTrade: (t: Trade) => void }) {
   return (
     <div className="max-w-2xl space-y-6">
       <div>
@@ -1263,11 +1473,78 @@ function SettingsView({ trades, onChange, onOpenTrade }: { trades: Trade[]; onCh
         <p className="text-sm" style={{ color: EB.mutedForeground }}>Broker connections and data hygiene.</p>
       </div>
       <Card>
+        <RiskRulesCard riskSettings={riskSettings} onChange={onChange} />
+      </Card>
+      <Card>
         <BrokerConnections />
       </Card>
       <Card>
         <DuplicateTrades trades={trades} onChange={onChange} onOpenTrade={onOpenTrade} />
       </Card>
+    </div>
+  );
+}
+
+function RiskRulesCard({ riskSettings, onChange }: { riskSettings: RiskSettings | null; onChange: () => Promise<Trade[]> }) {
+  const { user } = useAuth();
+  const [dailyLimit, setDailyLimit] = useState(riskSettings?.daily_loss_limit?.toString() ?? "");
+  const [maxTrades, setMaxTrades] = useState(riskSettings?.max_trades_per_day?.toString() ?? "");
+  const [rules, setRules] = useState<string[]>(riskSettings?.checklist_rules ?? []);
+  const [newRule, setNewRule] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setDailyLimit(riskSettings?.daily_loss_limit?.toString() ?? "");
+    setMaxTrades(riskSettings?.max_trades_per_day?.toString() ?? "");
+    setRules(riskSettings?.checklist_rules ?? []);
+  }, [riskSettings]);
+
+  const save = async () => {
+    if (!user) return;
+    setSaving(true);
+    const { error } = await sb.from("risk_settings").upsert(
+      {
+        user_id: user.id,
+        daily_loss_limit: dailyLimit ? Number(dailyLimit) : null,
+        max_trades_per_day: maxTrades ? Number(maxTrades) : null,
+        checklist_rules: rules,
+      },
+      { onConflict: "user_id" },
+    );
+    setSaving(false);
+    if (error) toast.error(error.message); else { toast.success("Risk rules saved."); onChange(); }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="text-sm font-medium">Risk rules & checklist</div>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="Daily loss limit ($)"><Input type="number" value={dailyLimit} onChange={(e) => setDailyLimit(e.target.value)} placeholder="e.g. 500" style={fieldStyle()} /></Field>
+        <Field label="Max trades / day"><Input type="number" value={maxTrades} onChange={(e) => setMaxTrades(e.target.value)} placeholder="e.g. 5" style={fieldStyle()} /></Field>
+      </div>
+      <div>
+        <Label>Pre-trade checklist rules</Label>
+        <div className="space-y-1.5">
+          {rules.map((r, i) => (
+            <div key={i} className="flex items-center justify-between rounded-md px-3 py-1.5 text-sm" style={{ border: `1px solid ${EB.border}` }}>
+              <span>{r}</span>
+              <button onClick={() => setRules((rs) => rs.filter((_, ri) => ri !== i))} style={{ color: EB.destructive }}><Trash2 className="size-3.5" /></button>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 flex gap-2">
+          <Input value={newRule} onChange={(e) => setNewRule(e.target.value)} placeholder="e.g. Stop set before entry" style={fieldStyle()} />
+          <Button
+            onClick={() => { if (newRule.trim()) { setRules((rs) => [...rs, newRule.trim()]); setNewRule(""); } }}
+            style={{ border: `1px solid ${EB.border}` }}
+          >
+            Add
+          </Button>
+        </div>
+      </div>
+      <Button onClick={save} disabled={saving} style={{ background: EB.primary, color: EB.primaryForeground }}>
+        {saving ? "Saving…" : "Save risk rules"}
+      </Button>
     </div>
   );
 }
