@@ -520,6 +520,22 @@ function TradesView({ trades, strats, onOpenTrade, onChange, onAdd }: { trades: 
     return true;
   }), [trades, q, side, stratFilter, fromDate, toDate]);
 
+  const dayGroups = useMemo(() => {
+    const m = new Map<string, Trade[]>();
+    for (const t of rows) {
+      const key = (t.closed_at ?? t.opened_at).slice(0, 10);
+      (m.get(key) ?? m.set(key, []).get(key)!).push(t);
+    }
+    return Array.from(m.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([date, dayTrades]) => {
+        const net = dayTrades.reduce((a, t) => a + (t.pnl ?? 0), 0);
+        const wins = dayTrades.filter((t) => (t.pnl ?? 0) > 0).length;
+        const closedCount = dayTrades.filter((t) => t.pnl != null).length;
+        return { date, trades: dayTrades, net, wins, closedCount };
+      });
+  }, [rows]);
+
   const del = async (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     if (!confirm("Delete this trade?")) return;
@@ -587,51 +603,66 @@ function TradesView({ trades, strats, onOpenTrade, onChange, onAdd }: { trades: 
         </div>
       </Card>
 
-      <Card className="overflow-x-auto p-0">
-        <table className="w-full text-sm">
-          <thead className="text-xs uppercase" style={{ color: EB.mutedForeground }}>
-            <tr style={{ borderBottom: `1px solid ${EB.border}` }}>
-              {["Date", "Symbol", "Side", "Qty", "Entry", "Exit", "P&L", "Setup", "Tags", ""].map((h) => (
-                <th key={h} className="px-3 py-2.5 text-left font-medium">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((t) => {
-              const strat = strats.find((s) => s.id === t.strategy_id);
-              return (
-                <tr key={t.id} onClick={() => onOpenTrade(t)} className="cursor-pointer" style={{ borderBottom: `1px solid ${EB.border}` }}>
-                  <td className="px-3 py-2.5" style={{ color: EB.mutedForeground }}>{(t.closed_at ?? t.opened_at).slice(0, 10)}</td>
-                  <td className="px-3 py-2.5 font-medium">
-                    {t.pair}
-                    {strat && <span className="ml-1.5 rounded px-1 py-px text-[10px]" style={{ background: strat.color + "33", color: strat.color }}>{strat.name}</span>}
-                    {tiltIds.has(t.id) && (
-                      <span className="ml-1.5 rounded px-1 py-px text-[10px]" style={{ background: `${EB.warn}33`, color: EB.warn }} title="Opened <2min after a loss, above-average size">Tilt</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5 text-xs uppercase" style={{ color: t.direction === "long" ? EB.win : EB.loss }}>{t.direction}</td>
-                  <td className="px-3 py-2.5">{t.size}</td>
-                  <td className="px-3 py-2.5">{t.entry_price}</td>
-                  <td className="px-3 py-2.5">{t.exit_price ?? "—"}</td>
-                  <td className="px-3 py-2.5 font-medium" style={{ color: pnlColor(t.pnl) }}>{t.pnl != null ? fmtMoney(t.pnl, { sign: true }) : "—"}</td>
-                  <td className="px-3 py-2.5" style={{ color: EB.mutedForeground }}>{t.setup ?? "—"}</td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex flex-wrap gap-1">
-                      {(t.tags ?? []).map((tag) => <span key={tag} className="rounded px-1.5 py-0.5 text-[10px]" style={{ border: `1px solid ${EB.border}` }}>{tag}</span>)}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <button onClick={(e) => del(e, t.id)} style={{ color: EB.mutedForeground }}><Trash2 className="h-4 w-4" /></button>
-                  </td>
-                </tr>
-              );
-            })}
-            {rows.length === 0 && (
-              <tr><td colSpan={10} className="p-8 text-center text-sm" style={{ color: EB.mutedForeground }}>No trades match your filters.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </Card>
+      {dayGroups.length === 0 ? (
+        <Card className="p-8 text-center text-sm" style={{ color: EB.mutedForeground }}>No trades match your filters.</Card>
+      ) : (
+        <div className="space-y-4">
+          {dayGroups.map((day) => (
+            <Card key={day.date} className="overflow-x-auto p-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5" style={{ borderBottom: `1px solid ${EB.border}`, background: EB.accent }}>
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  {new Date(day.date + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
+                  <span className="text-xs font-normal" style={{ color: EB.mutedForeground }}>
+                    {day.trades.length} trade{day.trades.length === 1 ? "" : "s"}
+                    {day.closedCount > 0 && ` · ${fmtPct(day.wins / day.closedCount)} win rate`}
+                  </span>
+                </div>
+                <span className="text-sm font-semibold" style={{ color: pnlColor(day.net) }}>{fmtMoney(day.net, { sign: true })}</span>
+              </div>
+              <table className="w-full text-sm">
+                <thead className="text-xs uppercase" style={{ color: EB.mutedForeground }}>
+                  <tr style={{ borderBottom: `1px solid ${EB.border}` }}>
+                    {["Time", "Symbol", "Side", "Qty", "Entry", "Exit", "P&L", "Setup", "Tags", ""].map((h) => (
+                      <th key={h} className="px-3 py-2 text-left font-medium">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {day.trades.map((t) => {
+                    const strat = strats.find((s) => s.id === t.strategy_id);
+                    return (
+                      <tr key={t.id} onClick={() => onOpenTrade(t)} className="cursor-pointer" style={{ borderBottom: `1px solid ${EB.border}` }}>
+                        <td className="px-3 py-2.5" style={{ color: EB.mutedForeground }}>{new Date(t.opened_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
+                        <td className="px-3 py-2.5 font-medium">
+                          {t.pair}
+                          {strat && <span className="ml-1.5 rounded px-1 py-px text-[10px]" style={{ background: strat.color + "33", color: strat.color }}>{strat.name}</span>}
+                          {tiltIds.has(t.id) && (
+                            <span className="ml-1.5 rounded px-1 py-px text-[10px]" style={{ background: `${EB.warn}33`, color: EB.warn }} title="Opened <2min after a loss, above-average size">Tilt</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-xs uppercase" style={{ color: t.direction === "long" ? EB.win : EB.loss }}>{t.direction}</td>
+                        <td className="px-3 py-2.5">{t.size}</td>
+                        <td className="px-3 py-2.5">{t.entry_price}</td>
+                        <td className="px-3 py-2.5">{t.exit_price ?? "—"}</td>
+                        <td className="px-3 py-2.5 font-medium" style={{ color: pnlColor(t.pnl) }}>{t.pnl != null ? fmtMoney(t.pnl, { sign: true }) : "—"}</td>
+                        <td className="px-3 py-2.5" style={{ color: EB.mutedForeground }}>{t.setup ?? "—"}</td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-wrap gap-1">
+                            {(t.tags ?? []).map((tag) => <span key={tag} className="rounded px-1.5 py-0.5 text-[10px]" style={{ border: `1px solid ${EB.border}` }}>{tag}</span>)}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <button onClick={(e) => del(e, t.id)} style={{ color: EB.mutedForeground }}><Trash2 className="h-4 w-4" /></button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
