@@ -55,6 +55,63 @@ const moduleGroups: { title: string; items: { to: string; label: string; icon: a
   },
 ];
 
+// Upcoming economic events with a live countdown — data via the
+// econ-calendar edge function (Forex Factory weekly feed, cached server-side).
+function UpcomingNews({ onOpenCalendar }: { onOpenCalendar: () => void }) {
+  const [events, setEvents] = useState<{ title: string; country: string; date: string; impact: string }[]>([]);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: sess } = await supabase.auth.getSession();
+        const token = sess.session?.access_token;
+        const { data } = await supabase.functions.invoke("econ-calendar", {
+          body: {},
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        setEvents((data?.events ?? []).slice(0, 4));
+      } catch { /* box just stays empty */ }
+    })();
+    const t = setInterval(() => setTick((n) => n + 1), 30_000); // refresh countdowns
+    return () => clearInterval(t);
+  }, []);
+
+  const until = (iso: string) => {
+    const ms = new Date(iso).getTime() - Date.now();
+    if (ms <= 0) return "now";
+    const m = Math.floor(ms / 60000);
+    if (m < 60) return `in ${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `in ${h}h ${m % 60}m`;
+    return `in ${Math.floor(h / 24)}d ${h % 24}h`;
+  };
+  const impactColor = (impact: string) =>
+    impact === "High" ? "bg-danger" : impact === "Medium" ? "bg-gold" : "bg-muted-foreground/50";
+
+  if (events.length === 0) return null;
+  return (
+    <Panel>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-medium">Upcoming news</h3>
+        <button onClick={onOpenCalendar} className="text-[11px] mint-text press">Full calendar</button>
+      </div>
+      <ul className="space-y-2.5 text-sm">
+        {events.map((e, i) => (
+          <li key={i} className="flex items-center gap-2.5 border-b border-border pb-2.5 last:border-b-0 last:pb-0">
+            <span className={`size-2 shrink-0 rounded-full ${impactColor(e.impact)}`} title={`${e.impact} impact`} />
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-1 text-[13px] font-medium leading-snug">{e.title}</div>
+              <div className="text-[11px] text-muted-foreground">{e.country}</div>
+            </div>
+            <span className="shrink-0 text-xs mint-text tabular-nums">{until(e.date)}</span>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
 // Flat, bordered card — Edgebook's actual card style (no blur/glow), used
 // throughout this rebuild instead of the app-wide "glass" glassmorphism.
 function Panel({ children, className = "", ...rest }: any) {
@@ -262,25 +319,28 @@ export default function Vault() {
           </div>
         </Panel>
 
-        <Panel>
-          <h3 className="mb-3 text-sm font-medium">Recent activity</h3>
-          <ul className="space-y-2.5 text-sm">
-            {recentActivity.map((p) => (
-              <li key={p.chapter_id}>
-                <button
-                  onClick={() => nav(`/read/${p.chapter_id}`)}
-                  className="flex w-full flex-col gap-0.5 border-b border-border pb-2.5 text-left last:border-b-0 last:pb-0"
-                >
-                  <span className="line-clamp-1 font-medium leading-snug">{p.chapter?.title}</span>
-                  <span className={`text-xs ${p.completed ? "mint-text" : "text-muted-foreground"}`}>
-                    {p.completed ? "Done" : `${Math.round(p.progress_percentage)}% complete`}
-                  </span>
-                </button>
-              </li>
-            ))}
-            {recentActivity.length === 0 && <li className="text-xs text-muted-foreground">No activity yet.</li>}
-          </ul>
-        </Panel>
+        <div className="space-y-3">
+          <UpcomingNews onOpenCalendar={() => nav("/news")} />
+          <Panel>
+            <h3 className="mb-3 text-sm font-medium">Recent activity</h3>
+            <ul className="space-y-2.5 text-sm">
+              {recentActivity.map((p) => (
+                <li key={p.chapter_id}>
+                  <button
+                    onClick={() => nav(`/read/${p.chapter_id}`)}
+                    className="flex w-full flex-col gap-0.5 border-b border-border pb-2.5 text-left last:border-b-0 last:pb-0"
+                  >
+                    <span className="line-clamp-1 font-medium leading-snug">{p.chapter?.title}</span>
+                    <span className={`text-xs ${p.completed ? "mint-text" : "text-muted-foreground"}`}>
+                      {p.completed ? "Done" : `${Math.round(p.progress_percentage)}% complete`}
+                    </span>
+                  </button>
+                </li>
+              ))}
+              {recentActivity.length === 0 && <li className="text-xs text-muted-foreground">No activity yet.</li>}
+            </ul>
+          </Panel>
+        </div>
       </section>
 
       {/* Mindset tip — kept as a slim strip rather than a big gradient card */}
