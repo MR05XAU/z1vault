@@ -129,18 +129,21 @@ export default function Vault() {
   const [progress, setProgress] = useState<Progress[]>([]);
   const [quizzes, setQuizzes] = useState<QuizResult[]>([]);
   const [courseCompleted, setCourseCompleted] = useState<string[]>([]);
+  const [tradePnls, setTradePnls] = useState<number[]>([]);
   const [, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [p, q, c] = await Promise.all([
+      const [p, q, c, t] = await Promise.all([
         supabase.from("user_progress").select("chapter_id,progress_percentage,completed,updated_at").eq("user_id", user!.id),
         supabase.from("quiz_results").select("score,total_questions").eq("user_id", user!.id),
         (supabase as any).from("course_progress").select("completed").eq("user_id", user!.id).eq("course", "starting-trading").maybeSingle(),
+        (supabase as any).from("trades").select("pnl").eq("user_id", user!.id).not("pnl", "is", null),
       ]);
       setProgress(p.data ?? []);
       setQuizzes(q.data ?? []);
       setCourseCompleted(c.data?.completed ?? []);
+      setTradePnls((t.data ?? []).map((r: any) => Number(r.pnl)));
       setLoading(false);
     })();
   }, [user]);
@@ -298,26 +301,59 @@ export default function Vault() {
 
       {/* Big feature card + sidebar list — mirrors "Equity curve" + "Recent trades" */}
       <section className="mt-4 grid gap-3 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
-        <Panel className="lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-medium">Your next step</h3>
-            <span className="text-xs mint-text">{totalProgress}% mastery</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <ProgressRing value={totalProgress} size={100} stroke={7} theme="mint" />
-            <div className="flex-1 min-w-0">
-              <div className="text-[10px] uppercase tracking-[0.24em] text-mint-bright">{journey.label}</div>
-              <div className="mt-1 text-base font-medium line-clamp-2">{journey.title}</div>
-              <div className="mt-1 text-xs text-muted-foreground">{journey.sub}</div>
+        <div className="space-y-3 lg:col-span-2">
+          <Panel>
+            <div className="flex items-center gap-4">
+              <ProgressRing value={totalProgress} size={64} stroke={5} theme="mint" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] uppercase tracking-[0.24em] text-mint-bright">{journey.label}</span>
+                  <span className="shrink-0 text-xs mint-text">{totalProgress}% mastery</span>
+                </div>
+                <div className="mt-0.5 text-[15px] font-medium line-clamp-1">{journey.title}</div>
+                <div className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{journey.sub}</div>
+              </div>
               <button
                 onClick={() => nav(journey.to)}
-                className="mt-4 inline-flex items-center gap-1.5 text-sm mint-text font-medium press"
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs mint-text font-medium press"
               >
                 {journey.cta} <ArrowRight className="size-3.5 text-mint-bright" />
               </button>
             </div>
-          </div>
-        </Panel>
+          </Panel>
+
+          <Panel>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm font-medium">Edgebook stats</h3>
+              <button onClick={() => nav("/journal")} className="text-[11px] mint-text press">Open Edgebook</button>
+            </div>
+            {tradePnls.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No closed trades yet — log or import your first trade in Edgebook.</p>
+            ) : (
+              (() => {
+                const net = tradePnls.reduce((a, b) => a + b, 0);
+                const wins = tradePnls.filter((p) => p > 0);
+                const grossW = wins.reduce((a, b) => a + b, 0);
+                const grossL = Math.abs(tradePnls.filter((p) => p < 0).reduce((a, b) => a + b, 0));
+                const pf = grossL > 0 ? grossW / grossL : wins.length ? Infinity : 0;
+                const stat = (label: string, value: string, color?: string) => (
+                  <div className="rounded-xl border border-border px-3 py-2.5 text-center">
+                    <div className="text-[9px] uppercase tracking-wide text-muted-foreground">{label}</div>
+                    <div className={`mt-0.5 text-sm font-semibold tabular-nums ${color ?? ""}`}>{value}</div>
+                  </div>
+                );
+                return (
+                  <div className="grid grid-cols-4 gap-2">
+                    {stat("Net P&L", `${net >= 0 ? "+" : "-"}$${Math.abs(net).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, net >= 0 ? "text-success" : "text-danger")}
+                    {stat("Win rate", `${Math.round((wins.length / tradePnls.length) * 100)}%`)}
+                    {stat("Profit factor", pf === Infinity ? "∞" : pf.toFixed(2))}
+                    {stat("Trades", String(tradePnls.length))}
+                  </div>
+                );
+              })()
+            )}
+          </Panel>
+        </div>
 
         <div className="space-y-3">
           <UpcomingNews onOpenCalendar={() => nav("/news")} />
