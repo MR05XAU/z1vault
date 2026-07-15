@@ -17,20 +17,42 @@ import {
 interface Progress { chapter_id: string; progress_percentage: number; completed: boolean; updated_at: string }
 interface QuizResult { score: number; total_questions: number }
 
-const modules = [
-  { to: "/starting-trading", label: "Starting Trading", icon: GraduationCap },
-  { to: "/shop", label: "Shop", icon: ShoppingBag },
-  { to: "/library", label: "Book", icon: BookOpen },
-  { to: "/tutor", label: "Tutor", icon: Sparkles },
-  { to: "/journal", label: "Edgebook", icon: LineChart },
-  { to: "/calculators", label: "Calculator", icon: Calculator },
-  { to: "/patterns", label: "Candles", icon: CandlestickChart },
-  { to: "/notebook?tab=notes", label: "Notes", icon: BookMarked },
-  { to: "/notebook?tab=highlights", label: "Highlights", icon: Highlighter },
-  { to: "/notebook?tab=bookmarks", label: "Bookmarks", icon: Trophy },
-  { to: "/analytics", label: "Stats", icon: BarChart3 },
-  { to: "/news", label: "Calendar", icon: CalendarDays },
-  { to: "/offline", label: "Sync", icon: Download },
+// Modules grouped by what the user is doing — mirrors the journey rail:
+// learn first, then trade, with notes and utilities behind them.
+const moduleGroups: { title: string; items: { to: string; label: string; icon: any }[] }[] = [
+  {
+    title: "Learn",
+    items: [
+      { to: "/starting-trading", label: "Starting Trading", icon: GraduationCap },
+      { to: "/library", label: "Book", icon: BookOpen },
+      { to: "/tutor", label: "Tutor", icon: Sparkles },
+      { to: "/patterns", label: "Candles", icon: CandlestickChart },
+    ],
+  },
+  {
+    title: "Trade",
+    items: [
+      { to: "/journal", label: "Edgebook", icon: LineChart },
+      { to: "/calculators", label: "Calculator", icon: Calculator },
+      { to: "/analytics", label: "Stats", icon: BarChart3 },
+      { to: "/news", label: "Calendar", icon: CalendarDays },
+    ],
+  },
+  {
+    title: "Notes",
+    items: [
+      { to: "/notebook?tab=notes", label: "Notes", icon: BookMarked },
+      { to: "/notebook?tab=highlights", label: "Highlights", icon: Highlighter },
+      { to: "/notebook?tab=bookmarks", label: "Bookmarks", icon: Trophy },
+    ],
+  },
+  {
+    title: "More",
+    items: [
+      { to: "/shop", label: "Shop", icon: ShoppingBag },
+      { to: "/offline", label: "Sync", icon: Download },
+    ],
+  },
 ];
 
 // Flat, bordered card — Edgebook's actual card style (no blur/glow), used
@@ -279,18 +301,28 @@ export default function Vault() {
             <h2 className="text-sm font-medium">Modules</h2>
             <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Quick access</span>
           </div>
-          <div className="grid grid-cols-3 gap-px overflow-hidden rounded-b-2xl bg-border sm:grid-cols-4 lg:grid-cols-6">
-            {modules.map(({ to, label, icon: Icon }) => (
-              <button
-                key={label}
-                onClick={() => nav(to)}
-                className="flex flex-col items-center justify-center gap-2 bg-card py-5 press hover:bg-accent"
-              >
-                <div className="size-9 rounded-lg bg-mint/10 grid place-items-center">
-                  <Icon className="size-4 text-mint-bright" />
+          <div className="space-y-1 px-4 py-4">
+            {moduleGroups.map((group) => (
+              <div key={group.title}>
+                <div className="mb-2 mt-3 flex items-center gap-3 first:mt-0">
+                  <span className="text-[10px] uppercase tracking-[0.24em] text-mint-bright">{group.title}</span>
+                  <span className="h-px flex-1 bg-border" />
                 </div>
-                <div className="text-xs font-medium text-foreground/90">{label}</div>
-              </button>
+                <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+                  {group.items.map(({ to, label, icon: Icon }) => (
+                    <button
+                      key={label}
+                      onClick={() => nav(to)}
+                      className="flex flex-col items-center justify-center gap-2 rounded-xl border border-border bg-card py-4 press hover:bg-accent hover:border-border-strong transition-colors"
+                    >
+                      <div className="size-9 rounded-lg bg-mint/10 grid place-items-center">
+                        <Icon className="size-4 text-mint-bright" />
+                      </div>
+                      <div className="px-1 text-center text-xs font-medium leading-tight text-foreground/90">{label}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </Panel>
