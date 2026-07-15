@@ -37,15 +37,16 @@ Deno.serve(async (req) => {
       }
     } catch {}
 
-    // 3. AI fallback for trading jargon
+    // 3. AI fallback for trading jargon (NVIDIA OpenAI-compatible API —
+    // replaced the Lovable gateway when the project went standalone)
     if (!definition) {
-      const apiKey = Deno.env.get("LOVABLE_API_KEY");
+      const apiKey = Deno.env.get("NVIDIA_API_KEY");
       if (!apiKey) return json({ error: "Definition not found" }, 404);
-      const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      const r = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash-lite",
+          model: "meta/llama-3.3-70b-instruct",
           max_tokens: 80,
           messages: [
             { role: "system", content: "Give a one-sentence definition of the trading/finance term. Plain English. Under 25 words. No preamble." },

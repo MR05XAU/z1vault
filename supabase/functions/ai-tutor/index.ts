@@ -19,7 +19,10 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    // Self-hosted LLM: NVIDIA's OpenAI-compatible API (llama-3.3-70b) —
+    // replaced the Lovable AI Gateway when the project went standalone.
+    // Same SSE chunk format, so the streaming frontend needs no changes.
+    const apiKey = Deno.env.get("NVIDIA_API_KEY");
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "AI not configured" }), {
         status: 500,
@@ -139,17 +142,17 @@ Deno.serve(async (req) => {
 
     // Slim the conversation: only keep the last 6 turns so the prompt stays small.
     const trimmedMessages = messages.slice(-6);
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Lovable-API-Key": apiKey,
-        "X-Lovable-AIG-SDK": "raw",
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
+        model: "meta/llama-3.3-70b-instruct",
         stream: true,
         max_tokens: 600,
+        temperature: 0.4,
         messages: [
           { role: "system", content: SYSTEM_PROMPT + contextBlock + "\n\nIMPORTANT: When you reference a chapter, format the citation EXACTLY as [Ch.N] (e.g. [Ch.3]) so the UI can render it as a tappable link." },
           ...trimmedMessages,
