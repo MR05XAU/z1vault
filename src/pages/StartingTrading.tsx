@@ -8,10 +8,11 @@ import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { toast } from "sonner";
 import { Check, ChevronRight, GraduationCap, Lock, Trophy } from "lucide-react";
+import { DIAGRAMS } from "@/components/CourseDiagrams";
 
 const COURSE = "starting-trading";
 
-type Lesson = { id: string; title: string; body: string };
+type Lesson = { id: string; title: string; body: string; diagram?: keyof typeof DIAGRAMS; body2?: string };
 type QuizQ = { q: string; options: string[]; answer: number };
 type Level = { id: string; title: string; blurb: string; lessons: Lesson[]; quiz: QuizQ[] };
 
@@ -40,15 +41,32 @@ News, earnings, economic data, fear, greed — all of it only matters because it
 Key idea: price doesn't move because something is "good" or "bad". It moves when reality differs from **what was already expected**. Great news that everyone saw coming often moves nothing.`,
       },
       {
+        id: "l1d", title: "Bid, ask, and the spread",
+        diagram: "bidAsk",
+        body: `At any moment there are two prices, not one:
+
+- The **bid** — the highest price any buyer is currently willing to pay.
+- The **ask** — the lowest price any seller is currently willing to accept.
+
+The gap between them is the **spread**. When you buy instantly ("at market"), you pay the ask; when you sell instantly, you receive the bid — so you start every trade slightly negative. That's a real cost, on top of commissions.
+
+Two basic order types cover 90% of what you need:
+
+- **Market order** — fill me *now* at whatever the price is. Fast, but you pay the spread and possible slippage.
+- **Limit order** — fill me only at *this price or better*. You control the price, but you might not get filled.
+
+Liquid markets (big stocks, major futures) have tiny spreads. Illiquid ones can quietly eat your profits — another reason beginners should stick to major, liquid instruments.`,
+      },
+      {
         id: "l1c", title: "The instruments",
         body: `The main things people trade:
 
-- **Stocks** — ownership slices of companies. Slower, good for learning.
-- **Futures** — contracts on gold, oil, stock indexes. Leveraged, trade nearly 24h, favored by day traders.
-- **Forex** — currency pairs. Massive market, heavily leveraged.
-- **Crypto** — 24/7, volatile, unregulated in places.
+- **Stocks** — ownership slices of companies. Slower, good for learning. Regular market hours.
+- **Futures** — standardized contracts on gold, oil, stock indexes. Leveraged, trade nearly 24h, favored by day traders. Each contract has a fixed dollar value per point (e.g. ES = $50/point, MGC = $10/point).
+- **Forex** — currency pairs like EUR/USD. The biggest market on earth, heavily leveraged, moves in "pips".
+- **Crypto** — 24/7, extremely volatile, thin regulation.
 
-They all obey the same rules of supply, demand, and risk. **Pick one instrument and learn it deeply** — jumping between markets is one of the fastest ways beginners lose money.`,
+They all obey the same rules of supply, demand, and risk. **Pick one instrument and learn it deeply** — jumping between markets is one of the fastest ways beginners lose money. Everything in this course applies to all of them.`,
       },
     ],
     quiz: [
@@ -58,40 +76,95 @@ They all obey the same rules of supply, demand, and risk. **Pick one instrument 
     ],
   },
   {
-    id: "l2", title: "Level 2 — Reading a Chart",
-    blurb: "Candlesticks, timeframes, and the two most useful lines on any chart.",
+    id: "l2", title: "Level 2 — Candlesticks & Charts",
+    blurb: "Candle anatomy, the candle types that matter, reversal patterns, and market structure.",
     lessons: [
       {
-        id: "l2a", title: "Candlesticks",
-        body: `A candlestick summarizes price over one chunk of time. The **body** shows where price opened and closed. The **wicks** show the highest and lowest points reached.
+        id: "l2a", title: "Candlestick anatomy",
+        diagram: "candleAnatomy",
+        body: `A candlestick summarizes everything price did in one chunk of time — one candle per minute on a 1m chart, per day on a daily chart.
 
-- Green (or white) candle: closed **above** its open — buyers won that period.
-- Red (or black): closed **below** its open — sellers won.
+Four prices build every candle:
 
-A long wick means price went there **and got rejected**. A candle with a tiny body and long wicks means a fight with no winner. You don't need to memorize 50 candlestick pattern names — you need to read *who's in control and who got rejected*.`,
+- **Open** — where price started the period.
+- **Close** — where it finished. Open→close forms the **body**.
+- **High / Low** — the extremes reached, drawn as thin **wicks** above and below the body.
+
+Color is just open vs close: **green** = closed above its open (buyers won the period), **red** = closed below (sellers won).
+
+The single most useful reading skill: **wicks are rejections**. A long wick means price *went* there and got pushed back — someone stepped in. Big body, small wicks = conviction. Small body, big wicks = a fight.`,
       },
       {
-        id: "l2b", title: "Timeframes",
-        body: `The same market looks completely different on a 1-minute chart versus a daily chart — and **both are true at once**.
+        id: "l2b", title: "The candle types that matter",
+        diagram: "candleTypes",
+        body: `You don't need 50 Japanese pattern names. These five shapes cover most of what candles can tell you:
 
-- Higher timeframes (daily, 4h) show the bigger battle: the trend, the major levels.
-- Lower timeframes (5m, 1m) show the noise inside it.
+- **Marubozu** — all body, no wicks. One side steamrolled the whole period. Strong continuation signal in a trend.
+- **Doji** — open ≈ close, wicks both sides. Total indecision; often appears before reversals *at important levels*.
+- **Hammer** — small body at the top, long lower wick. Sellers pushed down hard and got completely rejected. Bullish **when it forms at support**.
+- **Shooting star** — the mirror: small body at the bottom, long upper wick. Buyers got rejected. Bearish at resistance.
+- **Spinning top** — small body, modest wicks both sides. Mild indecision, momentum fading.
 
-The classic beginner mistake is trading a 1-minute wiggle **against** a daily trend. Rule of thumb: pick one *anchor* timeframe to decide direction, and one lower timeframe only for timing your entry. Two is enough.`,
+Critical caveat: a candle shape means almost **nothing in the middle of nowhere**. A hammer at major support is information; a hammer in random chop is noise. Location first, candle second.`,
       },
       {
-        id: "l2c", title: "Support, resistance, and trend",
-        body: `**Support** is a price area where buyers have repeatedly shown up. **Resistance** is where sellers repeatedly show up. They're areas, not exact lines.
+        id: "l2c", title: "Reversal patterns: engulfing",
+        diagram: "engulfing",
+        body: `Two-candle patterns show a *shift in control* between periods:
 
-**Trend** is simply the direction of the sequence: higher highs and higher lows = uptrend; lower highs and lower lows = downtrend; neither = range.
+- **Bullish engulfing** — a red candle followed by a green candle whose body completely swallows the red one. Sellers had it, buyers took it back — and then some. Strongest at support or after a pullback in an uptrend.
+- **Bearish engulfing** — the mirror image at highs: a green candle swallowed by a bigger red one.
 
-Most profitable beginner behavior comes down to two habits: **trade with the trend of your anchor timeframe**, and **do your buying near support, your selling near resistance — not in the middle of nowhere.**`,
+Why it works: the engulfing candle proves that everyone who traded the previous candle is now underwater. Trapped traders exiting fuel the new direction.
+
+Checklist for a valid engulfing signal: (1) it's **at a level** you'd marked in advance, (2) the engulfing body is clearly bigger — not a technicality, (3) the trend context agrees (bullish engulfing in an uptrend's pullback beats one fighting a downtrend).`,
+      },
+      {
+        id: "l2d", title: "Reversal patterns: the pin bar",
+        diagram: "pinBar",
+        body: `A **pin bar** (the hammer/shooting star used in context) is the cleanest rejection signal in trading:
+
+1. Price drives **into a level** — support or resistance.
+2. It gets violently rejected, leaving a long wick *through* the level.
+3. The candle **closes back on the right side** of it.
+
+The story it tells: stops were run, the level *held*, and everyone who chased the break is now trapped. Entries are commonly taken on the break of the pin bar's high (for bullish pins), with the stop under the wick's tip — a naturally tight, logical stop.
+
+The wick should be at least **2× the body**, and the close matters more than the shape: a long wick that still closed *beyond* the level is not a rejection, it's a warning.`,
+      },
+      {
+        id: "l2e", title: "Support & resistance",
+        diagram: "supportResistance",
+        body: `**Support** is a price area where buying has repeatedly overwhelmed selling; **resistance** is where selling has repeatedly capped price. They're **zones, not exact lines** — draw them as bands.
+
+How to find the ones that matter:
+
+- Zoom out. The levels visible on the daily chart outrank anything on the 5-minute.
+- Look for **multiple touches** — the more times a zone has turned price, the more real it is.
+- Round numbers (4000 on gold, 20,000 on NQ) act as magnets and battlegrounds.
+
+Two behaviors happen at a zone: **bounce** or **break**. When support breaks decisively, it commonly flips into resistance (and vice versa) — the "role reversal" that structures most chart reading. Your best trades will start at these zones; the middle of the range is where accounts go to die.`,
+      },
+      {
+        id: "l2f", title: "Trend structure & timeframes",
+        diagram: "trend",
+        body: `**Trend** is a repeating sequence, not a feeling:
+
+- Uptrend: **higher highs and higher lows** (HH/HL).
+- Downtrend: **lower highs and lower lows** (LH/LL).
+- Neither: a range — play the edges or stand aside.
+
+The trend "breaks" when the sequence breaks: an uptrend printing a lower low is on notice.
+
+On timeframes: the same market is in *different trends on different timeframes simultaneously*, and all of them are true. Pick **one anchor timeframe** (say 1h or 4h) to define the trend you trade with, and **one lower timeframe** (say 5m) purely to time entries. Two is enough; flipping through nine timeframes manufactures whatever opinion you were hoping to find.`,
       },
     ],
     quiz: [
-      { q: "A long upper wick on a candle usually means…", options: ["Buyers are fully in control", "Price went up and got rejected", "The market is closed"], answer: 1 },
-      { q: "How many timeframes do you need to start?", options: ["As many as possible", "Two — an anchor for direction, one for entries", "Only the 1-minute"], answer: 1 },
-      { q: "An uptrend is defined by…", options: ["Green candles only", "Higher highs and higher lows", "High volume"], answer: 1 },
+      { q: "A long lower wick means…", options: ["Sellers are in control", "Price went down and got rejected", "Volume was low"], answer: 1 },
+      { q: "A hammer candle is meaningful when it forms…", options: ["Anywhere on the chart", "At a support zone", "Only on the 1-minute chart"], answer: 1 },
+      { q: "A bullish engulfing pattern is…", options: ["A green body completely swallowing the prior red body", "Two green candles in a row", "A candle with no wicks"], answer: 0 },
+      { q: "A valid bullish pin bar at support should…", options: ["Close below the support level", "Close back above the level with a wick at least 2x the body", "Have no lower wick"], answer: 1 },
+      { q: "An uptrend is over when…", options: ["You see one red candle", "The higher-high/higher-low sequence breaks", "RSI is above 70"], answer: 1 },
     ],
   },
   {
@@ -108,6 +181,7 @@ Why so small? Losing streaks happen to everyone. Risking 1%, a brutal 10-loss st
       },
       {
         id: "l3b", title: "Stop losses and R",
+        diagram: "riskReward",
         body: `A **stop loss** is the price where your trade idea is proven wrong and you exit — decided **before** you enter, never after.
 
 The distance from entry to stop defines your **R** (one unit of risk). If you buy at 100 with a stop at 98, then 1R = 2 points. A target at 106 is a **3R** trade: risking 1 to make 3.
@@ -334,6 +408,7 @@ export default function StartingTrading() {
       <Sheet open={lesson != null} onOpenChange={(o) => !o && setLesson(null)}>
         <SheetContent side="bottom" className="max-h-[90dvh] overflow-y-auto bg-surface-elevated border-border-strong rounded-t-3xl">
           <SheetHeader><SheetTitle className="display mint-text">{lesson?.lesson.title}</SheetTitle></SheetHeader>
+          {lesson?.lesson.diagram && (() => { const D = DIAGRAMS[lesson.lesson.diagram]; return <D />; })()}
           <div className="prose-z1 mt-4 text-sm">
             <ReactMarkdown>{lesson?.lesson.body ?? ""}</ReactMarkdown>
           </div>
