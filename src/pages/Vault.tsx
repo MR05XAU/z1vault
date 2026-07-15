@@ -141,6 +141,13 @@ export default function Vault() {
           <div className="flex items-center gap-2">
             <Z1Wordmark />
             <button
+              onClick={() => nav("/calculators")}
+              aria-label="Calculators"
+              className="size-9 grid place-items-center rounded-xl border border-border bg-card press"
+            >
+              <Calculator className="size-4 text-foreground/80" />
+            </button>
+            <button
               onClick={() => nav("/account")}
               aria-label="Account settings"
               className="size-9 grid place-items-center rounded-xl border border-border bg-card press"
