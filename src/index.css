@@ -100,8 +100,10 @@
     overscroll-behavior-y: none;
   }
 
+  /* Muted mint selection — the old gold/0.35 read as opaque khaki patches
+     on the dark theme, making selected text look like broken highlights. */
   ::selection {
-    background: hsl(var(--gold) / 0.35);
+    background: hsl(var(--mint) / 0.25);
     color: hsl(var(--foreground));
   }
 
