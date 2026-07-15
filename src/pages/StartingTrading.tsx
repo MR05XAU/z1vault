@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -290,6 +291,7 @@ const ALL_IDS = LEVELS.flatMap((lv) => [...lv.lessons.map((l) => l.id), `quiz:${
 
 export default function StartingTrading() {
   const { user } = useAuth();
+  const nav = useNavigate();
   const [done, setDone] = useState<Set<string>>(new Set());
   const [lesson, setLesson] = useState<{ level: Level; lesson: Lesson } | null>(null);
   const [quizLevel, setQuizLevel] = useState<Level | null>(null);
@@ -399,7 +401,19 @@ export default function StartingTrading() {
           <div className="rounded-2xl border border-border bg-surface-elevated/60 p-6 text-center">
             <Trophy className="mx-auto size-7 text-mint-bright" />
             <div className="display mt-2 text-lg font-medium">Course complete</div>
-            <p className="mt-1 text-sm text-muted-foreground">You know the basics. The real curriculum is in the Book — and your journal lives in Edgebook.</p>
+            <p className="mt-1 text-sm text-muted-foreground">You know the basics. The full curriculum picks up exactly here — Chapter 1 of the Book.</p>
+            <Button
+              onClick={async () => {
+                const { data } = await (supabase as any).from("book_chapters").select("id").order("order_index").limit(1).maybeSingle();
+                nav(data?.id ? `/read/${data.id}` : "/library");
+              }}
+              className="mt-4 h-12 w-full max-w-xs rounded-xl mint-fill press"
+            >
+              Start the Book — Chapter 1
+            </Button>
+            <button onClick={() => nav("/journal")} className="mt-2 block w-full text-xs text-muted-foreground underline-offset-2 hover:underline">
+              or set up your journal in Edgebook
+            </button>
           </div>
         )}
       </div>
