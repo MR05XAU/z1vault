@@ -15,6 +15,19 @@ export default function Auth() {
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Supabase auth errors are developer-worded ("Request rate limit reached",
+  // "Invalid login credentials") — translate the common ones for humans.
+  const friendlyAuthError = (err: any): string => {
+    const msg = String(err?.message ?? "");
+    if (err?.status === 429 || /rate limit|too many|security purposes/i.test(msg)) {
+      return "Too many attempts — give it a minute, then try again.";
+    }
+    if (/invalid login credentials/i.test(msg)) return "Wrong email or password.";
+    if (/email not confirmed/i.test(msg)) return "Confirm your email first — check your inbox for the link.";
+    if (/already registered/i.test(msg)) return "That email already has an account — sign in instead.";
+    return msg || "Something went wrong";
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -37,7 +50,7 @@ export default function Auth() {
         nav("/");
       }
     } catch (err: any) {
-      toast.error(err.message || "Something went wrong");
+      toast.error(friendlyAuthError(err));
     } finally {
       setBusy(false);
     }
