@@ -299,29 +299,30 @@ export default function Vault() {
         </Panel>
       </section>
 
-      {/* Big feature card + sidebar list — mirrors "Equity curve" + "Recent trades" */}
-      <section className="mt-4 grid gap-3 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
-        <div className="space-y-3 lg:col-span-2">
-          <Panel>
-            <div className="flex items-center gap-4">
-              <ProgressRing value={totalProgress} size={64} stroke={5} theme="mint" />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] uppercase tracking-[0.24em] text-mint-bright">{journey.label}</span>
-                  <span className="shrink-0 text-xs mint-text">{totalProgress}% mastery</span>
-                </div>
-                <div className="mt-0.5 text-[15px] font-medium line-clamp-1">{journey.title}</div>
-                <div className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{journey.sub}</div>
+      {/* Journey strip full-width, then three equal boxes — heights balance
+          instead of two short cards stretching against a tall column. */}
+      <section className="mt-4 animate-fade-up" style={{ animationDelay: "60ms" }}>
+        <Panel>
+          <div className="flex items-center gap-4">
+            <ProgressRing value={totalProgress} size={64} stroke={5} theme="mint" />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] uppercase tracking-[0.24em] text-mint-bright">{journey.label}</span>
+                <span className="shrink-0 text-xs mint-text">{totalProgress}% mastery</span>
               </div>
-              <button
-                onClick={() => nav(journey.to)}
-                className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs mint-text font-medium press"
-              >
-                {journey.cta} <ArrowRight className="size-3.5 text-mint-bright" />
-              </button>
+              <div className="mt-0.5 text-[15px] font-medium line-clamp-1">{journey.title}</div>
+              <div className="mt-0.5 text-xs text-muted-foreground line-clamp-1">{journey.sub}</div>
             </div>
-          </Panel>
+            <button
+              onClick={() => nav(journey.to)}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs mint-text font-medium press"
+            >
+              {journey.cta} <ArrowRight className="size-3.5 text-mint-bright" />
+            </button>
+          </div>
+        </Panel>
 
+        <div className="mt-3 grid items-start gap-3 md:grid-cols-2 lg:grid-cols-3">
           <Panel>
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-medium">Edgebook stats</h3>
@@ -343,7 +344,7 @@ export default function Vault() {
                   </div>
                 );
                 return (
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {stat("Net P&L", `${net >= 0 ? "+" : "-"}$${Math.abs(net).toLocaleString(undefined, { maximumFractionDigits: 0 })}`, net >= 0 ? "text-success" : "text-danger")}
                     {stat("Win rate", `${Math.round((wins.length / tradePnls.length) * 100)}%`)}
                     {stat("Profit factor", pf === Infinity ? "∞" : pf.toFixed(2))}
@@ -353,10 +354,9 @@ export default function Vault() {
               })()
             )}
           </Panel>
-        </div>
 
-        <div className="space-y-3">
           <UpcomingNews onOpenCalendar={() => nav("/news")} />
+
           <Panel>
             <h3 className="mb-3 text-sm font-medium">Recent activity</h3>
             <ul className="space-y-2.5 text-sm">
