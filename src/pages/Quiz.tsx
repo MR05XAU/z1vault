@@ -27,16 +27,22 @@ export default function Quiz() {
   const [done, setDone] = useState(false);
   const [loading, setLoading] = useState(true);
   const [review, setReview] = useState(false);
+  const [nextChapterId, setNextChapterId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!chapterId) return;
     (async () => {
-      const [ch, qz] = await Promise.all([
+      const [ch, qz, all] = await Promise.all([
         supabase.from("book_chapters").select("title,chapter_number").eq("id", chapterId).maybeSingle(),
         supabase.from("quizzes").select("*").eq("chapter_id", chapterId).order("order_index"),
+        supabase.from("book_chapters").select("id").order("order_index"),
       ]);
       setChapter(ch.data);
       setQs((qz.data ?? []).map((q: any) => ({ ...q, options: q.options as string[] })));
+      // The straight-through rail: quiz -> next chapter directly, no detour
+      // through the contents page.
+      const idxInBook = (all.data ?? []).findIndex((c) => c.id === chapterId);
+      setNextChapterId(all.data?.[idxInBook + 1]?.id ?? null);
       setLoading(false);
     })();
   }, [chapterId]);
@@ -135,8 +141,8 @@ export default function Quiz() {
                 );
               })}
             </div>
-            <Button onClick={() => nav("/library")} className="mt-6 h-14 rounded-2xl mint-fill press shadow-glow">
-              Done
+            <Button onClick={() => nav(nextChapterId ? `/read/${nextChapterId}` : "/journal")} className="mt-6 h-14 rounded-2xl mint-fill press shadow-glow">
+              {nextChapterId ? "Continue — next chapter" : "Start journaling"}
             </Button>
           </div>
         </div>
@@ -165,8 +171,11 @@ export default function Quiz() {
             <Button onClick={() => setReview(true)} variant="outline" className="flex-1 h-12 rounded-xl border-border-strong">
               Review answers
             </Button>
-            <Button onClick={() => nav("/library")} className="flex-1 h-12 rounded-xl mint-fill press shadow-glow">
-              Next chapter
+            <Button
+              onClick={() => nav(nextChapterId ? `/read/${nextChapterId}` : "/journal")}
+              className="flex-1 h-12 rounded-xl mint-fill press shadow-glow"
+            >
+              {nextChapterId ? "Next chapter" : "Start journaling"}
             </Button>
           </div>
           <button onClick={() => nav(`/read/${chapterId}`)} className="mt-4 text-xs text-muted-foreground press">

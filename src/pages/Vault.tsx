@@ -49,16 +49,19 @@ export default function Vault() {
   const { data: chapters = [] } = useChapters();
   const [progress, setProgress] = useState<Progress[]>([]);
   const [quizzes, setQuizzes] = useState<QuizResult[]>([]);
+  const [courseCompleted, setCourseCompleted] = useState<string[]>([]);
   const [, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      const [p, q] = await Promise.all([
+      const [p, q, c] = await Promise.all([
         supabase.from("user_progress").select("chapter_id,progress_percentage,completed,updated_at").eq("user_id", user!.id),
         supabase.from("quiz_results").select("score,total_questions").eq("user_id", user!.id),
+        (supabase as any).from("course_progress").select("completed").eq("user_id", user!.id).eq("course", "starting-trading").maybeSingle(),
       ]);
       setProgress(p.data ?? []);
       setQuizzes(q.data ?? []);
+      setCourseCompleted(c.data?.completed ?? []);
       setLoading(false);
     })();
   }, [user]);
@@ -86,6 +89,39 @@ export default function Vault() {
       if (i >= 0 && chapters[i + 1]) return chapters[i + 1];
     }
     return chapters[0];
+  })();
+
+  // The straight-through journey: basics course -> book chapters -> journal.
+  // One "next step" resolved from actual progress, so the home card always
+  // points at the right stage.
+  const courseStarted = courseCompleted.length > 0;
+  const courseDone = courseCompleted.includes("quiz:l5"); // final level's quiz = course complete
+  const journey = (() => {
+    if (!courseDone && chaptersDone === 0) {
+      return {
+        label: "Starting Trading",
+        title: courseStarted ? "Continue the basics course" : "New here? Start with the basics",
+        sub: "Five levels: markets, candlesticks, risk, psychology, your first trade.",
+        cta: courseStarted ? "Continue course" : "Start course",
+        to: "/starting-trading",
+      };
+    }
+    if (continueChapter && chaptersDone < chapters.length) {
+      return {
+        label: "The Book",
+        title: continueChapter.title,
+        sub: `Chapter ${continueChapter.chapter_number} · ${continueChapter.estimated_minutes ?? 8} min · ${chaptersDone}/${chapters.length} done`,
+        cta: "Resume reading",
+        to: `/read/${continueChapter.id}`,
+      };
+    }
+    return {
+      label: "Edgebook",
+      title: "Book complete — now trade it",
+      sub: "Log trades, run the checklist, and let the analytics find your edge.",
+      cta: "Open Edgebook",
+      to: "/journal",
+    };
   })();
 
   // Recent activity — mirrors Edgebook's "Recent trades" sidebar list.
@@ -185,28 +221,21 @@ export default function Vault() {
       <section className="mt-4 grid gap-3 lg:grid-cols-3 animate-fade-up" style={{ animationDelay: "60ms" }}>
         <Panel className="lg:col-span-2">
           <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-sm font-medium">Continue reading</h3>
+            <h3 className="text-sm font-medium">Your next step</h3>
             <span className="text-xs mint-text">{totalProgress}% mastery</span>
           </div>
           <div className="flex items-center gap-6">
             <ProgressRing value={totalProgress} size={100} stroke={7} theme="mint" />
             <div className="flex-1 min-w-0">
-              {continueChapter ? (
-                <>
-                  <div className="text-base font-medium line-clamp-2">{continueChapter.title}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">
-                    Chapter {continueChapter.chapter_number} · {continueChapter.estimated_minutes ?? 8} min · {chaptersDone}/{chapters.length} done
-                  </div>
-                  <button
-                    onClick={() => nav(`/read/${continueChapter.id}`)}
-                    className="mt-4 inline-flex items-center gap-1.5 text-sm mint-text font-medium press"
-                  >
-                    Resume reading <ArrowRight className="size-3.5 text-mint-bright" />
-                  </button>
-                </>
-              ) : (
-                <div className="text-sm text-muted-foreground">Loading vault…</div>
-              )}
+              <div className="text-[10px] uppercase tracking-[0.24em] text-mint-bright">{journey.label}</div>
+              <div className="mt-1 text-base font-medium line-clamp-2">{journey.title}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{journey.sub}</div>
+              <button
+                onClick={() => nav(journey.to)}
+                className="mt-4 inline-flex items-center gap-1.5 text-sm mint-text font-medium press"
+              >
+                {journey.cta} <ArrowRight className="size-3.5 text-mint-bright" />
+              </button>
             </div>
           </div>
         </Panel>
