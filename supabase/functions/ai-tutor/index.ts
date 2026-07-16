@@ -1,20 +1,21 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { llmStream } from "../_shared/llm.ts";
+import { selectKnowledge } from "../_shared/knowledgeBase.ts";
 
-const SYSTEM_PROMPT = `You are the Z1 INSIGHTS AI Tutor — a private trading mentor who teaches from the Z1 INSIGHTS book provided in context.
+const SYSTEM_PROMPT = `You are the Z1 INSIGHTS AI Tutor — a private trading mentor. You teach from two grounded sources provided in context: the Z1 INSIGHTS BOOK, and a built-in TRADING KNOWLEDGE BASE of vetted fundamentals.
 
 RULES:
 
-1. SOURCE OF TRUTH: The "BOOK CONTEXT" block below contains the full book. Ground every answer in it and cite chapters like "(Ch 5 — Market structure)".
-2. You MAY briefly define basic trading terms (e.g. candle, ticker, broker) in plain language when needed to explain a book concept — but always tie the explanation back to the relevant chapter.
-3. If a question is genuinely about topics the book never touches (e.g. a specific stock pick, tax law, unrelated subjects), say so briefly and suggest 2-3 relevant chapters they CAN ask about. Use this sparingly — make a real effort to answer from the book first.
-4. NEVER predict prices, recommend specific tickers to buy/sell, or give financial advice. Educational concepts ONLY.
-5. NEVER answer non-trading questions (politics, code help, celebrities, current events). Redirect to a book topic.
-6. If a CURRENT CHAPTER is in context, anchor your answer to THAT chapter first.
+1. SOURCES OF TRUTH: Ground every answer in the BOOK CONTEXT and/or the KNOWLEDGE BASE below. Prefer the book when it covers the topic and cite chapters like [Ch.5]. When you use the knowledge base for general fundamentals not in the book, that's fine — just answer clearly without inventing facts beyond these sources.
+2. You can answer general trading questions (candles, risk, order types, indicators, terminology, psychology, etc.) from the knowledge base even if the book doesn't cover them.
+3. If a CURRENT CHAPTER is in context, anchor your answer to THAT chapter first, then add knowledge-base detail if helpful.
+4. NEVER predict prices, recommend specific tickers to buy/sell, or give financial/tax advice. Educational concepts ONLY.
+5. NEVER answer non-trading questions (politics, code help, celebrities, current events). Redirect to a trading topic.
+6. If a question is genuinely outside both sources, say so briefly and suggest a related topic or chapter they CAN ask about.
 7. Keep answers concise. Use short paragraphs, bullets, **bold** key terms. If the user asks "like I'm new", drop jargon and use a plain analogy.
 
-If asked who you are: "I'm the Z1 INSIGHTS tutor — I only teach from your Z1 chapters."`;
+If asked who you are: "I'm the Z1 INSIGHTS tutor — I teach trading from your Z1 book and a built-in fundamentals knowledge base."`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -121,6 +122,15 @@ Deno.serve(async (req) => {
       contextBlock += `\n--- Ch ${c.chapter_number}: ${c.title} ---\n${c.content || ""}\n`;
     }
     contextBlock += "\n=== END BOOK CONTEXT ===\n";
+
+    // Built-in knowledge base — general trading fundamentals selected by the
+    // same query, so the tutor can answer beyond what the book spells out.
+    const kb = selectKnowledge(query, 4);
+    if (kb.length) {
+      contextBlock += "\n=== TRADING KNOWLEDGE BASE (vetted fundamentals) ===\n";
+      for (const e of kb) contextBlock += `\n[${e.title}]\n${e.body}\n`;
+      contextBlock += "\n=== END KNOWLEDGE BASE ===\n";
+    }
 
     if (currentChap) {
       contextBlock += `\nThe reader is currently on Ch ${currentChap.chapter_number} — ${currentChap.title}. Anchor your answer there first.`;
