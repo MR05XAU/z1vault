@@ -10,6 +10,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Textarea } from "@/components/ui/textarea";
 import { downloadChapter, getOffline, isOnline, offlineAudioUrl, removeChapter, type DownloadProgress } from "@/lib/offline";
 import { WordPopover } from "@/components/WordPopover";
+import { buzz, confetti } from "@/lib/fx";
 
 // Chapter titles in the data are often authored as "Chapter N: Title" —
 // redundant once we're already showing "Chapter N" as its own label above
@@ -433,7 +434,10 @@ export default function Reader() {
         { onConflict: "user_id,chapter_id" },
       );
     }
-    goTo();
+    confetti(70);
+    buzz([15, 60, 15]);
+    // Let the burst be visible for a beat before the route changes.
+    setTimeout(goTo, 650);
   };
 
   if (!chapter) {

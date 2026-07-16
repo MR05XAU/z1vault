@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Check, X, Trophy, ChevronDown } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MindsetCard } from "@/components/MindsetCard";
+import { buzz, confetti } from "@/lib/fx";
 
 interface Q {
   id: string;
@@ -53,6 +54,7 @@ export default function Quiz() {
   const choose = (n: number) => {
     if (picked !== null) return;
     setPicked(n);
+    buzz(n === current?.correct_answer ? 12 : [25, 40, 25]);
   };
 
   const next = async () => {
@@ -70,6 +72,7 @@ export default function Quiz() {
         answers: updated,
       });
       setDone(true);
+      if (final / qs.length >= 0.7) { confetti(); buzz([15, 60, 15]); }
     } else {
       setIdx(idx + 1);
     }

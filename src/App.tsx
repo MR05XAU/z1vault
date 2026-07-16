@@ -81,6 +81,21 @@ function AuthOnly({ children }: { children: ReactNode }) {
   return <>{children}</>;
 }
 
+// PWA install-nudge plumbing: capture beforeinstallprompt app-wide (lazy
+// route chunks load too late to catch it) and count distinct sessions.
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    (window as any).__pwaPrompt = e;
+  });
+  try {
+    if (!sessionStorage.getItem("z1.sessionCounted")) {
+      sessionStorage.setItem("z1.sessionCounted", "1");
+      localStorage.setItem("z1.sessions", String(Number(localStorage.getItem("z1.sessions") ?? 0) + 1));
+    }
+  } catch { /* storage unavailable */ }
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ErrorBoundary>

@@ -14,6 +14,7 @@ import { AreaChart, Area, BarChart, Bar, Cell, XAxis, YAxis, CartesianGrid, Tool
 import { toast } from "sonner";
 import { parseTradesCsv, parseCsvRows, detectDelimiter, stripBom } from "@/lib/csvImport";
 import { dupeKey, findDuplicateGroups } from "@/lib/dupeDetection";
+import { buzz } from "@/lib/fx";
 import { TradeSnapshotChart } from "@/components/TradeSnapshotChart";
 import { TradingViewChart } from "@/components/TradingViewChart";
 import { BrokerConnections } from "@/components/BrokerConnections";
@@ -853,7 +854,7 @@ function TradeForm({ strats, checklistRules, onSaved }: { strats: Strategy[]; ch
     };
     const { error } = await sb.from("trades").insert(payload);
     setSaving(false);
-    if (error) toast.error(error.message); else { toast.success("Trade logged."); onSaved(); }
+    if (error) toast.error(error.message); else { toast.success("Trade logged."); buzz(15); onSaved(); }
   };
 
   return (

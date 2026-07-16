@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Z1Wordmark } from "@/components/Z1Logo";
+import { InstallNudge } from "@/components/InstallNudge";
 import { ProgressRing } from "@/components/ProgressRing";
 import { pickMindset } from "@/data/mindset";
 import {
@@ -378,6 +379,42 @@ export default function Vault() {
           </Panel>
         </div>
       </section>
+
+      {/* Milestone badges — cheap dopamine, computed from data already loaded */}
+      <section className="mt-3 animate-fade-up" style={{ animationDelay: "90ms" }}>
+        <Panel>
+          <div className="mb-2.5 flex items-center justify-between">
+            <h3 className="text-sm font-medium">Milestones</h3>
+            <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">
+              {[
+                tradePnls.length >= 1, tradePnls.length >= 10, chaptersDone >= 5,
+                chaptersDone >= Math.ceil(chapters.length / 2), courseDone, streak >= 7, streak >= 30,
+              ].filter(Boolean).length}/7 earned
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: "First trade", earned: tradePnls.length >= 1 },
+              { label: "10 trades", earned: tradePnls.length >= 10 },
+              { label: "5 chapters", earned: chaptersDone >= 5 },
+              { label: "Half the book", earned: chapters.length > 0 && chaptersDone >= Math.ceil(chapters.length / 2) },
+              { label: "Course graduate", earned: courseDone },
+              { label: "7-day streak", earned: streak >= 7 },
+              { label: "30-day streak", earned: streak >= 30 },
+            ].map((b) => (
+              <span
+                key={b.label}
+                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-medium ${b.earned ? "border-mint/50 bg-mint/10 mint-text" : "border-border text-muted-foreground/60"}`}
+              >
+                <Trophy className={`size-3 ${b.earned ? "text-mint-bright" : "opacity-40"}`} />
+                {b.label}
+              </span>
+            ))}
+          </div>
+        </Panel>
+      </section>
+
+      <InstallNudge />
 
       {/* Mindset tip — kept as a slim strip rather than a big gradient card */}
       <section className="mt-3 animate-fade-up" style={{ animationDelay: "100ms" }}>
