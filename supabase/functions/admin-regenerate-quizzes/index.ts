@@ -1,8 +1,9 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { llmChat, extractJson } from "../_shared/llm.ts";
 
-// Regenerates a 4-question multiple-choice quiz for every chapter using
-// Lovable AI, with deliberate distractor design. Admin only.
+// Regenerates a 4-question multiple-choice quiz for every chapter via the
+// failover LLM router, with deliberate distractor design. Admin only.
 
 interface AIQuestion {
   question: string;
@@ -14,9 +15,6 @@ interface AIQuestion {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const apiKey = Deno.env.get("NVIDIA_API_KEY");
-    if (!apiKey) return json({ error: "AI not configured" }, 500);
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) return json({ error: "Unauthorized" }, 401);
 
@@ -48,13 +46,10 @@ Deno.serve(async (req) => {
     for (const ch of chapters) {
       if (ch.is_background) continue;
       try {
-        const aiRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model: "meta/llama-3.3-70b-instruct",
-            max_tokens: 2000,
-            messages: [
+        let content: string;
+        try {
+          content = await llmChat(
+            [
               {
                 role: "system",
                 content: `You write challenging multiple-choice quiz questions for a trading curriculum. Output ONLY valid JSON — no prose, no markdown fences.
@@ -74,18 +69,12 @@ Rules:
                 content: `Generate quiz JSON for Chapter ${ch.chapter_number}: ${ch.title}.\n\nCHAPTER:\n${ch.content}\n\nRespond with: {"questions":[{"question":"...","options":["A","B","C","D"],"correct_answer":0,"explanation":"..."}, ...4 items]}`,
               },
             ],
-          }),
-        });
-        if (!aiRes.ok) { failures.push({ chapter: ch.chapter_number, reason: `AI ${aiRes.status}` }); continue; }
-        const aiJson = await aiRes.json();
-        const content: string | undefined = aiJson?.choices?.[0]?.message?.content;
+            { maxTokens: 2000 },
+          );
+        } catch (e) { failures.push({ chapter: ch.chapter_number, reason: `AI ${(e as Error).message}` }); continue; }
         if (!content) { failures.push({ chapter: ch.chapter_number, reason: "empty" }); continue; }
-        // Models sometimes wrap JSON in prose/fences — extract the outermost object.
-        const start = content.indexOf("{");
-        const end = content.lastIndexOf("}");
-        if (start === -1 || end <= start) { failures.push({ chapter: ch.chapter_number, reason: "bad json" }); continue; }
         let parsed: { questions: AIQuestion[] };
-        try { parsed = JSON.parse(content.slice(start, end + 1)); } catch { failures.push({ chapter: ch.chapter_number, reason: "bad json" }); continue; }
+        try { parsed = JSON.parse(extractJson(content)); } catch { failures.push({ chapter: ch.chapter_number, reason: "bad json" }); continue; }
         const questions = (parsed.questions ?? []).filter(
           (q) => q && typeof q.question === "string" && Array.isArray(q.options) && q.options.length === 4 && typeof q.correct_answer === "number"
         );

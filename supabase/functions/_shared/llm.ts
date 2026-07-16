@@ -1,0 +1,131 @@
+// Central LLM router with automatic failover. Every AI feature calls through
+// here so a busy/rate-limited primary model transparently falls back to a
+// backup instead of erroring. Providers are tried in order; a network error
+// or a retryable HTTP status (429/500/502/503/529) advances to the next one.
+//
+// Order of preference (only providers whose key is set are tried):
+//   1. NVIDIA llama-3.3-70b  — primary, best NVIDIA model
+//   2. NVIDIA llama-3.1-8b   — lighter, usually free when the 70b is saturated
+//   3. Groq llama-3.3-70b    — different infra entirely (if GROQ_API_KEY set)
+//   4. Anthropic Claude      — highest quality backstop (if ANTHROPIC_API_KEY set)
+
+export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
+export type LLMOpts = { maxTokens?: number; temperature?: number };
+
+const RETRYABLE = new Set([429, 500, 502, 503, 529]);
+
+type Provider = {
+  name: string;
+  streams: boolean; // emits OpenAI-style SSE (choices[].delta.content)?
+  run: (messages: ChatMessage[], opts: LLMOpts, stream: boolean) => Promise<Response>;
+};
+
+function openAiCompatible(name: string, url: string, key: string, model: string): Provider {
+  return {
+    name,
+    streams: true,
+    run: (messages, opts, stream) =>
+      fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+        body: JSON.stringify({
+          model,
+          stream,
+          max_tokens: opts.maxTokens ?? 600,
+          temperature: opts.temperature ?? 0.4,
+          messages,
+        }),
+      }),
+  };
+}
+
+function anthropicProvider(key: string): Provider {
+  return {
+    name: "anthropic",
+    streams: false, // Anthropic's SSE shape differs — non-streaming only here
+    run: async (messages, opts) => {
+      const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
+      const rest = messages.filter((m) => m.role !== "system");
+      return fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-5-20250929",
+          max_tokens: opts.maxTokens ?? 600,
+          temperature: opts.temperature ?? 0.4,
+          system,
+          messages: rest,
+        }),
+      });
+    },
+  };
+}
+
+function providers(): Provider[] {
+  const out: Provider[] = [];
+  const nvidia = Deno.env.get("NVIDIA_API_KEY");
+  if (nvidia) {
+    out.push(openAiCompatible("nvidia-70b", "https://integrate.api.nvidia.com/v1/chat/completions", nvidia, "meta/llama-3.3-70b-instruct"));
+    out.push(openAiCompatible("nvidia-8b", "https://integrate.api.nvidia.com/v1/chat/completions", nvidia, "meta/llama-3.1-8b-instruct"));
+  }
+  const groq = Deno.env.get("GROQ_API_KEY");
+  if (groq) out.push(openAiCompatible("groq", "https://api.groq.com/openai/v1/chat/completions", groq, "llama-3.3-70b-versatile"));
+  const anthropic = Deno.env.get("ANTHROPIC_API_KEY");
+  if (anthropic) out.push(anthropicProvider(anthropic));
+  return out;
+}
+
+/** Non-streaming completion with failover. Returns the assistant text. */
+export async function llmChat(messages: ChatMessage[], opts: LLMOpts = {}): Promise<string> {
+  const chain = providers();
+  if (chain.length === 0) throw new Error("No LLM provider configured");
+  let lastErr = "no providers";
+  for (const p of chain) {
+    try {
+      const res = await p.run(messages, opts, false);
+      if (!res.ok) {
+        lastErr = `${p.name} ${res.status}`;
+        if (RETRYABLE.has(res.status)) continue; // busy/erroring — next provider
+        // Non-retryable (e.g. 400/401) — still try the next provider rather than fail hard.
+        continue;
+      }
+      const data = await res.json();
+      const text = data?.choices?.[0]?.message?.content // OpenAI shape
+        ?? data?.content?.find?.((c: { type: string }) => c.type === "text")?.text // Anthropic shape
+        ?? "";
+      if (text) return text;
+      lastErr = `${p.name} empty`;
+    } catch (e) {
+      lastErr = `${p.name} ${(e as Error).message}`;
+    }
+  }
+  throw new Error(`All LLM providers failed (${lastErr})`);
+}
+
+/**
+ * Streaming completion with failover. Returns the first provider Response
+ * whose body is a live OpenAI-style SSE stream, so the frontend's existing
+ * chunk parser is unchanged. Anthropic is skipped here (different SSE shape).
+ */
+export async function llmStream(messages: ChatMessage[], opts: LLMOpts = {}): Promise<Response> {
+  const chain = providers().filter((p) => p.streams);
+  if (chain.length === 0) throw new Error("No streaming LLM provider configured");
+  let lastStatus = 0;
+  for (const p of chain) {
+    try {
+      const res = await p.run(messages, opts, true);
+      if (res.ok && res.body) return res;
+      lastStatus = res.status;
+      if (!RETRYABLE.has(res.status)) continue;
+    } catch { /* try next */ }
+  }
+  throw new Error(`All streaming providers failed (last status ${lastStatus})`);
+}
+
+// Extract the outermost {...} JSON object from a model reply that may wrap it
+// in prose or code fences.
+export function extractJson(raw: string): string {
+  const s = raw.indexOf("{");
+  const e = raw.lastIndexOf("}");
+  return s !== -1 && e > s ? raw.slice(s, e + 1) : raw;
+}

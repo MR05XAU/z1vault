@@ -1,5 +1,6 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { llmStream } from "../_shared/llm.ts";
 
 const SYSTEM_PROMPT = `You are the Z1 INSIGHTS AI Tutor — a private trading mentor who teaches from the Z1 INSIGHTS book provided in context.
 
@@ -19,17 +20,6 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
-    // Self-hosted LLM: NVIDIA's OpenAI-compatible API (llama-3.3-70b) —
-    // replaced the Lovable AI Gateway when the project went standalone.
-    // Same SSE chunk format, so the streaming frontend needs no changes.
-    const apiKey = Deno.env.get("NVIDIA_API_KEY");
-    if (!apiKey) {
-      return new Response(JSON.stringify({ error: "AI not configured" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -142,40 +132,20 @@ Deno.serve(async (req) => {
 
     // Slim the conversation: only keep the last 6 turns so the prompt stays small.
     const trimmedMessages = messages.slice(-6);
-    const aiRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: "meta/llama-3.3-70b-instruct",
-        stream: true,
-        max_tokens: 600,
-        temperature: 0.4,
-        messages: [
+    let aiRes: Response;
+    try {
+      // llmStream tries every configured provider in turn — if the primary
+      // model is rate-limited/busy, it silently falls through to a backup.
+      aiRes = await llmStream(
+        [
           { role: "system", content: SYSTEM_PROMPT + contextBlock + "\n\nIMPORTANT: When you reference a chapter, format the citation EXACTLY as [Ch.N] (e.g. [Ch.3]) so the UI can render it as a tappable link." },
           ...trimmedMessages,
         ],
-      }),
-    });
-
-    if (!aiRes.ok) {
-      const text = await aiRes.text();
-      if (aiRes.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limit — try again in a moment." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (aiRes.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please contact support." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ error: text }), {
-        status: 500,
+        { maxTokens: 600 },
+      );
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "The tutor is busy right now — try again in a moment." }), {
+        status: 503,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

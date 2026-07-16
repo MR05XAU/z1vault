@@ -1,5 +1,6 @@
 import { corsHeaders } from "../_shared/cors.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { llmChat } from "../_shared/llm.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -37,27 +38,20 @@ Deno.serve(async (req) => {
       }
     } catch {}
 
-    // 3. AI fallback for trading jargon (NVIDIA OpenAI-compatible API —
-    // replaced the Lovable gateway when the project went standalone)
+    // 3. AI fallback for trading jargon — via the failover LLM router.
     if (!definition) {
-      const apiKey = Deno.env.get("NVIDIA_API_KEY");
-      if (!apiKey) return json({ error: "Definition not found" }, 404);
-      const r = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({
-          model: "meta/llama-3.3-70b-instruct",
-          max_tokens: 80,
-          messages: [
+      try {
+        definition = (await llmChat(
+          [
             { role: "system", content: "Give a one-sentence definition of the trading/finance term. Plain English. Under 25 words. No preamble." },
             { role: "user", content: word },
           ],
-        }),
-      });
-      if (!r.ok) return json({ error: "Definition not found" }, 404);
-      const j = await r.json();
-      definition = j?.choices?.[0]?.message?.content?.trim() ?? "";
-      source = "ai";
+          { maxTokens: 80 },
+        )).trim();
+        source = "ai";
+      } catch {
+        return json({ error: "Definition not found" }, 404);
+      }
     }
 
     if (!definition) return json({ error: "Definition not found" }, 404);

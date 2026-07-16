@@ -1,5 +1,8 @@
-// Generates a daily trading tip + motivational line via Lovable AI.
-// Mode shapes the tone: "daily" = general morning brief; "after-loss" / "after-quiz-fail" = recovery nudge.
+// Generates a daily trading tip + motivational line via the failover LLM
+// router. Mode shapes the tone: "daily" = general morning brief;
+// "after-loss" / "after-quiz-fail" = recovery nudge.
+import { llmChat, extractJson } from "../_shared/llm.ts";
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -44,44 +47,25 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
-    const key = Deno.env.get("NVIDIA_API_KEY");
-    if (!key) return new Response(JSON.stringify({ error: "AI not configured" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
-
     const body = await req.json().catch(() => ({}));
     const mode: Mode = MODES.includes(body?.mode) ? body.mode : "daily";
     // Seed adds entropy so two same-day calls don't collide; client passes a date for caching parity.
     const seed = String(body?.seed ?? Date.now());
 
-    const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${key}`,
-      },
-      body: JSON.stringify({
-        model: "meta/llama-3.3-70b-instruct",
-        max_tokens: 200,
-        messages: [
+    let raw = "{}";
+    try {
+      raw = await llmChat(
+        [
           { role: "system", content: SYSTEM },
           { role: "user", content: `${PROMPTS[mode]}\n\nReturn STRICT JSON: {"tip": "...", "quote": "...", "tag": "Discipline|Risk|Psychology|Patience|Process|Recovery"}\nKeep tip under 140 chars. Keep quote under 90 chars. No emojis. No quotation marks inside values.\nVariation seed: ${seed}` },
         ],
-        temperature: 0.95,
-      }),
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      return new Response(JSON.stringify({ error: `AI ${res.status}`, detail: txt.slice(0, 300) }), {
-        status: res.status === 402 || res.status === 429 ? res.status : 500,
-        headers: { ...cors, "Content-Type": "application/json" },
-      });
+        { maxTokens: 200, temperature: 0.95 },
+      );
+    } catch (e) {
+      return new Response(JSON.stringify({ error: String(e) }), { status: 503, headers: { ...cors, "Content-Type": "application/json" } });
     }
-    const data = await res.json();
-    const raw: string = data?.choices?.[0]?.message?.content ?? "{}";
-    // Models sometimes wrap JSON in prose/fences — extract the outermost object.
-    const s = raw.indexOf("{"), e2 = raw.lastIndexOf("}");
     let parsed: { tip?: string; quote?: string; tag?: string } = {};
-    try { parsed = JSON.parse(s !== -1 && e2 > s ? raw.slice(s, e2 + 1) : raw); } catch { parsed = {}; }
+    try { parsed = JSON.parse(extractJson(raw)); } catch { parsed = {}; }
 
     return new Response(JSON.stringify({
       tip: parsed.tip ?? "Risk first. Reward follows.",
