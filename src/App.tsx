@@ -32,6 +32,7 @@ const ShopProduct = lazy(() => import("./pages/ShopProduct"));
 const Journal = lazy(() => import("./pages/Journal"));
 const Calculators = lazy(() => import("./pages/Calculators"));
 const StartingTrading = lazy(() => import("./pages/StartingTrading"));
+const Flashcards = lazy(() => import("./pages/Flashcards"));
 const Patterns = lazy(() => import("./pages/Patterns"));
 const News = lazy(() => import("./pages/News"));
 const OfflineSync = lazy(() => import("./pages/OfflineSync"));
@@ -129,6 +130,7 @@ const App = () => (
             <Route path="/journal" element={<Protected><Suspense fallback={<EdgebookSplash />}><Journal /></Suspense></Protected>} />
             <Route path="/calculators" element={<Protected><Calculators /></Protected>} />
             <Route path="/starting-trading" element={<Protected><StartingTrading /></Protected>} />
+            <Route path="/flashcards" element={<Protected><Flashcards /></Protected>} />
             <Route path="/patterns" element={<Protected><Patterns /></Protected>} />
             <Route path="/news" element={<Protected><News /></Protected>} />
             <Route path="/offline" element={<Protected><OfflineSync /></Protected>} />

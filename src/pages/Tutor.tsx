@@ -81,6 +81,7 @@ export default function Tutor() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [openCat, setOpenCat] = useState<string | null>(null);
+  const [persona, setPersona] = useState<string>(() => { try { return localStorage.getItem("z1.tutorPersona") || "mentor"; } catch { return "mentor"; } });
   const [chapterByNum, setChapterByNum] = useState<Record<number, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -110,7 +111,7 @@ export default function Tutor() {
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-tutor`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ messages: history }),
+        body: JSON.stringify({ messages: history, persona }),
       });
       if (!res.ok || !res.body) {
         const j = await res.json().catch(() => ({}));
@@ -177,6 +178,26 @@ export default function Tutor() {
               <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto">
                 Grounded in your Z1 book and a built-in trading knowledge base. Ask a question or tap one below.
               </p>
+            </div>
+            {/* Persona picker — flavors the tutor's voice */}
+            <div className="mt-6">
+              <div className="mb-2 text-[10px] uppercase tracking-[0.28em] text-mint-bright">Mentor style</div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  { id: "mentor", label: "Balanced" },
+                  { id: "stoic", label: "Stoic Mentor" },
+                  { id: "quant", label: "Quant Coach" },
+                  { id: "devil", label: "Devil's Advocate" },
+                ].map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setPersona(p.id); try { localStorage.setItem("z1.tutorPersona", p.id); } catch {} }}
+                    className={`rounded-full px-3 py-1.5 text-[11px] press ${persona === p.id ? "mint-fill font-medium" : "glass text-muted-foreground"}`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
             </div>
             {(() => {
               const active = STARTER_CATEGORIES.find((c) => c.title === openCat);

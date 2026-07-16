@@ -12,7 +12,7 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { pickMindset } from "@/data/mindset";
 import {
   BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Settings,
-  CalendarDays, LineChart, CandlestickChart, Download, ShoppingBag, Flame, Calculator, GraduationCap,
+  CalendarDays, LineChart, CandlestickChart, Download, ShoppingBag, Flame, Calculator, GraduationCap, Layers,
 } from "lucide-react";
 
 interface Progress { chapter_id: string; progress_percentage: number; completed: boolean; updated_at: string }
@@ -27,6 +27,7 @@ const moduleGroups: { title: string; items: { to: string; label: string; icon: a
       { to: "/starting-trading", label: "Starting Trading", icon: GraduationCap },
       { to: "/library", label: "Book", icon: BookOpen },
       { to: "/tutor", label: "Tutor", icon: Sparkles },
+      { to: "/flashcards", label: "Flashcards", icon: Layers },
       { to: "/patterns", label: "Candles", icon: CandlestickChart },
     ],
   },

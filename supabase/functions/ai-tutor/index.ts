@@ -109,7 +109,16 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { messages, chapterId, highlightedText } = await req.json();
+    const { messages, chapterId, highlightedText, persona } = await req.json();
+
+    // Persona flavors the mentor's voice without loosening the guardrails.
+    const PERSONAS: Record<string, string> = {
+      mentor: "", // default voice, no extra styling
+      stoic: "\n\nVOICE: You are a calm, Stoic mentor. Emphasize discipline, patience, process over outcome, and emotional control. Measured and unhurried. Occasionally frame lessons in terms of what is and isn't within the trader's control.",
+      quant: "\n\nVOICE: You are a rigorous quant coach. Be precise and data-first — lead with numbers, probabilities, expectancy, and edge. Prefer concrete formulas and worked calculations over vibes. No fluff.",
+      devil: "\n\nVOICE: You are a sharp devil's advocate. Pressure-test the student's assumptions, point out where their thinking could blow up an account, and ask a pointed challenging question. Blunt but constructive — the goal is to toughen their process, not to discourage.",
+    };
+    const personaStyle = PERSONAS[persona] ?? "";
 
     // The student's own trading stats — so the tutor can give personalized,
     // data-grounded coaching ("your biggest leak is trades after 2pm"),
@@ -194,6 +203,7 @@ Deno.serve(async (req) => {
     }
 
     contextBlock += tradeStats;
+    contextBlock += personaStyle;
 
     if (currentChap) {
       contextBlock += `\nThe reader is currently on Ch ${currentChap.chapter_number} — ${currentChap.title}. Anchor your answer there first.`;
