@@ -278,7 +278,10 @@
   }
 
   .prose-z1 { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif; }
-  .prose-z1 p { @apply mb-4 text-[16px] leading-[1.85] text-foreground/85; }
+  /* Body text sized in em so the reader's font-size control (inline
+     font-size on the page container) scales it; 1em = the old 16px. */
+  .prose-z1 p { @apply mb-4 leading-[1.85] text-foreground/85; font-size: 1em; }
+  .prose-z1 ul, .prose-z1 ol { font-size: 1em; }
   .prose-z1 h1 { @apply text-3xl mb-4 mt-2 font-medium text-foreground; }
   .prose-z1 h2 { @apply text-xl mb-3 mt-6 font-medium mint-text; }
   .prose-z1 h3 { @apply text-lg mb-2 mt-5 font-medium text-foreground; }

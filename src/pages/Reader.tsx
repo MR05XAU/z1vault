@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { ArrowLeft, Bookmark, Highlighter, Sparkles, ChevronLeft, ChevronRight, Trophy, X, Download, CheckCircle2, WifiOff, Headphones, Loader2 } from "lucide-react";
+import { ArrowLeft, Bookmark, Highlighter, Sparkles, ChevronLeft, ChevronRight, Trophy, X, Download, CheckCircle2, WifiOff, Headphones, Loader2, Type } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { downloadChapter, getOffline, isOnline, offlineAudioUrl, removeChapter, type DownloadProgress } from "@/lib/offline";
@@ -90,6 +90,23 @@ export default function Reader() {
 
   // The outgoing page kept mounted while it physically turns over the spine.
   const [flight, setFlight] = useState<{ dir: "next" | "prev"; spec: number[]; fromAbs: number; wasSpread: boolean } | null>(null);
+
+  // Reader display preferences — font size + serif/sans, persisted. Fed into
+  // both the live pages and the measurer so pagination stays exact.
+  const [prefs, setPrefs] = useState<{ size: number; serif: boolean }>(() => {
+    try {
+      const p = JSON.parse(localStorage.getItem("z1.readerPrefs") ?? "{}");
+      return { size: Math.min(21, Math.max(14, Number(p.size) || 16)), serif: p.serif !== false };
+    } catch { return { size: 16, serif: true }; }
+  });
+  const [showPrefs, setShowPrefs] = useState(false);
+  useEffect(() => {
+    try { localStorage.setItem("z1.readerPrefs", JSON.stringify(prefs)); } catch {}
+  }, [prefs]);
+  const pageTypography: React.CSSProperties = {
+    fontSize: prefs.size,
+    ...(prefs.serif ? {} : { fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif" }),
+  };
   // Safety: if animationend never fires (reduced-motion, hidden tab), the
   // stale leaf must not stay stuck covering the live page.
   useEffect(() => {
@@ -197,7 +214,7 @@ export default function Reader() {
     // of shrinking to make room for buttons below it.
     out.push([]);
     setPageMap(out);
-  }, [blocks, stageSize, pagesPerView]);
+  }, [blocks, stageSize, pagesPerView, prefs.size, prefs.serif]);
 
   const totalPages = pageMap.length;
   const visibleSpecs = pageMap.slice(pageIndex, pageIndex + pagesPerView);
@@ -315,7 +332,15 @@ export default function Reader() {
     const dx = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
     touchStartX.current = null;
     if (Math.abs(dx) < 60) return;
-    if (dx < 0) nextPage(); else prevPage();
+    // Past the ends of the chapter, keep swiping into the neighbor chapter —
+    // the book reads as one continuous object.
+    if (dx < 0) {
+      if (isLastPage && neighbors.next) nav(`/read/${neighbors.next.id}`);
+      else nextPage();
+    } else {
+      if (pageIndex === 0 && neighbors.prev) nav(`/read/${neighbors.prev.id}`);
+      else prevPage();
+    }
   };
 
   // Desktop: turn pages with the arrow keys (unless a sheet/input has focus).
@@ -554,8 +579,16 @@ export default function Reader() {
             {stripChapterPrefix(chapter.title)}
           </div>
           <button
+            onClick={() => setShowPrefs((v) => !v)}
+            aria-label="Reading settings"
+            className={`size-9 grid place-items-center rounded-full glass press ${showPrefs ? "mint-border" : ""}`}
+          >
+            <Type className="size-4" />
+          </button>
+          <button
             onClick={downloaded ? wipeDownload : startDownload}
             disabled={!!dlProgress}
+            aria-label={downloaded ? "Remove offline copy" : "Save for offline"}
             title={downloaded ? "Remove offline copy" : "Save for offline"}
             className="size-9 grid place-items-center rounded-full glass press"
           >
@@ -563,10 +596,49 @@ export default function Reader() {
               : downloaded ? <CheckCircle2 className="size-4 text-success" />
               : <Download className="size-4" />}
           </button>
-          <button onClick={addBookmark} className="size-9 grid place-items-center rounded-full glass press">
+          <button onClick={addBookmark} aria-label="Bookmark this page" className="size-9 grid place-items-center rounded-full glass press">
             <Bookmark className="size-4" />
           </button>
         </header>
+
+        {/* Chapter progress — how far through the pages you are */}
+        <div className="h-0.5 bg-border/40">
+          <div
+            className="h-full mint-fill transition-all duration-300"
+            style={{ width: `${totalPages ? Math.min(100, ((pageIndex + pagesPerView) / totalPages) * 100) : 0}%` }}
+          />
+        </div>
+
+        {showPrefs && (
+          <div className="flex items-center justify-between gap-3 border-b border-border/40 bg-surface-elevated px-4 py-2.5 animate-fade-up">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Text size</span>
+              <button
+                onClick={() => setPrefs((p) => ({ ...p, size: Math.max(14, p.size - 1) }))}
+                aria-label="Smaller text"
+                className="size-8 grid place-items-center rounded-lg glass press text-sm"
+              >A−</button>
+              <span className="w-7 text-center text-xs tabular-nums text-muted-foreground">{prefs.size}</span>
+              <button
+                onClick={() => setPrefs((p) => ({ ...p, size: Math.min(21, p.size + 1) }))}
+                aria-label="Larger text"
+                className="size-8 grid place-items-center rounded-lg glass press text-sm"
+              >A+</button>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {(["serif", "sans"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setPrefs((p) => ({ ...p, serif: f === "serif" }))}
+                  className={`rounded-lg px-3 py-1.5 text-xs press ${(f === "serif") === prefs.serif ? "mint-fill font-medium" : "glass text-muted-foreground"}`}
+                  style={f === "serif" ? { fontFamily: "Georgia, serif" } : undefined}
+                >
+                  {f === "serif" ? "Serif" : "Sans"}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {!online && (
           <div className="px-4 py-1.5 text-[11px] text-center bg-surface-elevated border-b border-border/40 flex items-center justify-center gap-1.5 text-muted-foreground">
@@ -593,7 +665,7 @@ export default function Reader() {
             <div
               ref={measureRef}
               aria-hidden
-              style={{ ...PAPER_VARS, position: "fixed", left: -99999, top: 0, width: measureW, visibility: "hidden", pointerEvents: "none" }}
+              style={{ ...PAPER_VARS, ...pageTypography, position: "fixed", left: -99999, top: 0, width: measureW, visibility: "hidden", pointerEvents: "none" }}
               className="px-6 py-8 md:px-10 md:py-10 prose-z1"
             >
               <div ref={openerMeasureRef} style={{ display: "flow-root" }}>{opener}</div>
@@ -626,7 +698,7 @@ export default function Reader() {
                 return (
                   <div
                     key={absoluteIndex}
-                    style={PAPER_VARS}
+                    style={{ ...PAPER_VARS, ...pageTypography }}
                     className={`${leafClass(isFirstOfSpread)}${revealing ? " page-reveal" : ""}`}
                   >
                     <div className="pointer-events-none absolute inset-y-0 left-0 w-3 bg-gradient-to-r from-black/10 to-transparent" />
@@ -658,7 +730,7 @@ export default function Reader() {
                       onAnimationEnd={() => setFlight(null)}
                     >
                       <div
-                        style={PAPER_VARS}
+                        style={{ ...PAPER_VARS, ...pageTypography }}
                         className={`flip-face paper-texture px-6 py-8 md:px-10 md:py-10 prose-z1 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] ${flight.dir === "next" ? "rounded-r-md rounded-l-[2px]" : "rounded-l-md rounded-r-[2px]"}`}
                       >
                         <div className="relative h-full overflow-hidden">{pageInner(flight.spec, flight.fromAbs)}</div>
