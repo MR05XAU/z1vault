@@ -239,6 +239,16 @@ export default function Tutor() {
                           <ReactMarkdown>{m.content}</ReactMarkdown>
                         </div>
                         <CitationChips content={m.content} chapterByNum={chapterByNum} onOpen={(id) => nav(`/read/${id}`)} />
+                        {/* Follow-up prompts after the latest completed answer */}
+                        {!streaming && i === messages.length - 1 && m.content.length > 40 && (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {["Give me a concrete example", "What are the common mistakes?", "How do I practice this?"].map((f) => (
+                              <button key={f} onClick={() => send(f)} className="rounded-full border border-border px-3 py-1.5 text-[11px] text-muted-foreground press hover:border-mint hover:text-foreground">
+                                {f}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </>
                     )}
                   </div>
