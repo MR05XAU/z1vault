@@ -5,13 +5,74 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
-import { Sparkles, Send, BookOpen, Loader2, RotateCcw } from "lucide-react";
-import { TUTOR_FAQ } from "@/data/tutorFaq";
+import { Sparkles, Send, BookOpen, Loader2, RotateCcw, CandlestickChart, Shield, Brain, LineChart, Layers, Wallet } from "lucide-react";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-// Starter questions shown on an empty tutor — first 5 curated FAQ prompts.
-const STARTERS = TUTOR_FAQ.slice(0, 5).map((f) => f.q);
+// Starter questions grouped by topic so an empty tutor offers real variety
+// across everything it can teach in depth.
+const STARTER_CATEGORIES: { title: string; icon: any; questions: string[] }[] = [
+  {
+    title: "Charts & price action",
+    icon: CandlestickChart,
+    questions: [
+      "How do I actually read a candlestick?",
+      "What is market structure and how do I spot a trend change?",
+      "How do support and resistance zones really work?",
+      "Explain order blocks and fair value gaps.",
+    ],
+  },
+  {
+    title: "Risk & money management",
+    icon: Shield,
+    questions: [
+      "How do I size a position using the 1% rule?",
+      "What is R-multiple and how do I use it?",
+      "Why does win rate matter less than expectancy?",
+      "Where should I actually place my stop loss?",
+    ],
+  },
+  {
+    title: "Strategy & setups",
+    icon: Layers,
+    questions: [
+      "What makes a trading setup have an edge?",
+      "Scalping vs day trading vs swing trading — which suits me?",
+      "How do I build and backtest a trading plan?",
+      "How should I use multiple timeframes together?",
+    ],
+  },
+  {
+    title: "Indicators & tools",
+    icon: LineChart,
+    questions: [
+      "How does RSI work and when does it mislead?",
+      "Explain VWAP and why intraday traders watch it.",
+      "What do moving averages actually tell me?",
+      "MACD explained — what is it really showing?",
+    ],
+  },
+  {
+    title: "Psychology & discipline",
+    icon: Brain,
+    questions: [
+      "How do I stop revenge trading after a loss?",
+      "How do I deal with FOMO and chasing moves?",
+      "How do I build discipline and stick to my plan?",
+      "Why do I keep cutting winners early?",
+    ],
+  },
+  {
+    title: "Markets & mechanics",
+    icon: Wallet,
+    questions: [
+      "How does leverage really work and why is it dangerous?",
+      "Futures vs forex vs stocks — what's the difference?",
+      "What are the bid, ask and spread?",
+      "Market orders vs limit orders — when to use each?",
+    ],
+  },
+];
 
 export default function Tutor() {
   const nav = useNavigate();
@@ -116,12 +177,22 @@ export default function Tutor() {
                 Grounded in your Z1 book and a built-in trading knowledge base. Ask a question or tap one below.
               </p>
             </div>
-            <div className="mt-6 text-[10px] uppercase tracking-[0.28em] text-mint-bright mb-2">Try asking</div>
-            <div className="space-y-2">
-              {STARTERS.map((q) => (
-                <button key={q} onClick={() => send(q)} className="w-full text-left glass rounded-2xl px-4 py-3 press hover:shadow-glow">
-                  <div className="text-sm font-medium">{q}</div>
-                </button>
+            <div className="mt-7 space-y-5">
+              {STARTER_CATEGORIES.map((cat) => (
+                <div key={cat.title}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <cat.icon className="size-3.5 text-mint-bright" />
+                    <span className="text-[10px] uppercase tracking-[0.24em] text-mint-bright">{cat.title}</span>
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {cat.questions.map((q) => (
+                      <button key={q} onClick={() => send(q)} className="text-left glass rounded-xl px-3.5 py-2.5 press hover:shadow-glow">
+                        <div className="text-[13px] font-medium leading-snug">{q}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
