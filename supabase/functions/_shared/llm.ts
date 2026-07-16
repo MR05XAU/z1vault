@@ -4,9 +4,9 @@
 // or a retryable HTTP status (429/500/502/503/529) advances to the next one.
 //
 // Order of preference (only providers whose key is set are tried):
-//   1. NVIDIA llama-3.3-70b  — primary, best NVIDIA model
-//   2. NVIDIA llama-3.1-8b   — lighter, usually free when the 70b is saturated
-//   3. Groq llama-3.3-70b    — different infra entirely (if GROQ_API_KEY set)
+//   1. Groq llama-3.3-70b    — primary: very fast, generous free tier
+//   2. NVIDIA llama-3.3-70b  — backup, best NVIDIA model
+//   3. NVIDIA llama-3.1-8b   — lighter, usually free when the 70b is saturated
 //   4. Anthropic Claude      — highest quality backstop (if ANTHROPIC_API_KEY set)
 
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
@@ -75,13 +75,13 @@ function anthropicProvider(key: string): Provider {
 
 function providers(): Provider[] {
   const out: Provider[] = [];
+  const groq = Deno.env.get("GROQ_API_KEY");
+  if (groq) out.push(openAiCompatible("groq", "https://api.groq.com/openai/v1/chat/completions", groq, "llama-3.3-70b-versatile"));
   const nvidia = Deno.env.get("NVIDIA_API_KEY");
   if (nvidia) {
     out.push(openAiCompatible("nvidia-70b", "https://integrate.api.nvidia.com/v1/chat/completions", nvidia, "meta/llama-3.3-70b-instruct"));
     out.push(openAiCompatible("nvidia-8b", "https://integrate.api.nvidia.com/v1/chat/completions", nvidia, "meta/llama-3.1-8b-instruct"));
   }
-  const groq = Deno.env.get("GROQ_API_KEY");
-  if (groq) out.push(openAiCompatible("groq", "https://api.groq.com/openai/v1/chat/completions", groq, "llama-3.3-70b-versatile"));
   const anthropic = Deno.env.get("ANTHROPIC_API_KEY");
   if (anthropic) out.push(anthropicProvider(anthropic));
   return out;
