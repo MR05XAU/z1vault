@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
-import { Sparkles, Send, BookOpen, Loader2, RotateCcw, CandlestickChart, Shield, Brain, LineChart, Layers, Wallet } from "lucide-react";
+import { Sparkles, Send, BookOpen, Loader2, RotateCcw, CandlestickChart, Shield, Brain, LineChart, Layers, Wallet, ChevronRight, ArrowLeft } from "lucide-react";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
@@ -80,6 +80,7 @@ export default function Tutor() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [openCat, setOpenCat] = useState<string | null>(null);
   const [chapterByNum, setChapterByNum] = useState<Record<number, string>>({});
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -177,24 +178,46 @@ export default function Tutor() {
                 Grounded in your Z1 book and a built-in trading knowledge base. Ask a question or tap one below.
               </p>
             </div>
-            <div className="mt-7 space-y-5">
-              {STARTER_CATEGORIES.map((cat) => (
-                <div key={cat.title}>
-                  <div className="mb-2 flex items-center gap-2">
-                    <cat.icon className="size-3.5 text-mint-bright" />
-                    <span className="text-[10px] uppercase tracking-[0.24em] text-mint-bright">{cat.title}</span>
-                    <span className="h-px flex-1 bg-border" />
+            {(() => {
+              const active = STARTER_CATEGORIES.find((c) => c.title === openCat);
+              if (active) {
+                return (
+                  <div className="mt-7 animate-fade-up">
+                    <button onClick={() => setOpenCat(null)} className="mb-3 flex items-center gap-1.5 text-xs text-muted-foreground press">
+                      <ArrowLeft className="size-3.5" /> Categories
+                    </button>
+                    <div className="mb-3 flex items-center gap-2">
+                      <active.icon className="size-4 text-mint-bright" />
+                      <span className="display text-lg font-medium">{active.title}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {active.questions.map((q) => (
+                        <button key={q} onClick={() => send(q)} className="flex w-full items-center justify-between gap-3 text-left glass rounded-xl px-4 py-3 press hover:shadow-glow">
+                          <span className="text-sm font-medium leading-snug">{q}</span>
+                          <Send className="size-3.5 shrink-0 text-mint-bright" />
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {cat.questions.map((q) => (
-                      <button key={q} onClick={() => send(q)} className="text-left glass rounded-xl px-3.5 py-2.5 press hover:shadow-glow">
-                        <div className="text-[13px] font-medium leading-snug">{q}</div>
+                );
+              }
+              return (
+                <div className="mt-7">
+                  <div className="mb-2 text-[10px] uppercase tracking-[0.28em] text-mint-bright">Pick a topic</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {STARTER_CATEGORIES.map((cat) => (
+                      <button key={cat.title} onClick={() => setOpenCat(cat.title)} className="flex items-center gap-2.5 text-left glass rounded-2xl px-3.5 py-3.5 press hover:shadow-glow">
+                        <div className="size-9 shrink-0 rounded-xl bg-mint/10 grid place-items-center">
+                          <cat.icon className="size-4 text-mint-bright" />
+                        </div>
+                        <span className="min-w-0 flex-1 text-[13px] font-medium leading-tight">{cat.title}</span>
+                        <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
                       </button>
                     ))}
                   </div>
                 </div>
-              ))}
-            </div>
+              );
+            })()}
           </div>
         ) : (
           <div className="space-y-4">
