@@ -6,7 +6,7 @@ import { useChapters } from "@/hooks/useChapters";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { ProgressRing } from "@/components/ProgressRing";
-import { Trophy, Highlighter, Bookmark, BookOpen, TrendingUp, LogOut } from "lucide-react";
+import { Trophy, Highlighter, Bookmark, BookOpen, TrendingUp, LogOut, LineChart, ArrowRight } from "lucide-react";
 
 export default function Analytics() {
   const { user, signOut } = useAuth();
@@ -22,15 +22,17 @@ export default function Analytics() {
     bookmarks: 0,
   });
   const [recent, setRecent] = useState<any[]>([]);
+  const [trading, setTrading] = useState<{ net: number; winRate: number; pf: number; count: number } | null>(null);
   const chapters = chList.reduce<Record<string, any>>((acc, c) => { acc[c.id] = c; return acc; }, {});
 
   useEffect(() => {
     (async () => {
-      const [p, qr, hl, bm] = await Promise.all([
+      const [p, qr, hl, bm, tr] = await Promise.all([
         supabase.from("user_progress").select("*").eq("user_id", user!.id),
         supabase.from("quiz_results").select("score,total_questions,chapter_id,completed_at").eq("user_id", user!.id).order("completed_at", { ascending: false }).limit(8),
         supabase.from("highlights").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
         supabase.from("bookmarks").select("id", { count: "exact", head: true }).eq("user_id", user!.id),
+        (supabase as any).from("trades").select("pnl").eq("user_id", user!.id).not("pnl", "is", null),
       ]);
       const total = chList.length;
       const done = (p.data ?? []).filter((x: any) => x.completed).length;
@@ -48,6 +50,18 @@ export default function Analytics() {
         bookmarks: bm.count ?? 0,
       });
       setRecent(qr.data ?? []);
+
+      const pnls: number[] = (tr.data ?? []).map((r: any) => Number(r.pnl));
+      if (pnls.length) {
+        const net = pnls.reduce((a, b) => a + b, 0);
+        const wins = pnls.filter((v) => v > 0);
+        const grossW = wins.reduce((a, b) => a + b, 0);
+        const grossL = Math.abs(pnls.filter((v) => v < 0).reduce((a, b) => a + b, 0));
+        const pf = grossL > 0 ? grossW / grossL : wins.length ? Infinity : 0;
+        setTrading({ net, winRate: Math.round((wins.length / pnls.length) * 100), pf, count: pnls.length });
+      } else {
+        setTrading({ net: 0, winRate: 0, pf: 0, count: 0 });
+      }
     })();
   }, [user, chList.length]);
 
@@ -76,6 +90,34 @@ export default function Analytics() {
         <Tile icon={Highlighter} label="Highlights" value={`${stats.highlights}`} />
         <Tile icon={Bookmark} label="Bookmarks" value={`${stats.bookmarks}`} />
       </div>
+
+      {/* Trading performance — pulled from Edgebook trades */}
+      <section className="mt-8 animate-fade-up" style={{ animationDelay: "120ms" }}>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="display text-xl font-medium">Trading performance</h2>
+          <button onClick={() => nav("/journal")} className="flex items-center gap-1 text-xs mint-text press">
+            Edgebook <ArrowRight className="size-3" />
+          </button>
+        </div>
+        {trading && trading.count === 0 ? (
+          <div className="glass rounded-2xl p-6 text-center text-sm text-muted-foreground">
+            No closed trades yet — log or import trades in Edgebook to see your P&L and win rate.
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="glass rounded-2xl p-4">
+              <LineChart className="size-4 text-mint-bright" />
+              <div className={`display text-3xl font-medium mt-3 ${(trading?.net ?? 0) >= 0 ? "text-success" : "text-danger"}`}>
+                {(trading?.net ?? 0) >= 0 ? "+" : "-"}${Math.abs(trading?.net ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-muted-foreground mt-1">Net P&L</div>
+            </div>
+            <Tile icon={Trophy} label="Win rate" value={`${trading?.winRate ?? 0}%`} />
+            <Tile icon={TrendingUp} label="Profit factor" value={trading?.pf === Infinity ? "∞" : (trading?.pf ?? 0).toFixed(2)} />
+            <Tile icon={LineChart} label="Trades" value={`${trading?.count ?? 0}`} />
+          </div>
+        )}
+      </section>
 
       <section className="mt-8 animate-fade-up" style={{ animationDelay: "150ms" }}>
         <h2 className="display text-xl font-medium mb-3">Recent quizzes</h2>
