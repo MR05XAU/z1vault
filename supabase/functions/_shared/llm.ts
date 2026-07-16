@@ -13,20 +13,31 @@ export type ChatMessage = { role: "system" | "user" | "assistant"; content: stri
 export type LLMOpts = { maxTokens?: number; temperature?: number };
 
 const RETRYABLE = new Set([429, 500, 502, 503, 529]);
+// Per-attempt timeout so a queued/hung provider fails over to the next one
+// fast, instead of eating the whole edge-function budget (which surfaces as
+// a Supabase 546 worker-limit kill under concurrency).
+const ATTEMPT_TIMEOUT_MS = 20_000;
+
+function withTimeout(ms: number): { signal: AbortSignal; done: () => void } {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return { signal: ctrl.signal, done: () => clearTimeout(t) };
+}
 
 type Provider = {
   name: string;
   streams: boolean; // emits OpenAI-style SSE (choices[].delta.content)?
-  run: (messages: ChatMessage[], opts: LLMOpts, stream: boolean) => Promise<Response>;
+  run: (messages: ChatMessage[], opts: LLMOpts, stream: boolean, signal: AbortSignal) => Promise<Response>;
 };
 
 function openAiCompatible(name: string, url: string, key: string, model: string): Provider {
   return {
     name,
     streams: true,
-    run: (messages, opts, stream) =>
+    run: (messages, opts, stream, signal) =>
       fetch(url, {
         method: "POST",
+        signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
         body: JSON.stringify({
           model,
@@ -43,11 +54,12 @@ function anthropicProvider(key: string): Provider {
   return {
     name: "anthropic",
     streams: false, // Anthropic's SSE shape differs — non-streaming only here
-    run: async (messages, opts) => {
+    run: async (messages, opts, _stream, signal) => {
       const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
       const rest = messages.filter((m) => m.role !== "system");
       return fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
+        signal,
         headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-5-20250929",
@@ -81,13 +93,12 @@ export async function llmChat(messages: ChatMessage[], opts: LLMOpts = {}): Prom
   if (chain.length === 0) throw new Error("No LLM provider configured");
   let lastErr = "no providers";
   for (const p of chain) {
+    const { signal, done } = withTimeout(ATTEMPT_TIMEOUT_MS);
     try {
-      const res = await p.run(messages, opts, false);
+      const res = await p.run(messages, opts, false, signal);
       if (!res.ok) {
         lastErr = `${p.name} ${res.status}`;
-        if (RETRYABLE.has(res.status)) continue; // busy/erroring — next provider
-        // Non-retryable (e.g. 400/401) — still try the next provider rather than fail hard.
-        continue;
+        continue; // busy/erroring or non-retryable — try the next provider
       }
       const data = await res.json();
       const text = data?.choices?.[0]?.message?.content // OpenAI shape
@@ -96,7 +107,9 @@ export async function llmChat(messages: ChatMessage[], opts: LLMOpts = {}): Prom
       if (text) return text;
       lastErr = `${p.name} empty`;
     } catch (e) {
-      lastErr = `${p.name} ${(e as Error).message}`;
+      lastErr = `${p.name} ${(e as Error).name === "AbortError" ? "timeout" : (e as Error).message}`;
+    } finally {
+      done();
     }
   }
   throw new Error(`All LLM providers failed (${lastErr})`);
@@ -112,12 +125,16 @@ export async function llmStream(messages: ChatMessage[], opts: LLMOpts = {}): Pr
   if (chain.length === 0) throw new Error("No streaming LLM provider configured");
   let lastStatus = 0;
   for (const p of chain) {
+    // Timeout only bounds establishing the connection (fetch resolves on
+    // response headers); once streaming begins we let it run.
+    const { signal, done } = withTimeout(ATTEMPT_TIMEOUT_MS);
     try {
-      const res = await p.run(messages, opts, true);
-      if (res.ok && res.body) return res;
+      const res = await p.run(messages, opts, true, signal);
+      if (res.ok && res.body) { done(); return res; }
       lastStatus = res.status;
-      if (!RETRYABLE.has(res.status)) continue;
-    } catch { /* try next */ }
+    } catch { /* timeout or network — try next */ } finally {
+      done();
+    }
   }
   throw new Error(`All streaming providers failed (last status ${lastStatus})`);
 }
