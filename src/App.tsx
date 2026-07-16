@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ReactNode, Suspense, lazy, useEffect } from "react";
 import { initPushNotifications } from "@/lib/push";
+import { installErrorHooks } from "@/lib/errorLog";
 
 import Splash from "./pages/Splash";
 import Onboarding from "./pages/Onboarding";
@@ -80,6 +81,8 @@ function AuthOnly({ children }: { children: ReactNode }) {
   if (!user) return <Navigate to="/auth" replace />;
   return <>{children}</>;
 }
+
+installErrorHooks();
 
 // PWA install-nudge plumbing: capture beforeinstallprompt app-wide (lazy
 // route chunks load too late to catch it) and count distinct sessions.

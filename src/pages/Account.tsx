@@ -10,7 +10,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, LogOut, Receipt, Mail, Lock, Trash2, LifeBuoy, Loader2, ExternalLink, BookOpen } from "lucide-react";
+import { ArrowLeft, LogOut, Receipt, Mail, Lock, Trash2, LifeBuoy, Loader2, ExternalLink, BookOpen, Download } from "lucide-react";
 
 type Purchase = {
   id: string;
@@ -30,6 +30,39 @@ export default function Account() {
   const [newEmail, setNewEmail] = useState("");
   const [newPw, setNewPw] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+
+  const exportData = async () => {
+    if (!user) return;
+    setBusy("export");
+    try {
+      const sb = supabase as any;
+      const [trades, journal, progress, quizzes, courses] = await Promise.all([
+        sb.from("trades").select("*").eq("user_id", user.id),
+        sb.from("journal_entries").select("*").eq("user_id", user.id),
+        sb.from("user_progress").select("*").eq("user_id", user.id),
+        sb.from("quiz_results").select("*").eq("user_id", user.id),
+        sb.from("course_progress").select("*").eq("user_id", user.id),
+      ]);
+      const bundle = {
+        exported_at: new Date().toISOString(),
+        account: { id: user.id, email: user.email },
+        trades: trades.data ?? [], journal_entries: journal.data ?? [],
+        reading_progress: progress.data ?? [], quiz_results: quizzes.data ?? [],
+        course_progress: courses.data ?? [],
+      };
+      const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `z1-export-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast.success("Export downloaded.");
+    } catch (e: any) {
+      toast.error(e?.message || "Export failed");
+    } finally {
+      setBusy(null);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -181,6 +214,17 @@ export default function Account() {
               {busy === "pw" ? <Loader2 className="size-4 animate-spin" /> : "Update password"}
             </Button>
           </div>
+        </section>
+
+        {/* Export */}
+        <section className="mt-6">
+          <button onClick={exportData} disabled={busy === "export"} className="glass rounded-2xl p-4 flex w-full items-center gap-3 press disabled:opacity-60">
+            {busy === "export" ? <Loader2 className="size-4 animate-spin text-mint-bright" /> : <Download className="size-4 text-mint-bright" />}
+            <div className="text-left">
+              <div className="text-sm">Export my data</div>
+              <div className="text-[11px] text-muted-foreground">Trades, journal, and progress as a JSON file.</div>
+            </div>
+          </button>
         </section>
 
         {/* Support */}

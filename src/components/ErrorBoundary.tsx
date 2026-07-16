@@ -1,12 +1,16 @@
 import { Component, ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { logClientError } from "@/lib/errorLog";
 
 interface State { err: Error | null }
 
 export class ErrorBoundary extends Component<{ children: ReactNode }, State> {
   state: State = { err: null };
   static getDerivedStateFromError(err: Error) { return { err }; }
-  componentDidCatch(err: Error, info: any) { console.error("ErrorBoundary", err, info); }
+  componentDidCatch(err: Error, info: any) {
+    console.error("ErrorBoundary", err, info);
+    logClientError(err.message, err.stack || info?.componentStack);
+  }
   reset = () => { this.setState({ err: null }); location.reload(); };
   render() {
     if (!this.state.err) return this.props.children;
