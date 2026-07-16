@@ -19,14 +19,14 @@ const slides = [
   },
   {
     badge: "What's inside",
-    title: "Read. Ask. Master.",
-    body: "Swipe through a beautifully typeset trading book, highlight passages, then ask the AI tutor to explain anything — restricted to the book, never to noise.",
+    title: "Learn. Trade. Master.",
+    body: "Start with the free basics course, work through a beautifully typeset trading book, ask an in-depth AI mentor anything, then journal your real trades in Edgebook and let the analytics find your edge.",
     visual: (
       <div className="relative grid grid-cols-3 gap-3 w-[260px]">
         {[
           { icon: BookOpen, label: "Book" },
           { icon: Sparkles, label: "AI Tutor" },
-          { icon: Trophy, label: "Quizzes" },
+          { icon: Trophy, label: "Edgebook" },
         ].map(({ icon: Icon, label }, i) => (
           <div
             key={label}

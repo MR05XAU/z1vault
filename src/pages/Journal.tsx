@@ -157,6 +157,41 @@ export default function Journal() {
   };
   useEffect(() => { refresh(); }, [user]);
 
+  // Inserts a realistic set of sample trades so a new user's dashboard,
+  // analytics, and charts aren't empty. Tagged demo:true for easy cleanup.
+  const loadDemoData = async () => {
+    if (!user) return;
+    const now = Date.now();
+    const H = 3600_000, D = 24 * H;
+    const specs: [string, "long" | "short", number, number, number, number, number, string][] = [
+      // pair, dir, entry, exit, size, daysAgoOpen, minsHeld, setup
+      ["MNQU6", "long", 20000, 20040, 2, 9, 25, "ORB"],
+      ["MNQU6", "short", 20120, 20150, 1, 8, 40, "VWAP reclaim"],
+      ["MES U6".replace(" ", ""), "long", 5600, 5588, 1, 7, 18, "Breakout"],
+      ["MGCQ6", "long", 4000, 4012, 2, 6, 55, "Trend pullback"],
+      ["MGCQ6", "short", 4030, 4022, 1, 5, 30, "ORB"],
+      ["AAPL", "long", 150, 157, 20, 4, 300, "Earnings drift"],
+      ["MNQU6", "long", 20080, 20050, 2, 3, 15, "VWAP reclaim"],
+      ["MES", "short", 5610, 5624, 1, 2, 20, "Fade"],
+      ["MGCQ6", "long", 4010, 4028, 3, 1, 70, "Trend pullback"],
+      ["MNQU6", "short", 20200, 20160, 1, 0, 35, "ORB"],
+    ];
+    const rows = specs.map(([pair, dir, entry, exit, size, daysAgo, mins, setup]) => {
+      const mult = symbolMultiplier(pair);
+      const pnl = Math.round((dir === "long" ? exit - entry : entry - exit) * size * mult * 100) / 100;
+      const opened = new Date(now - daysAgo * D - 2 * H);
+      return {
+        user_id: user.id, pair, direction: dir, entry_price: entry, exit_price: exit, size,
+        pnl, fees: 0, opened_at: opened.toISOString(), closed_at: new Date(opened.getTime() + mins * 60000).toISOString(),
+        setup, tags: ["demo"], stop_loss: dir === "long" ? entry - Math.abs(entry - exit) : entry + Math.abs(entry - exit),
+      };
+    });
+    const { error } = await sb.from("trades").insert(rows);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Loaded 10 sample trades.", { description: "Tagged 'demo' — delete them anytime from the Trades tab." });
+    refresh();
+  };
+
   const todayKey = new Date().toISOString().slice(0, 10);
   const todaysTrades = trades.filter((t) => (t.closed_at ?? t.opened_at).slice(0, 10) === todayKey);
   const todaysPnl = todaysTrades.reduce((a, t) => a + (t.pnl ?? 0), 0);
@@ -278,7 +313,7 @@ export default function Journal() {
                replays when switching between Edgebook sections */
             <div key={view} className="animate-fade-up">
               {view === "dashboard" ? (
-                <DashboardView trades={trades} onOpenTrade={setDetailTrade} onGoImport={() => setView("import")} onGoSettings={() => setView("settings")} onAdd={() => setSheet("new")} onOpenCalc={() => setSheet("calc")} />
+                <DashboardView trades={trades} onOpenTrade={setDetailTrade} onGoImport={() => setView("import")} onGoSettings={() => setView("settings")} onAdd={() => setSheet("new")} onOpenCalc={() => setSheet("calc")} onDemo={loadDemoData} />
               ) : view === "trades" ? (
                 <TradesView
                   trades={trades} strats={strats} onOpenTrade={setDetailTrade} onChange={refresh}
@@ -420,7 +455,7 @@ function RRCalculator() {
 }
 
 /* ---------- Dashboard ---------- */
-function DashboardView({ trades, onOpenTrade, onGoImport, onGoSettings, onAdd, onOpenCalc }: { trades: Trade[]; onOpenTrade: (t: Trade) => void; onGoImport: () => void; onGoSettings: () => void; onAdd: () => void; onOpenCalc: () => void }) {
+function DashboardView({ trades, onOpenTrade, onGoImport, onGoSettings, onAdd, onOpenCalc, onDemo }: { trades: Trade[]; onOpenTrade: (t: Trade) => void; onGoImport: () => void; onGoSettings: () => void; onAdd: () => void; onOpenCalc: () => void; onDemo: () => void }) {
   const closed = useMemo(() => trades.filter((t) => t.pnl != null), [trades]);
   const kpis = useMemo(() => {
     const net = closed.reduce((s, t) => s + (t.pnl ?? 0), 0);
@@ -451,18 +486,29 @@ function DashboardView({ trades, onOpenTrade, onGoImport, onGoSettings, onAdd, o
       </div>
 
       {trades.length === 0 && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Card className="cursor-pointer transition-colors hover:border-mint" onClick={onGoImport} style={{ borderColor: EB.border }}>
-            <div className="mb-1 text-sm font-medium">Import CSV</div>
-            <p className="text-xs" style={{ color: EB.mutedForeground }}>Upload a broker export — we auto-detect the format.</p>
-          </Card>
-          <Card className="cursor-pointer transition-colors hover:border-mint" onClick={onGoSettings} style={{ borderColor: EB.border }}>
-            <div className="mb-1 text-sm font-medium">Connect a broker</div>
-            <p className="text-xs" style={{ color: EB.mutedForeground }}>SnapTrade, Tradovate, or Rithmic — auto-sync fills.</p>
-          </Card>
-          <Card className="cursor-pointer transition-colors hover:border-mint" onClick={onAdd} style={{ borderColor: EB.border }}>
-            <div className="mb-1 text-sm font-medium">Log a trade manually</div>
-            <p className="text-xs" style={{ color: EB.mutedForeground }}>Press <span className="font-mono">N</span> anywhere, or click here.</p>
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Card className="cursor-pointer transition-colors hover:border-mint" onClick={onGoImport} style={{ borderColor: EB.border }}>
+              <div className="mb-1 text-sm font-medium">Import CSV</div>
+              <p className="text-xs" style={{ color: EB.mutedForeground }}>Upload a broker export — we auto-detect the format.</p>
+            </Card>
+            <Card className="cursor-pointer transition-colors hover:border-mint" onClick={onGoSettings} style={{ borderColor: EB.border }}>
+              <div className="mb-1 text-sm font-medium">Connect a broker</div>
+              <p className="text-xs" style={{ color: EB.mutedForeground }}>SnapTrade, Tradovate, or Rithmic — auto-sync fills.</p>
+            </Card>
+            <Card className="cursor-pointer transition-colors hover:border-mint" onClick={onAdd} style={{ borderColor: EB.border }}>
+              <div className="mb-1 text-sm font-medium">Log a trade manually</div>
+              <p className="text-xs" style={{ color: EB.mutedForeground }}>Press <span className="font-mono">N</span> anywhere, or click here.</p>
+            </Card>
+          </div>
+          <Card className="flex flex-wrap items-center justify-between gap-3" style={{ borderColor: EB.primary, background: `${EB.primary}0f` }}>
+            <div>
+              <div className="text-sm font-medium">Just exploring?</div>
+              <p className="text-xs" style={{ color: EB.mutedForeground }}>Load 10 sample trades to see the dashboard, analytics, and charts in action.</p>
+            </div>
+            <button onClick={onDemo} className="rounded-md px-3 py-2 text-xs font-medium" style={{ background: EB.primary, color: EB.primaryForeground }}>
+              Try demo data
+            </button>
           </Card>
         </div>
       )}
