@@ -1,95 +1,87 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
-import { Z1Logo } from "@/components/Z1Logo";
-import { BookOpen, Search, Loader2, Download } from "lucide-react";
-import { isLoaded, loadDictionary, lookup, search } from "@/lib/dictionary";
-import { TUTOR_FAQ, matchFaq, type FaqEntry } from "@/data/tutorFaq";
+import { Sparkles, Send, BookOpen, Loader2, RotateCcw } from "lucide-react";
+import { TUTOR_FAQ } from "@/data/tutorFaq";
 
-interface Chapter {
-  id: string;
-  chapter_number: number;
-  title: string;
-  content: string;
-  summary: string | null;
-}
+type Msg = { role: "user" | "assistant"; content: string };
 
-interface BookHit {
-  chapter: Chapter;
-  excerpt: string;
-}
+// Starter questions shown on an empty tutor — first 5 curated FAQ prompts.
+const STARTERS = TUTOR_FAQ.slice(0, 5).map((f) => f.q);
 
 export default function Tutor() {
   const nav = useNavigate();
-  const [query, setQuery] = useState("");
-  const [dictReady, setDictReady] = useState(isLoaded());
-  const [dictProgress, setDictProgress] = useState(0);
-  const [dictError, setDictError] = useState("");
-  const [definition, setDefinition] = useState<string | null>(null);
-  const [matches, setMatches] = useState<string[]>([]);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
-  const [bookHits, setBookHits] = useState<BookHit[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [faqHit, setFaqHit] = useState<FaqEntry | null>(null);
+  const { user } = useAuth();
+  const [messages, setMessages] = useState<Msg[]>([]);
+  const [input, setInput] = useState("");
+  const [streaming, setStreaming] = useState(false);
+  const [chapterByNum, setChapterByNum] = useState<Record<number, string>>({});
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load chapters once for offline book search
+  // Chapter-number -> id map so [Ch.N] citations become tappable.
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("book_chapters")
-        .select("id,chapter_number,title,content,summary")
-        .order("order_index");
-      setChapters((data ?? []) as Chapter[]);
+      const { data } = await supabase.from("book_chapters").select("id,chapter_number").order("order_index");
+      const map: Record<number, string> = {};
+      for (const c of data ?? []) map[c.chapter_number] = c.id;
+      setChapterByNum(map);
     })();
   }, []);
 
-  // Kick off dictionary download on mount
   useEffect(() => {
-    if (isLoaded()) { setDictReady(true); return; }
-    loadDictionary((loaded, total) => {
-      setDictProgress(Math.round((loaded / total) * 100));
-    })
-      .then(() => setDictReady(true))
-      .catch((e) => setDictError(e.message || "Download failed"));
-  }, []);
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, streaming]);
 
-  // Run lookup whenever query / dict / chapters change
-  useEffect(() => {
-    const q = query.trim();
-    if (!q || !dictReady) {
-      setDefinition(null); setMatches([]); setBookHits([]); setFaqHit(null); return;
-    }
-    setSearching(true);
-    const t = setTimeout(async () => {
-      const [def, near] = await Promise.all([lookup(q), search(q, 12)]);
-      setDefinition(def);
-      setMatches(near.filter((w) => w !== q.toLowerCase()).slice(0, 8));
-      setFaqHit(matchFaq(q));
-
-      // Book-content search (case-insensitive, first 5 chapters that match)
-      const needle = q.toLowerCase();
-      const hits: BookHit[] = [];
-      for (const c of chapters) {
-        const hay = c.content.toLowerCase();
-        const idx = hay.indexOf(needle);
-        if (idx === -1) continue;
-        const start = Math.max(0, idx - 60);
-        const end = Math.min(c.content.length, idx + needle.length + 100);
-        let excerpt = c.content.slice(start, end).replace(/\s+/g, " ");
-        if (start > 0) excerpt = "… " + excerpt;
-        if (end < c.content.length) excerpt += " …";
-        hits.push({ chapter: c, excerpt });
-        if (hits.length >= 5) break;
+  const send = async (text: string) => {
+    const q = text.trim();
+    if (!q || streaming) return;
+    setInput("");
+    const history = [...messages, { role: "user" as const, content: q }];
+    setMessages([...history, { role: "assistant", content: "" }]);
+    setStreaming(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-tutor`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ messages: history }),
+      });
+      if (!res.ok || !res.body) {
+        const j = await res.json().catch(() => ({}));
+        setMessages((m) => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: j.error || "The tutor is unavailable right now — try again in a moment." }; return c; });
+        setStreaming(false);
+        return;
       }
-      setBookHits(hits);
-      setSearching(false);
-    }, 180);
-    return () => clearTimeout(t);
-  }, [query, dictReady, chapters]);
-
-  const highlighted = useMemo(() => query.trim().toLowerCase(), [query]);
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let acc = "", buf = "";
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          const p = t.slice(5).trim();
+          if (p === "[DONE]") continue;
+          try {
+            const delta = JSON.parse(p).choices?.[0]?.delta?.content;
+            if (delta) { acc += delta; setMessages((m) => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: acc }; return c; }); }
+          } catch { /* skip partial chunk */ }
+        }
+      }
+    } catch {
+      setMessages((m) => { const c = [...m]; c[c.length - 1] = { role: "assistant", content: "Connection error — check your network and try again." }; return c; });
+    } finally {
+      setStreaming(false);
+    }
+  };
 
   return (
     <MobileShell
@@ -97,157 +89,111 @@ export default function Tutor() {
       bottomNav={<BottomNav />}
       header={
         <header className="px-5 pt-6 pb-3 safe-top flex items-center gap-3 border-b border-border/40">
-          <Z1Logo size={40} />
-          <div className="flex-1">
-            <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">Offline Lookup</div>
-            <div className="text-sm font-medium">Dictionary + book search</div>
+          <div className="size-10 rounded-2xl mint-fill grid place-items-center shadow-glow">
+            <Sparkles className="size-5" />
           </div>
-          <div className={`size-2 rounded-full ${dictReady ? "bg-success" : "bg-mint animate-pulse"}`} />
+          <div className="flex-1">
+            <div className="text-[10px] uppercase tracking-[0.3em] text-mint-bright">AI Tutor</div>
+            <div className="text-sm font-medium">Ask anything about trading</div>
+          </div>
+          {messages.length > 0 && (
+            <button onClick={() => setMessages([])} className="size-9 grid place-items-center rounded-full glass press text-muted-foreground" title="New chat">
+              <RotateCcw className="size-4" />
+            </button>
+          )}
         </header>
       }
     >
-      <div className="px-5 pt-5 pb-44">
-        <div className="glass-strong rounded-2xl flex items-center gap-2 p-2 shadow-lift">
-          <Search className="size-4 ml-2 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={dictReady ? "Look up a word or phrase…" : "Loading dictionary…"}
-            disabled={!dictReady}
-            className="flex-1 bg-transparent outline-none text-sm px-1 py-2 placeholder:text-muted-foreground disabled:opacity-60"
-          />
-          {searching && <Loader2 className="size-4 animate-spin mr-2 text-muted-foreground" />}
-        </div>
-
-        {!dictReady && !dictError && (
-          <div className="mt-6 glass rounded-2xl p-5 text-center animate-fade-up">
-            <Download className="size-6 mx-auto text-mint-bright" />
-            <div className="text-sm mt-2 font-medium">Downloading offline dictionary</div>
-            <div className="text-xs text-muted-foreground mt-1">~9 MB · one-time, cached on device</div>
-            <div className="h-1.5 rounded-full bg-secondary mt-4 overflow-hidden">
-              <div className="h-full mint-fill transition-all" style={{ width: `${dictProgress}%` }} />
-            </div>
-            <div className="text-[10px] text-muted-foreground mt-1">{dictProgress}%</div>
-          </div>
-        )}
-
-        {dictError && (
-          <div className="mt-6 glass rounded-2xl p-4 text-center text-sm text-destructive">
-            {dictError}
-          </div>
-        )}
-
-        {dictReady && !query.trim() && (
-          <div className="pt-6 animate-fade-up">
+      <div ref={scrollRef} className="h-[calc(100dvh-13rem)] overflow-y-auto px-4 pt-4 pb-4">
+        {messages.length === 0 ? (
+          <div className="animate-fade-up pt-4">
             <div className="text-center">
               <div className="size-14 rounded-2xl mint-fill grid place-items-center mx-auto mb-3 shadow-glow">
                 <BookOpen className="size-6" />
               </div>
-              <h2 className="display text-xl font-medium">Ask anything from the book.</h2>
+              <h2 className="display text-xl font-medium">Your private trading mentor.</h2>
               <p className="text-xs text-muted-foreground mt-1.5 max-w-xs mx-auto">
-                Curated answers below, plus an offline dictionary and full-text book search.
+                Grounded in your Z1 book and a built-in trading knowledge base. Ask a question or tap one below.
               </p>
             </div>
-            <div className="mt-6 text-[10px] uppercase tracking-[0.28em] text-mint-bright mb-2">
-              Common questions
-            </div>
+            <div className="mt-6 text-[10px] uppercase tracking-[0.28em] text-mint-bright mb-2">Try asking</div>
             <div className="space-y-2">
-              {TUTOR_FAQ.map((f) => (
-                <button
-                  key={f.q}
-                  onClick={() => setQuery(f.q)}
-                  className="w-full text-left glass rounded-2xl px-4 py-3 press hover:shadow-glow"
-                >
-                  <div className="text-sm font-medium">{f.q}</div>
-                  {f.ref && (
-                    <div className="text-[10px] text-mint-bright/80 mt-0.5">{f.ref}</div>
-                  )}
+              {STARTERS.map((q) => (
+                <button key={q} onClick={() => send(q)} className="w-full text-left glass rounded-2xl px-4 py-3 press hover:shadow-glow">
+                  <div className="text-sm font-medium">{q}</div>
                 </button>
               ))}
             </div>
           </div>
-        )}
-
-        {dictReady && query.trim() && (
-          <div className="mt-6 space-y-5">
-            {faqHit && (
-              <section className="glass-strong rounded-2xl p-4 mint-border animate-fade-up">
-                <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">
-                  Answer {faqHit.ref ? `· ${faqHit.ref}` : ""}
-                </div>
-                <div className="text-base font-medium mt-1">{faqHit.q}</div>
-                <p className="text-sm text-foreground/90 mt-2 leading-relaxed whitespace-pre-line">
-                  {faqHit.a}
-                </p>
-              </section>
-            )}
-
-            {definition && (
-              <section className="glass rounded-2xl p-4 animate-fade-up">
-                <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">Definition</div>
-                <div className="text-base font-medium capitalize mt-1">{query.trim()}</div>
-                <p className="text-sm text-foreground/90 mt-2 leading-relaxed">{definition}</p>
-              </section>
-            )}
-
-            {!definition && matches.length === 0 && bookHits.length === 0 && !searching && (
-              <div className="text-sm text-muted-foreground text-center py-6">No matches.</div>
-            )}
-
-            {matches.length > 0 && (
-              <section className="animate-fade-up">
-                <div className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground mb-2">
-                  {definition ? "Related words" : "Did you mean"}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {matches.map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => setQuery(m)}
-                      className="px-3 py-1.5 rounded-full glass text-xs press capitalize"
-                    >
-                      {m}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {bookHits.length > 0 && (
-              <section className="animate-fade-up">
-                <div className="text-[10px] uppercase tracking-[0.28em] text-muted-foreground mb-2">In the book</div>
-                <div className="space-y-2">
-                  {bookHits.map((h) => (
-                    <button
-                      key={h.chapter.id}
-                      onClick={() => nav(`/read/${h.chapter.id}`)}
-                      className="w-full text-left glass rounded-2xl px-4 py-3 press hover:shadow-glow"
-                    >
-                      <div className="text-[10px] uppercase tracking-[0.28em] text-mint-bright">
-                        Ch {h.chapter.chapter_number}
+        ) : (
+          <div className="space-y-4">
+            {messages.map((m, i) => (
+              <div key={i} className={m.role === "user" ? "flex justify-end" : ""}>
+                {m.role === "user" ? (
+                  <div className="max-w-[85%] rounded-2xl rounded-br-md bg-mint/15 border border-mint/25 px-4 py-2.5 text-sm">
+                    {m.content}
+                  </div>
+                ) : (
+                  <div className="max-w-[92%]">
+                    {m.content === "" && streaming ? (
+                      <div className="flex items-center gap-2 text-muted-foreground text-sm py-1">
+                        <div className="size-2 rounded-full bg-mint animate-pulse" /> Thinking…
                       </div>
-                      <div className="text-sm font-medium mt-0.5">{h.chapter.title}</div>
-                      <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
-                        {h.excerpt.split(new RegExp(`(${escapeReg(highlighted)})`, "ig")).map((part, i) =>
-                          part.toLowerCase() === highlighted ? (
-                            <mark key={i} className="bg-mint/30 text-foreground rounded px-0.5">{part}</mark>
-                          ) : (
-                            <span key={i}>{part}</span>
-                          )
-                        )}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
+                    ) : (
+                      <>
+                        <div className="prose-z1 text-sm">
+                          <ReactMarkdown>{m.content}</ReactMarkdown>
+                        </div>
+                        <CitationChips content={m.content} chapterByNum={chapterByNum} onOpen={(id) => nav(`/read/${id}`)} />
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
+      </div>
+
+      {/* Composer */}
+      <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] px-4">
+        <div className="mx-auto max-w-2xl glass-strong rounded-2xl flex items-end gap-2 p-2 shadow-lift">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(input); } }}
+            rows={1}
+            placeholder="Ask the tutor…"
+            className="flex-1 resize-none bg-transparent outline-none text-sm px-2 py-2 max-h-28 placeholder:text-muted-foreground"
+          />
+          <button
+            onClick={() => send(input)}
+            disabled={streaming || !input.trim()}
+            className="size-9 shrink-0 grid place-items-center rounded-xl mint-fill press disabled:opacity-40"
+          >
+            {streaming ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+          </button>
+        </div>
       </div>
     </MobileShell>
   );
 }
 
-function escapeReg(s: string) {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// Renders tappable chapter chips for any [Ch.N] citations in an answer.
+function CitationChips({ content, chapterByNum, onOpen }: { content: string; chapterByNum: Record<number, string>; onOpen: (id: string) => void }) {
+  const nums = useMemo(() => {
+    const set = new Set<number>();
+    for (const m of content.matchAll(/\[Ch\.?\s*(\d+)/gi)) set.add(Number(m[1]));
+    return Array.from(set).filter((n) => chapterByNum[n]);
+  }, [content, chapterByNum]);
+  if (nums.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-1.5">
+      {nums.map((n) => (
+        <button key={n} onClick={() => onOpen(chapterByNum[n])} className="flex items-center gap-1 rounded-full glass px-2.5 py-1 text-[11px] mint-text press">
+          <BookOpen className="size-3" /> Chapter {n}
+        </button>
+      ))}
+    </div>
+  );
 }
