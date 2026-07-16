@@ -11,11 +11,67 @@ HOW TO TEACH:
 2. USE ALL YOUR KNOWLEDGE. Draw on your full understanding of trading (price action, market structure, indicators, order flow, risk, position sizing, psychology, market mechanics, strategy design, etc.) — you are not limited to the book. Explain established trading concepts fully even when the book doesn't cover them.
 3. GROUND + CITE WHEN RELEVANT. The BOOK CONTEXT and KNOWLEDGE BASE below are the student's own materials. When your answer aligns with a chapter, reference it with [Ch.N] so they can read more — but you are NOT restricted to only what those sources say. If a CURRENT CHAPTER is in context, connect your answer to it.
 4. BE ACCURATE. Teach well-established trading concepts. Do not invent fake indicators, fabricated statistics, or made-up history. If something is genuinely debated or uncertain, say so.
-5. GUARDRAILS: This is EDUCATION, not advice. Never predict specific prices, never tell the user to buy/sell a specific ticker right now, never give personalized financial or tax advice. Teach the concepts and frameworks so they can decide for themselves.
-6. STAY ON TRADING. Politely redirect non-trading questions (politics, coding, celebrities, current events) back to a trading topic.
-7. FORMAT for readability: short paragraphs, **bold** key terms, bullets and worked examples where they help. Match depth to the question — a quick term gets a tight but complete answer; "explain X" or "how does X work" gets a full breakdown. If the user says "like I'm new", drop jargon and use plain analogies.
+5. PERSONALIZE. If the student's TRADING STATS are provided in context, use them to make coaching concrete and specific to THEM — point out their biggest leak (weak hours, losing setups, low profit factor, negative expectancy), what's working, and the exact concept/chapter that addresses it. When they ask "how am I doing?" or "what should I work on?", answer from their real numbers.
+6. GUARDRAILS: This is EDUCATION, not advice. Never predict specific prices, never tell the user to buy/sell a specific ticker right now, never give personalized financial or tax advice (reviewing their own past logged trades to teach is fine). Teach the concepts and frameworks so they can decide for themselves.
+7. STAY ON TRADING. Politely redirect non-trading questions (politics, coding, celebrities, current events) back to a trading topic.
+8. FORMAT for readability: short paragraphs, **bold** key terms, bullets and worked examples where they help. Match depth to the question — a quick term gets a tight but complete answer; "explain X" or "how does X work" gets a full breakdown. If the user says "like I'm new", drop jargon and use plain analogies.
 
 If asked who you are: "I'm the Z1 INSIGHTS tutor — an in-depth trading mentor built around your Z1 book."`;
+
+// Compact, tutor-ready summary of the student's recent trades. Returns "" if
+// they have no closed trades yet (tutor then just teaches generically).
+async function buildTradeStats(supabase: any, userId: string): Promise<string> {
+  const { data } = await supabase
+    .from("trades")
+    .select("pnl, direction, pair, setup, opened_at, closed_at, stop_loss, entry_price, exit_price")
+    .eq("user_id", userId)
+    .not("pnl", "is", null)
+    .order("opened_at", { ascending: false })
+    .limit(200);
+  const trades = data ?? [];
+  if (trades.length === 0) return "";
+
+  const n = trades.length;
+  const wins = trades.filter((t: any) => Number(t.pnl) > 0);
+  const net = trades.reduce((s: number, t: any) => s + Number(t.pnl), 0);
+  const grossW = wins.reduce((s: number, t: any) => s + Number(t.pnl), 0);
+  const grossL = Math.abs(trades.filter((t: any) => Number(t.pnl) < 0).reduce((s: number, t: any) => s + Number(t.pnl), 0));
+  const pf = grossL > 0 ? grossW / grossL : wins.length ? Infinity : 0;
+
+  // Expectancy in R where a stop is present.
+  const rs = trades
+    .map((t: any) => {
+      if (t.stop_loss == null || t.exit_price == null) return null;
+      const risk = Math.abs(Number(t.entry_price) - Number(t.stop_loss));
+      if (!risk) return null;
+      const move = t.direction === "long" ? Number(t.exit_price) - Number(t.entry_price) : Number(t.entry_price) - Number(t.exit_price);
+      return move / risk;
+    })
+    .filter((r: number | null): r is number => r != null);
+  const avgR = rs.length ? rs.reduce((a: number, b: number) => a + b, 0) / rs.length : null;
+
+  // P&L by hour-of-day (opened) and by setup — surface leaks.
+  const byHour = new Map<number, { pnl: number; n: number }>();
+  const bySetup = new Map<string, { pnl: number; n: number; w: number }>();
+  for (const t of trades) {
+    const h = new Date(t.opened_at).getUTCHours();
+    const hr = byHour.get(h) ?? { pnl: 0, n: 0 };
+    hr.pnl += Number(t.pnl); hr.n += 1; byHour.set(h, hr);
+    const key = t.setup || "untagged";
+    const sr = bySetup.get(key) ?? { pnl: 0, n: 0, w: 0 };
+    sr.pnl += Number(t.pnl); sr.n += 1; if (Number(t.pnl) > 0) sr.w += 1; bySetup.set(key, sr);
+  }
+  const worstHours = Array.from(byHour.entries()).filter(([, v]) => v.n >= 2).sort((a, b) => a[1].pnl - b[1].pnl).slice(0, 2)
+    .map(([h, v]) => `${h}:00 UTC (${v.n} trades, net ${v.pnl >= 0 ? "+" : ""}${Math.round(v.pnl)})`);
+  const setupLines = Array.from(bySetup.entries()).sort((a, b) => b[1].pnl - a[1].pnl)
+    .map(([k, v]) => `  - ${k}: ${v.n} trades, ${Math.round((v.w / v.n) * 100)}% win, net ${v.pnl >= 0 ? "+" : ""}${Math.round(v.pnl)}`);
+
+  return `\n=== THIS STUDENT'S TRADING STATS (their real logged trades — use for personalized coaching when relevant) ===
+Closed trades: ${n} | Win rate: ${Math.round((wins.length / n) * 100)}% | Net P&L: ${net >= 0 ? "+" : ""}${Math.round(net)} | Profit factor: ${pf === Infinity ? "∞" : pf.toFixed(2)}${avgR != null ? ` | Avg R: ${avgR.toFixed(2)}` : ""}
+Weakest hours: ${worstHours.join("; ") || "n/a"}
+By setup:\n${setupLines.join("\n")}
+=== END STUDENT STATS ===\n`;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -54,6 +110,11 @@ Deno.serve(async (req) => {
     }
 
     const { messages, chapterId, highlightedText } = await req.json();
+
+    // The student's own trading stats — so the tutor can give personalized,
+    // data-grounded coaching ("your biggest leak is trades after 2pm"),
+    // not just generic theory. Compact summary, kept cheap.
+    const tradeStats = await buildTradeStats(supabase, user.id);
 
     // Build BOOK CONTEXT — chapter titles always shown for routing; FULL TEXT
     // only for the current chapter and the top-N chapters scored by keyword
@@ -131,6 +192,8 @@ Deno.serve(async (req) => {
       for (const e of kb) contextBlock += `\n[${e.title}]\n${e.body}\n`;
       contextBlock += "\n=== END KNOWLEDGE BASE ===\n";
     }
+
+    contextBlock += tradeStats;
 
     if (currentChap) {
       contextBlock += `\nThe reader is currently on Ch ${currentChap.chapter_number} — ${currentChap.title}. Anchor your answer there first.`;
