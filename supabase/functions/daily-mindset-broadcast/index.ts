@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
     }
     const SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supa = createClient(Deno.env.get("SUPABASE_URL")!, SERVICE_KEY);
-    const key = Deno.env.get("LOVABLE_API_KEY");
+    const key = Deno.env.get("NVIDIA_API_KEY");
     if (!key) return new Response(JSON.stringify({ error: "AI not configured" }), { status: 500 });
 
     // Distinct users that have at least one push token.

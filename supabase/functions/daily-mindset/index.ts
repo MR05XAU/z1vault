@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
         status: 401, headers: { ...cors, "Content-Type": "application/json" },
       });
     }
-    const key = Deno.env.get("LOVABLE_API_KEY");
+    const key = Deno.env.get("NVIDIA_API_KEY");
     if (!key) return new Response(JSON.stringify({ error: "AI not configured" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
 
     const body = await req.json().catch(() => ({}));
@@ -52,19 +52,19 @@ Deno.serve(async (req) => {
     // Seed adds entropy so two same-day calls don't collide; client passes a date for caching parity.
     const seed = String(body?.seed ?? Date.now());
 
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const res = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Lovable-API-Key": key,
+        Authorization: `Bearer ${key}`,
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "meta/llama-3.3-70b-instruct",
+        max_tokens: 200,
         messages: [
           { role: "system", content: SYSTEM },
           { role: "user", content: `${PROMPTS[mode]}\n\nReturn STRICT JSON: {"tip": "...", "quote": "...", "tag": "Discipline|Risk|Psychology|Patience|Process|Recovery"}\nKeep tip under 140 chars. Keep quote under 90 chars. No emojis. No quotation marks inside values.\nVariation seed: ${seed}` },
         ],
-        response_format: { type: "json_object" },
         temperature: 0.95,
       }),
     });
@@ -77,9 +77,11 @@ Deno.serve(async (req) => {
       });
     }
     const data = await res.json();
-    const raw = data?.choices?.[0]?.message?.content ?? "{}";
+    const raw: string = data?.choices?.[0]?.message?.content ?? "{}";
+    // Models sometimes wrap JSON in prose/fences — extract the outermost object.
+    const s = raw.indexOf("{"), e2 = raw.lastIndexOf("}");
     let parsed: { tip?: string; quote?: string; tag?: string } = {};
-    try { parsed = JSON.parse(raw); } catch { parsed = {}; }
+    try { parsed = JSON.parse(s !== -1 && e2 > s ? raw.slice(s, e2 + 1) : raw); } catch { parsed = {}; }
 
     return new Response(JSON.stringify({
       tip: parsed.tip ?? "Risk first. Reward follows.",

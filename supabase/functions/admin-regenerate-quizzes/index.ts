@@ -14,7 +14,7 @@ interface AIQuestion {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const apiKey = Deno.env.get("NVIDIA_API_KEY");
     if (!apiKey) return json({ error: "AI not configured" }, 500);
 
     const authHeader = req.headers.get("Authorization");
@@ -48,11 +48,12 @@ Deno.serve(async (req) => {
     for (const ch of chapters) {
       if (ch.is_background) continue;
       try {
-        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        const aiRes = await fetch("https://integrate.api.nvidia.com/v1/chat/completions", {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
+            model: "meta/llama-3.3-70b-instruct",
+            max_tokens: 2000,
             messages: [
               {
                 role: "system",
@@ -73,15 +74,18 @@ Rules:
                 content: `Generate quiz JSON for Chapter ${ch.chapter_number}: ${ch.title}.\n\nCHAPTER:\n${ch.content}\n\nRespond with: {"questions":[{"question":"...","options":["A","B","C","D"],"correct_answer":0,"explanation":"..."}, ...4 items]}`,
               },
             ],
-            response_format: { type: "json_object" },
           }),
         });
         if (!aiRes.ok) { failures.push({ chapter: ch.chapter_number, reason: `AI ${aiRes.status}` }); continue; }
         const aiJson = await aiRes.json();
-        const content = aiJson?.choices?.[0]?.message?.content;
+        const content: string | undefined = aiJson?.choices?.[0]?.message?.content;
         if (!content) { failures.push({ chapter: ch.chapter_number, reason: "empty" }); continue; }
+        // Models sometimes wrap JSON in prose/fences — extract the outermost object.
+        const start = content.indexOf("{");
+        const end = content.lastIndexOf("}");
+        if (start === -1 || end <= start) { failures.push({ chapter: ch.chapter_number, reason: "bad json" }); continue; }
         let parsed: { questions: AIQuestion[] };
-        try { parsed = JSON.parse(content); } catch { failures.push({ chapter: ch.chapter_number, reason: "bad json" }); continue; }
+        try { parsed = JSON.parse(content.slice(start, end + 1)); } catch { failures.push({ chapter: ch.chapter_number, reason: "bad json" }); continue; }
         const questions = (parsed.questions ?? []).filter(
           (q) => q && typeof q.question === "string" && Array.isArray(q.options) && q.options.length === 4 && typeof q.correct_answer === "number"
         );
