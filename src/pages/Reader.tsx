@@ -41,11 +41,11 @@ function splitIntoBlocks(markdown: string): string[] {
 // text-muted-foreground / mint-text / border-border class automatically
 // re-themes since they all read from these same CSS variables.
 const PAPER_VARS = {
-  "--background": "42 38% 93%",
+  "--background": "44 46% 96%",
   "--foreground": "30 25% 50%",
-  "--card": "42 38% 93%",
+  "--card": "44 46% 96%",
   "--card-foreground": "30 25% 50%",
-  "--popover": "42 38% 93%",
+  "--popover": "44 46% 96%",
   "--popover-foreground": "30 25% 50%",
   "--muted": "38 22% 84%",
   "--muted-foreground": "30 14% 62%",
@@ -534,12 +534,12 @@ export default function Reader() {
               )}
               <div className="flex gap-2">
                 {neighbors.prev && (
-                  <Button variant="outline" onClick={() => nav(`/read/${neighbors.prev.id}`)} className="flex-1 h-11 rounded-xl border-border-strong">
+                  <Button variant="outline" onClick={() => nav(`/read/${neighbors.prev.id}`)} className="flex-1 h-11 rounded-xl border-2 border-mint/40 bg-mint/5 text-foreground hover:bg-mint/15">
                     <ChevronLeft className="size-4 mr-1" /> Previous
                   </Button>
                 )}
                 {neighbors.next && (
-                  <Button variant="outline" onClick={() => nav(`/read/${neighbors.next.id}`)} className="flex-1 h-11 rounded-xl border-border-strong">
+                  <Button variant="outline" onClick={() => nav(`/read/${neighbors.next.id}`)} className="flex-1 h-11 rounded-xl border-2 border-mint/40 bg-mint/5 text-foreground hover:bg-mint/15">
                     Next <ChevronRight className="size-4 ml-1" />
                   </Button>
                 )}
@@ -739,7 +739,7 @@ export default function Reader() {
                         style={PAPER_VARS}
                         className={`flip-face flip-face-back paper-texture ${flight.dir === "next" ? "rounded-l-md rounded-r-[2px]" : "rounded-r-md rounded-l-[2px]"}`}
                       >
-                        <div className="h-full w-full" style={{ background: "linear-gradient(105deg, hsl(42 38% 90%) 0%, hsl(42 34% 85%) 55%, hsl(40 30% 80%) 100%)" }} />
+                        <div className="h-full w-full" style={{ background: "linear-gradient(105deg, hsl(44 46% 94%) 0%, hsl(43 40% 90%) 55%, hsl(41 34% 86%) 100%)" }} />
                       </div>
                     </div>
                   </div>
