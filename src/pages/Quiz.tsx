@@ -3,10 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Check, X, Trophy, ChevronDown } from "lucide-react";
+import { ArrowLeft, Check, X, Trophy, ChevronDown, Share2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MindsetCard } from "@/components/MindsetCard";
 import { buzz, confetti } from "@/lib/fx";
+import { shareCertificate } from "@/lib/certificate";
 
 interface Q {
   id: string;
@@ -169,6 +170,19 @@ export default function Quiz() {
             <div className="mt-6 text-left">
               <MindsetCard mode="after-quiz-fail" compact />
             </div>
+          )}
+          {pct >= 70 && chapter && (
+            <button
+              onClick={() => shareCertificate({
+                chapterTitle: String(chapter.title).replace(/^chapter\s+\d+\s*[:.\-–]\s*/i, ""),
+                chapterNumber: chapter.chapter_number,
+                name: user?.user_metadata?.full_name || user?.email?.split("@")[0] || "Trader",
+                scorePct: pct,
+              })}
+              className="mt-6 inline-flex items-center gap-1.5 text-sm mint-text press"
+            >
+              <Share2 className="size-4" /> Share your certificate
+            </button>
           )}
           <div className="flex gap-2 mt-8">
             <Button onClick={() => setReview(true)} variant="outline" className="flex-1 h-12 rounded-xl border-border-strong">

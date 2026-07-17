@@ -12,7 +12,7 @@ import { ProgressRing } from "@/components/ProgressRing";
 import { pickMindset } from "@/data/mindset";
 import {
   BookOpen, Sparkles, BookMarked, Trophy, BarChart3, Highlighter, ArrowRight, Settings,
-  CalendarDays, LineChart, CandlestickChart, Download, ShoppingBag, Flame, Calculator, GraduationCap, Layers,
+  CalendarDays, LineChart, CandlestickChart, Download, ShoppingBag, Flame, Calculator, GraduationCap, Layers, Search,
 } from "lucide-react";
 
 interface Progress { chapter_id: string; progress_percentage: number; completed: boolean; updated_at: string }
@@ -261,6 +261,13 @@ export default function Vault() {
           </div>
           <div className="flex items-center gap-2">
             <Z1Wordmark />
+            <button
+              onClick={() => window.dispatchEvent(new Event("z1:command"))}
+              aria-label="Search (Cmd+K)"
+              className="size-9 grid place-items-center rounded-xl border border-border bg-card press"
+            >
+              <Search className="size-4 text-foreground/80" />
+            </button>
             <button
               onClick={() => nav("/calculators")}
               aria-label="Calculators"

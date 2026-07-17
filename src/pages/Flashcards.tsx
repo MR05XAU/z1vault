@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Layers, Check, X, RotateCcw, ArrowLeft } from "lucide-react";
-import { buzz } from "@/lib/fx";
+import { buzz, confetti } from "@/lib/fx";
 
 type Card = { id: string; question: string; answer: string; explanation: string | null; chapter: string };
 
@@ -70,7 +70,9 @@ export default function Flashcards() {
     );
     setReviewed((n) => n + 1);
     setFlipped(false);
-    setIdx((i) => i + 1);
+    const nextIdx = idx + 1;
+    setIdx(nextIdx);
+    if (nextIdx >= cards.length) { confetti(70); buzz([15, 60, 15]); } // session finished
   };
 
   return (

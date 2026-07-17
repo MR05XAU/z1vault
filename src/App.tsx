@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ReactNode, Suspense, lazy, useEffect } from "react";
 import { initPushNotifications } from "@/lib/push";
 import { installErrorHooks } from "@/lib/errorLog";
+import { CommandPalette } from "@/components/CommandPalette";
 
 import Splash from "./pages/Splash";
 import Onboarding from "./pages/Onboarding";
@@ -108,6 +109,7 @@ const App = () => (
       <Sonner theme="dark" />
       <BrowserRouter>
         <AuthProvider>
+          <CommandPalette />
           <Suspense fallback={<GateLoading />}>
           <Routes>
             <Route path="/" element={<Splash />} />
