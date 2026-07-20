@@ -59,8 +59,6 @@ export default function Reader() {
   const [neighbors, setNeighbors] = useState<{ prev?: any; next?: any }>({});
   const pageRef = useRef<HTMLDivElement>(null);
   const leafRef = useRef<HTMLDivElement>(null);
-  // leafH is the observed clientHeight of the first rendered leaf — the only
-  // accurate source of truth for how tall a page actually is on screen.
   const [leafH, setLeafH] = useState(0);
   const [selectedText, setSelectedText] = useState("");
   const [actionSheet, setActionSheet] = useState<null | "highlight" | "ask" | "note">(null);
@@ -148,7 +146,7 @@ export default function Reader() {
   const blocks = useMemo(() => (chapter ? splitIntoBlocks(stripLeadingH1(chapter.content)) : []), [chapter]);
   const pagesPerView = isWide ? 2 : 1;
 
-  // Observe the stage so we know the available width for the measurer.
+  // Observe stage size so the measure div gets the right width.
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
@@ -160,12 +158,7 @@ export default function Reader() {
     return () => ro.disconnect();
   }, [chapter]);
 
-  // Observe the first rendered leaf to get its true pixel height — this is
-  // the only value the packer should use as page capacity. Using stageSize.h
-  // was wrong because the stage is taller than the leaf (stage padding +
-  // gap + controls row = ~84px extra). Refs are not reactive so we can't
-  // read leafRef.current directly in the pagination effect; we store the
-  // observed height in state instead so the effect re-runs when it changes.
+  // Observe the first rendered leaf to get its true pixel height.
   useEffect(() => {
     const el = leafRef.current;
     if (!el) return;
@@ -175,34 +168,45 @@ export default function Reader() {
     });
     ro.observe(el);
     return () => ro.disconnect();
-  // Re-attach whenever the leaf mounts/unmounts (chapter change resets pageIndex
-  // which may briefly hide the leaf before re-rendering it).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chapter, pageIndex]);
 
-  // Pack measured blocks into pages that exactly fit the leaf height.
+  // ─── PACKER ──────────────────────────────────────────────────────────────────
+  // The measure div MUST be rendered in a real-sized container so that
+  // offsetHeight returns correct values. A 0×0 overflow:hidden parent causes
+  // all child offsetHeights to be 0, which makes every block appear to take
+  // no space and the packer puts everything on one overflowing "page".
+  //
+  // Correct approach: position:fixed at a large negative offset so it is
+  // off-screen but still participates in normal layout. We pin the width
+  // explicitly so iOS viewport shifts (URL bar show/hide) don't affect it.
+  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!measureRef.current || blocks.length === 0 || stageSize.h < 100 || stageSize.w < 100) return;
 
-    // Use the observed leaf height. If the leaf hasn't fired yet (very first
-    // render), estimate conservatively from the stage height.
     const effectiveLeafH = leafH > 0 ? leafH : Math.max(100, stageSize.h - 100);
 
     const el = measureRef.current;
     const cs = getComputedStyle(el);
     const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-    const footerReserve = 44; // page-number line + its top margin
-    // 16px breathing room so rounding/line-height drift never clips the last line.
-    const baseCapacity = Math.max(120, effectiveLeafH - padY - footerReserve - 16);
+    const footerReserve = 44;
+    // Conservative safety margin so rounding / line-height drift never clips
+    // the last line of a page. We'd rather create an extra page than overflow.
+    const safetyMargin = 32;
+    const baseCapacity = Math.max(120, effectiveLeafH - padY - footerReserve - safetyMargin);
 
     const openerH = openerMeasureRef.current?.offsetHeight ?? 0;
     const blockEls = Array.from(el.querySelectorAll("[data-block]")) as HTMLElement[];
+
     const out: number[][] = [];
     let cur: number[] = [];
     let used = openerH;
     let capacity = Math.max(60, baseCapacity - openerH);
+
     blockEls.forEach((be, i) => {
       const h = be.offsetHeight;
+      // If a single block is taller than the capacity, it still gets its own
+      // page — we never split individual blocks mid-paragraph.
       if (cur.length > 0 && used + h > capacity) {
         out.push(cur);
         cur = [];
@@ -213,12 +217,16 @@ export default function Reader() {
       used += h;
     });
     if (cur.length) out.push(cur);
+
+    // Don't orphan a heading at the bottom of a page.
     for (let p = 0; p < out.length - 1; p++) {
       const page = out[p];
       while (page.length > 1 && /^#{1,6}\s/.test(blocks[page[page.length - 1]] ?? "")) {
         out[p + 1].unshift(page.pop()!);
       }
     }
+
+    // Always append an empty closing leaf (end-of-chapter page).
     out.push([]);
     setPageMap(out);
   }, [blocks, stageSize, leafH, pagesPerView, prefs.size, prefs.serif]);
@@ -488,6 +496,7 @@ export default function Reader() {
     </>
   );
 
+  // Width the measure div uses — mirrors one leaf width in the real layout.
   const measureW = pagesPerView === 2 ? Math.floor((stageSize.w - 2) / 2) : stageSize.w;
 
   const pageInner = (blockIdxs: number[], absoluteIndex: number) => {
@@ -644,32 +653,39 @@ export default function Reader() {
         )}
 
         <div ref={stageRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 overflow-hidden px-3 py-4 md:px-6">
+
           {/*
             Off-screen measurement container.
-            Uses position:absolute inside a 0×0 overflow-hidden shell anchored
-            at the top-left of the stage — this is the correct cross-browser
-            pattern. The old `position:fixed; left:-99999px` approach caused
-            iOS/mobile to return 0-height block measurements because fixed
-            elements on mobile are laid out relative to the visual viewport,
-            which can produce incorrect offsetHeight readings when the viewport
-            is smaller or when the browser's virtual keyboard shifts layout.
+            MUST use position:fixed with a large negative top/left offset.
+            A 0×0 overflow:hidden parent returns offsetHeight=0 for all children
+            which breaks the packer (everything ends up on one overflowing page).
+            We pin the width explicitly via inline style so iOS viewport shifts
+            (URL bar appearing/disappearing) cannot change the measured width.
           */}
-          <div style={{ position: "absolute", top: 0, left: 0, width: 0, height: 0, overflow: "hidden", pointerEvents: "none" }} aria-hidden>
-            {measureW > 100 && (
-              <div
-                ref={measureRef}
-                style={{ ...PAPER_VARS, ...pageTypography, position: "absolute", top: 0, left: 0, width: measureW, visibility: "hidden" }}
-                className="px-6 py-8 md:px-10 md:py-10 prose-z1"
-              >
-                <div ref={openerMeasureRef} style={{ display: "flow-root" }}>{opener}</div>
-                {blocks.map((b, i) => (
-                  <div key={i} data-block className={i === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
-                    <ReactMarkdown>{b}</ReactMarkdown>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          {measureW > 100 && (
+            <div
+              ref={measureRef}
+              style={{
+                ...PAPER_VARS,
+                ...pageTypography,
+                position: "fixed",
+                top: "-99999px",
+                left: "-99999px",
+                width: measureW,
+                visibility: "hidden",
+                pointerEvents: "none",
+              }}
+              className="px-6 py-8 md:px-10 md:py-10 prose-z1"
+              aria-hidden
+            >
+              <div ref={openerMeasureRef} style={{ display: "flow-root" }}>{opener}</div>
+              {blocks.map((b, i) => (
+                <div key={i} data-block className={i === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
+                  <ReactMarkdown>{b}</ReactMarkdown>
+                </div>
+              ))}
+            </div>
+          )}
 
           {totalPages === 0 ? (
             <div className="size-8 border-2 border-mint/30 border-t-mint rounded-full animate-spin" />
