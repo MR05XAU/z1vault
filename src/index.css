@@ -84,11 +84,13 @@
 @layer base {
   *, *::before, *::after {
     @apply border-border;
+    min-width: 0;
   }
 
   html, body, #root {
     height: 100%;
     min-height: 100%;
+    overflow-x: hidden;
     background: hsl(var(--background));
   }
 
@@ -98,6 +100,8 @@
     font-feature-settings: "ss01", "cv11";
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: none;
+    word-break: break-word;
+    overflow-wrap: break-word;
   }
 
   /* Muted mint selection — the old gold/0.35 read as opaque khaki patches
@@ -111,6 +115,8 @@
     font-family: 'Fraunces', 'Inter', serif;
     font-feature-settings: "ss01";
     letter-spacing: -0.02em;
+    word-break: break-word;
+    overflow-wrap: break-word;
   }
 
   .font-mono {
@@ -279,16 +285,16 @@
   .prose-z1 { font-family: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif; }
   /* Body text sized in em so the reader's font-size control (inline
      font-size on the page container) scales it; 1em = the old 16px. */
-  .prose-z1 p { @apply mb-4 leading-[1.85] text-foreground/85; font-size: 1em; }
+  .prose-z1 p { @apply mb-4 leading-[1.85] text-foreground/85; font-size: 1em; word-break: break-word; overflow-wrap: break-word; }
   .prose-z1 ul, .prose-z1 ol { font-size: 1em; }
-  .prose-z1 h1 { @apply text-3xl mb-4 mt-2 font-medium text-foreground; }
-  .prose-z1 h2 { @apply text-xl mb-3 mt-6 font-medium mint-text; }
-  .prose-z1 h3 { @apply text-lg mb-2 mt-5 font-medium text-foreground; }
+  .prose-z1 h1 { @apply text-3xl mb-4 mt-2 font-medium text-foreground; word-break: break-word; }
+  .prose-z1 h2 { @apply text-xl mb-3 mt-6 font-medium mint-text; word-break: break-word; }
+  .prose-z1 h3 { @apply text-lg mb-2 mt-5 font-medium text-foreground; word-break: break-word; }
   .prose-z1 strong { @apply text-foreground; color: hsl(var(--mint-bright)); font-weight: 600; }
   .prose-z1 em { @apply italic text-foreground/90; }
   .prose-z1 ul { @apply list-disc pl-5 mb-4 space-y-1 text-foreground/85; }
   .prose-z1 ol { @apply list-decimal pl-5 mb-4 space-y-1 text-foreground/85; }
-  .prose-z1 code { @apply font-mono text-sm px-1.5 py-0.5 rounded bg-secondary text-foreground/90; }
+  .prose-z1 code { @apply font-mono text-sm px-1.5 py-0.5 rounded bg-secondary text-foreground/90; overflow-wrap: break-word; word-break: break-all; }
   .prose-z1 blockquote { @apply border-l-2 border-primary/60 pl-4 italic text-foreground/75 my-4; }
   /* Drop cap on the chapter's opening paragraph — a real-book flourish.
      Scoped to .drop-cap since reader pages wrap blocks in divs (for measured
