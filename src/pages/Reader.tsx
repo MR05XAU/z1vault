@@ -644,21 +644,32 @@ export default function Reader() {
         )}
 
         <div ref={stageRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 overflow-hidden px-3 py-4 md:px-6">
-          {measureW > 100 && (
-            <div
-              ref={measureRef}
-              aria-hidden
-              style={{ ...PAPER_VARS, ...pageTypography, position: "fixed", left: -99999, top: 0, width: measureW, visibility: "hidden", pointerEvents: "none" }}
-              className="px-6 py-8 md:px-10 md:py-10 prose-z1"
-            >
-              <div ref={openerMeasureRef} style={{ display: "flow-root" }}>{opener}</div>
-              {blocks.map((b, i) => (
-                <div key={i} data-block className={i === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
-                  <ReactMarkdown>{b}</ReactMarkdown>
-                </div>
-              ))}
-            </div>
-          )}
+          {/*
+            Off-screen measurement container.
+            Uses position:absolute inside a 0×0 overflow-hidden shell anchored
+            at the top-left of the stage — this is the correct cross-browser
+            pattern. The old `position:fixed; left:-99999px` approach caused
+            iOS/mobile to return 0-height block measurements because fixed
+            elements on mobile are laid out relative to the visual viewport,
+            which can produce incorrect offsetHeight readings when the viewport
+            is smaller or when the browser's virtual keyboard shifts layout.
+          */}
+          <div style={{ position: "absolute", top: 0, left: 0, width: 0, height: 0, overflow: "hidden", pointerEvents: "none" }} aria-hidden>
+            {measureW > 100 && (
+              <div
+                ref={measureRef}
+                style={{ ...PAPER_VARS, ...pageTypography, position: "absolute", top: 0, left: 0, width: measureW, visibility: "hidden" }}
+                className="px-6 py-8 md:px-10 md:py-10 prose-z1"
+              >
+                <div ref={openerMeasureRef} style={{ display: "flow-root" }}>{opener}</div>
+                {blocks.map((b, i) => (
+                  <div key={i} data-block className={i === 0 ? "drop-cap" : undefined} style={{ display: "flow-root" }}>
+                    <ReactMarkdown>{b}</ReactMarkdown>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {totalPages === 0 ? (
             <div className="size-8 border-2 border-mint/30 border-t-mint rounded-full animate-spin" />
