@@ -16,7 +16,7 @@ import { buzz, confetti } from "@/lib/fx";
 // redundant once we're already showing "Chapter N" as its own label above
 // (in the header and the chapter-opener), so strip it for display.
 function stripChapterPrefix(title: string): string {
-  return title.replace(/^chapter\s+\d+\s*[:.\-–]\s*/i, "");
+  return title.replace(/^chapter\s+\d+\s*[:.\\-–]\s*/i, "");
 }
 
 // Chapter bodies are often authored with their own leading "# Chapter N:
@@ -186,17 +186,26 @@ export default function Reader() {
     const cs = getComputedStyle(el);
     const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     const footerReserve = 44; // page-number line + its top margin
-    // 8px slack absorbs sub-pixel/rounding drift between measure and render
-    // so the last block on a page can never be clipped by the page edge.
-    const capacity = Math.max(120, stageSize.h - padY - footerReserve - 8);
+    // +8px breathing room so the packer never places a block so close to the
+    // footer that rounding drift causes it to clip under overflow-hidden.
+    const baseCapacity = Math.max(120, stageSize.h - padY - footerReserve + 8);
     const openerH = openerMeasureRef.current?.offsetHeight ?? 0;
     const blockEls = Array.from(el.querySelectorAll("[data-block]")) as HTMLElement[];
     const out: number[][] = [];
     let cur: number[] = [];
+    // Page 0 starts with the opener already consuming openerH of capacity.
     let used = openerH;
+    // Page 0 has less space for body blocks because the opener sits above them.
+    let capacity = Math.max(60, baseCapacity - openerH);
     blockEls.forEach((be, i) => {
       const h = be.offsetHeight;
-      if (cur.length > 0 && used + h > capacity) { out.push(cur); cur = []; used = 0; }
+      if (cur.length > 0 && used + h > capacity) {
+        out.push(cur);
+        cur = [];
+        used = 0;
+        // After page 0 is committed, subsequent pages have full capacity.
+        capacity = baseCapacity;
+      }
       cur.push(i);
       used += h;
     });
@@ -495,8 +504,13 @@ export default function Reader() {
     </>
   );
 
-  // The measure page width mirrors one page of the spread: stage width,
-  // halved (minus the 2px gap) when showing two pages.
+  // The measure page width mirrors one live leaf exactly:
+  // - Stage contentRect width (stageSize.w) already excludes the stage's own padding.
+  // - Each leaf inside the stage is flex-1 in a gap-[2px] row.
+  // - On wide (two-page spread): each leaf ≈ (stageSize.w - 2) / 2.
+  // - On mobile (single page): each leaf ≈ stageSize.w.
+  // No further adjustment needed — ResizeObserver gives us contentRect which
+  // already excludes padding, so stageSize.w IS the available leaf width.
   const measureW = pagesPerView === 2 ? Math.floor((stageSize.w - 2) / 2) : stageSize.w;
 
   // The inside of one paper page — shared by the live leaves and the
@@ -522,7 +536,7 @@ export default function Reader() {
                   onClick={() => completeChapter(() => neighbors.next ? nav(`/read/${neighbors.next.id}`) : nav("/library"))}
                   className="w-full h-12 rounded-2xl mint-fill font-medium press"
                 >
-                  <CheckCircle2 className="size-4 mr-2" /> Mark complete & continue
+                  <CheckCircle2 className="size-4 mr-2" /> Mark complete &amp; continue
                 </Button>
               ) : (
                 <Button
@@ -660,7 +674,9 @@ export default function Reader() {
         {/* The book itself — one paper leaf on mobile, a two-page spread on desktop */}
         <div ref={stageRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 overflow-hidden px-3 py-4 md:px-6">
           {/* Hidden measurer: same width, typography, and padding as one real
-              page, used to compute how many blocks fit per page. */}
+              page, used to compute how many blocks fit per page.
+              measureW uses stageSize.w (ResizeObserver contentRect — already
+              excludes the stage's own padding) so it matches the live leaf. */}
           {measureW > 100 && (
             <div
               ref={measureRef}
