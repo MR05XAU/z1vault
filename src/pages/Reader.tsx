@@ -12,34 +12,20 @@ import { downloadChapter, getOffline, isOnline, offlineAudioUrl, removeChapter, 
 import { WordPopover } from "@/components/WordPopover";
 import { buzz, confetti } from "@/lib/fx";
 
-// Chapter titles in the data are often authored as "Chapter N: Title" —
-// redundant once we're already showing "Chapter N" as its own label above
-// (in the header and the chapter-opener), so strip it for display.
 function stripChapterPrefix(title: string): string {
-  return title.replace(/^chapter\s+\d+\s*[:.\\-–]\s*/i, "");
+  return title.replace(/^chapter\s+\d+\s*[:.\\-\u2013]\s*/i, "");
 }
 
-// Chapter bodies are often authored with their own leading "# Chapter N:
-// Title" line — the opener already presents the title in full, so strip a
-// leading H1 from the markdown to avoid rendering it twice.
 function stripLeadingH1(content: string): string {
   return content.replace(/^\s*#\s+.+\r?\n+/, "");
 }
 
-// Splits chapter markdown into block-level units (paragraphs, headings,
-// lists). Pages are then packed from consecutive blocks based on *measured*
-// heights against the real page height — so a page never holds more text
-// than fits on screen and never needs internal scrolling.
 function splitIntoBlocks(markdown: string): string[] {
   const trimmed = markdown.trim();
   if (!trimmed) return [];
   return trimmed.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean);
 }
 
-// Overrides the design-system's color variables to a warm paper palette,
-// scoped to this element and its children — every existing text-foreground /
-// text-muted-foreground / mint-text / border-border class automatically
-// re-themes since they all read from these same CSS variables.
 const PAPER_VARS = {
   "--background": "44 46% 96%",
   "--foreground": "30 25% 50%",
@@ -72,6 +58,8 @@ export default function Reader() {
   const [chapter, setChapter] = useState<any>(null);
   const [neighbors, setNeighbors] = useState<{ prev?: any; next?: any }>({});
   const pageRef = useRef<HTMLDivElement>(null);
+  // leafRef points at the first rendered leaf so we can read its true height.
+  const leafRef = useRef<HTMLDivElement>(null);
   const [selectedText, setSelectedText] = useState("");
   const [actionSheet, setActionSheet] = useState<null | "highlight" | "ask" | "note">(null);
   const [noteText, setNoteText] = useState("");
@@ -88,11 +76,8 @@ export default function Reader() {
   const [isWide, setIsWide] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
-  // The outgoing page kept mounted while it physically turns over the spine.
   const [flight, setFlight] = useState<{ dir: "next" | "prev"; spec: number[]; fromAbs: number; wasSpread: boolean } | null>(null);
 
-  // Reader display preferences — font size + serif/sans, persisted. Fed into
-  // both the live pages and the measurer so pagination stays exact.
   const [prefs, setPrefs] = useState<{ size: number; serif: boolean }>(() => {
     try {
       const p = JSON.parse(localStorage.getItem("z1.readerPrefs") ?? "{}");
@@ -107,16 +92,12 @@ export default function Reader() {
     fontSize: prefs.size,
     ...(prefs.serif ? {} : { fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif" }),
   };
-  // Safety: if animationend never fires (reduced-motion, hidden tab), the
-  // stale leaf must not stay stuck covering the live page.
   useEffect(() => {
     if (!flight) return;
     const t = setTimeout(() => setFlight(null), 1700);
     return () => clearTimeout(t);
   }, [flight]);
 
-  // Measurement-driven pagination: blocks are measured off-screen at the real
-  // page width, then greedily packed into pages that fit the real page height.
   const stageRef = useRef<HTMLDivElement>(null);
   const measureRef = useRef<HTMLDivElement>(null);
   const openerMeasureRef = useRef<HTMLDivElement>(null);
@@ -135,7 +116,6 @@ export default function Reader() {
   useEffect(() => {
     if (!chapterId) return;
     (async () => {
-      // Try network first; fall back to offline cache.
       let ch: any = null;
       try {
         const { data } = await supabase.from("book_chapters").select("*").eq("id", chapterId).maybeSingle();
@@ -166,7 +146,6 @@ export default function Reader() {
   const blocks = useMemo(() => (chapter ? splitIntoBlocks(stripLeadingH1(chapter.content)) : []), [chapter]);
   const pagesPerView = isWide ? 2 : 1;
 
-  // Track the live size of the page stage so pagination follows the viewport.
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
@@ -178,24 +157,32 @@ export default function Reader() {
     return () => ro.disconnect();
   }, [chapter]);
 
-  // Pack measured blocks into pages that fit the page height exactly —
-  // no internal scrolling. Page 0 reserves space for the chapter opener.
+  // Pagination: use the real rendered leaf height (via leafRef) as the source
+  // of truth for how tall a page is. stageSize.h is the full stage height and
+  // does NOT account for py-4 stage padding, the gap-3, or the 40px controls
+  // row — all of which eat into the space available to the leaf. Reading
+  // clientHeight off the live leaf element is the only reliable way to get
+  // the exact usable page height regardless of what CSS is applied around it.
   useEffect(() => {
     if (!measureRef.current || blocks.length === 0 || stageSize.h < 100 || stageSize.w < 100) return;
+
+    // Use the live leaf's actual rendered height when available; fall back to
+    // a conservative estimate (stage height minus ~100px for surrounding chrome)
+    // on the very first render before the leaf has mounted.
+    const leafH = leafRef.current?.clientHeight ?? Math.max(100, stageSize.h - 100);
+
     const el = measureRef.current;
     const cs = getComputedStyle(el);
     const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     const footerReserve = 44; // page-number line + its top margin
-    // +8px breathing room so the packer never places a block so close to the
-    // footer that rounding drift causes it to clip under overflow-hidden.
-    const baseCapacity = Math.max(120, stageSize.h - padY - footerReserve + 8);
+    // Leave 12px breathing room so rounding drift never clips the last line.
+    const baseCapacity = Math.max(120, leafH - padY - footerReserve - 12);
+
     const openerH = openerMeasureRef.current?.offsetHeight ?? 0;
     const blockEls = Array.from(el.querySelectorAll("[data-block]")) as HTMLElement[];
     const out: number[][] = [];
     let cur: number[] = [];
-    // Page 0 starts with the opener already consuming openerH of capacity.
     let used = openerH;
-    // Page 0 has less space for body blocks because the opener sits above them.
     let capacity = Math.max(60, baseCapacity - openerH);
     blockEls.forEach((be, i) => {
       const h = be.offsetHeight;
@@ -203,24 +190,18 @@ export default function Reader() {
         out.push(cur);
         cur = [];
         used = 0;
-        // After page 0 is committed, subsequent pages have full capacity.
         capacity = baseCapacity;
       }
       cur.push(i);
       used += h;
     });
     if (cur.length) out.push(cur);
-    // Orphan control: never leave a heading stranded as the last line of a
-    // page — carry it over to open the next page with its section instead.
     for (let p = 0; p < out.length - 1; p++) {
       const page = out[p];
       while (page.length > 1 && /^#{1,6}\s/.test(blocks[page[page.length - 1]] ?? "")) {
         out[p + 1].unshift(page.pop()!);
       }
     }
-    // Closing leaf: end-of-chapter actions (quiz / next chapter) get their
-    // own paper page, so the book stays the same size on every page instead
-    // of shrinking to make room for buttons below it.
     out.push([]);
     setPageMap(out);
   }, [blocks, stageSize, pagesPerView, prefs.size, prefs.serif]);
@@ -229,9 +210,6 @@ export default function Reader() {
   const visibleSpecs = pageMap.slice(pageIndex, pageIndex + pagesPerView);
   const isLastPage = totalPages > 0 && pageIndex + pagesPerView >= totalPages;
 
-  // Restore reading position once per chapter — by percentage, not raw page
-  // index, since page counts differ per device/viewport under measured
-  // pagination (a phone has more, smaller pages than a desktop spread).
   useEffect(() => {
     if (!chapter || !user || totalPages === 0 || restoredRef.current === chapter.id) return;
     restoredRef.current = chapter.id;
@@ -248,7 +226,6 @@ export default function Reader() {
     })();
   }, [chapter, user, totalPages, searchParams]);
 
-  // Keep pageIndex valid when repagination shrinks the page count (resize).
   useEffect(() => {
     if (totalPages > 0 && pageIndex >= totalPages) setPageIndex(totalPages - 1);
   }, [totalPages, pageIndex]);
@@ -294,7 +271,6 @@ export default function Reader() {
     );
   };
 
-  // Flush progress on unload so quick exits don't lose the current page.
   useEffect(() => {
     if (!chapter || !user) return;
     const flush = () => {
@@ -320,8 +296,6 @@ export default function Reader() {
   const goToPage = (newIndex: number, dir: "next" | "prev") => {
     const clamped = Math.max(0, Math.min(newIndex, Math.max(0, totalPages - 1)));
     if (clamped === pageIndex) return;
-    // Capture the outgoing page for the flip: on "next" the right leaf of the
-    // old spread turns over; on "prev" the left leaf turns back.
     const specs = pageMap.slice(pageIndex, pageIndex + pagesPerView);
     if (specs.length > 0) {
       const wasSpread = specs.length === 2;
@@ -341,8 +315,6 @@ export default function Reader() {
     const dx = (e.changedTouches[0]?.clientX ?? touchStartX.current) - touchStartX.current;
     touchStartX.current = null;
     if (Math.abs(dx) < 60) return;
-    // Past the ends of the chapter, keep swiping into the neighbor chapter —
-    // the book reads as one continuous object.
     if (dx < 0) {
       if (isLastPage && neighbors.next) nav(`/read/${neighbors.next.id}`);
       else nextPage();
@@ -352,7 +324,6 @@ export default function Reader() {
     }
   };
 
-  // Desktop: turn pages with the arrow keys (unless a sheet/input has focus).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (actionSheet) return;
@@ -370,7 +341,6 @@ export default function Reader() {
     setSelectedText(sel.length > 3 ? sel : "");
   };
 
-  // Double-tap / double-click a single word -> definition popover
   const onDoubleClick = (e: React.MouseEvent | React.TouchEvent) => {
     const sel = window.getSelection()?.toString().trim() ?? "";
     if (/^[A-Za-z][A-Za-z\-']{1,29}$/.test(sel)) {
@@ -470,7 +440,6 @@ export default function Reader() {
     }
     confetti(70);
     buzz([15, 60, 15]);
-    // Let the burst be visible for a beat before the route changes.
     setTimeout(goTo, 650);
   };
 
@@ -482,8 +451,6 @@ export default function Reader() {
     );
   }
 
-  // Chapter opener — rendered on page 0 and (identically) in the hidden
-  // measurer so pagination accounts for its exact height.
   const opener = (
     <>
       <div className="mb-8 text-center">
@@ -504,18 +471,8 @@ export default function Reader() {
     </>
   );
 
-  // The measure page width mirrors one live leaf exactly:
-  // - Stage contentRect width (stageSize.w) already excludes the stage's own padding.
-  // - Each leaf inside the stage is flex-1 in a gap-[2px] row.
-  // - On wide (two-page spread): each leaf ≈ (stageSize.w - 2) / 2.
-  // - On mobile (single page): each leaf ≈ stageSize.w.
-  // No further adjustment needed — ResizeObserver gives us contentRect which
-  // already excludes padding, so stageSize.w IS the available leaf width.
   const measureW = pagesPerView === 2 ? Math.floor((stageSize.w - 2) / 2) : stageSize.w;
 
-  // The inside of one paper page — shared by the live leaves and the
-  // in-flight (turning) leaf's front face so the flip shows the exact page
-  // that was just on screen.
   const pageInner = (blockIdxs: number[], absoluteIndex: number) => {
     const isClosingLeaf = totalPages > 0 && absoluteIndex === totalPages - 1;
     return (
@@ -575,7 +532,6 @@ export default function Reader() {
     );
   };
 
-  // Paper-leaf chrome shared by live pages and the flight leaf's faces.
   const leafClass = (isFirstOfSpread: boolean) => [
     "paper-texture relative flex-1 min-w-0 overflow-hidden px-6 py-8 md:px-10 md:py-10 prose-z1",
     "shadow-[0_20px_60px_-15px_rgba(0,0,0,0.65)]",
@@ -615,7 +571,6 @@ export default function Reader() {
           </button>
         </header>
 
-        {/* Chapter progress — how far through the pages you are */}
         <div className="h-0.5 bg-border/40">
           <div
             className="h-full mint-fill transition-all duration-300"
@@ -671,12 +626,7 @@ export default function Reader() {
           </div>
         )}
 
-        {/* The book itself — one paper leaf on mobile, a two-page spread on desktop */}
         <div ref={stageRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 overflow-hidden px-3 py-4 md:px-6">
-          {/* Hidden measurer: same width, typography, and padding as one real
-              page, used to compute how many blocks fit per page.
-              measureW uses stageSize.w (ResizeObserver contentRect — already
-              excludes the stage's own padding) so it matches the live leaf. */}
           {measureW > 100 && (
             <div
               ref={measureRef}
@@ -707,13 +657,15 @@ export default function Reader() {
               {visibleSpecs.map((blockIdxs, i) => {
                 const absoluteIndex = pageIndex + i;
                 const isFirstOfSpread = i === 0;
-                // The side the old leaf is lifting off gets a brighten-in.
                 const revealing =
                   flight != null &&
                   (visibleSpecs.length !== 2 || (flight.dir === "next" ? i === 1 : i === 0));
                 return (
                   <div
                     key={absoluteIndex}
+                    // leafRef is attached to the first leaf so the pagination
+                    // effect can read the true rendered page height next cycle.
+                    ref={i === 0 ? leafRef : undefined}
                     style={{ ...PAPER_VARS, ...pageTypography }}
                     className={`${leafClass(isFirstOfSpread)}${revealing ? " page-reveal" : ""}`}
                   >
@@ -722,14 +674,10 @@ export default function Reader() {
                   </div>
                 );
               })}
-              {/* Binding shadow between two facing pages */}
               {visibleSpecs.length === 2 && (
                 <div className="pointer-events-none absolute inset-y-0 left-1/2 w-6 -translate-x-1/2 bg-gradient-to-r from-black/25 via-black/10 to-black/25" />
               )}
 
-              {/* The outgoing page, physically turning over the spine: front
-                  face is the page that was just on screen, back face is blank
-                  paper stock — removed from the DOM when the turn finishes. */}
               {flight && (
                 <div className="flip-overlay" key={turnKey}>
                   <div
@@ -764,7 +712,6 @@ export default function Reader() {
             </div>
           )}
 
-          {/* Page-turn controls */}
           <div className="flex w-full max-w-sm items-center justify-between px-2">
             <button
               onClick={prevPage}
