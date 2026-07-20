@@ -58,8 +58,10 @@ export default function Reader() {
   const [chapter, setChapter] = useState<any>(null);
   const [neighbors, setNeighbors] = useState<{ prev?: any; next?: any }>({});
   const pageRef = useRef<HTMLDivElement>(null);
-  // leafRef points at the first rendered leaf so we can read its true height.
   const leafRef = useRef<HTMLDivElement>(null);
+  // leafH is the observed clientHeight of the first rendered leaf — the only
+  // accurate source of truth for how tall a page actually is on screen.
+  const [leafH, setLeafH] = useState(0);
   const [selectedText, setSelectedText] = useState("");
   const [actionSheet, setActionSheet] = useState<null | "highlight" | "ask" | "note">(null);
   const [noteText, setNoteText] = useState("");
@@ -146,6 +148,7 @@ export default function Reader() {
   const blocks = useMemo(() => (chapter ? splitIntoBlocks(stripLeadingH1(chapter.content)) : []), [chapter]);
   const pagesPerView = isWide ? 2 : 1;
 
+  // Observe the stage so we know the available width for the measurer.
   useEffect(() => {
     const el = stageRef.current;
     if (!el) return;
@@ -157,26 +160,40 @@ export default function Reader() {
     return () => ro.disconnect();
   }, [chapter]);
 
-  // Pagination: use the real rendered leaf height (via leafRef) as the source
-  // of truth for how tall a page is. stageSize.h is the full stage height and
-  // does NOT account for py-4 stage padding, the gap-3, or the 40px controls
-  // row — all of which eat into the space available to the leaf. Reading
-  // clientHeight off the live leaf element is the only reliable way to get
-  // the exact usable page height regardless of what CSS is applied around it.
+  // Observe the first rendered leaf to get its true pixel height — this is
+  // the only value the packer should use as page capacity. Using stageSize.h
+  // was wrong because the stage is taller than the leaf (stage padding +
+  // gap + controls row = ~84px extra). Refs are not reactive so we can't
+  // read leafRef.current directly in the pagination effect; we store the
+  // observed height in state instead so the effect re-runs when it changes.
+  useEffect(() => {
+    const el = leafRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect?.height;
+      if (h) setLeafH(Math.round(h));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  // Re-attach whenever the leaf mounts/unmounts (chapter change resets pageIndex
+  // which may briefly hide the leaf before re-rendering it).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chapter, pageIndex]);
+
+  // Pack measured blocks into pages that exactly fit the leaf height.
   useEffect(() => {
     if (!measureRef.current || blocks.length === 0 || stageSize.h < 100 || stageSize.w < 100) return;
 
-    // Use the live leaf's actual rendered height when available; fall back to
-    // a conservative estimate (stage height minus ~100px for surrounding chrome)
-    // on the very first render before the leaf has mounted.
-    const leafH = leafRef.current?.clientHeight ?? Math.max(100, stageSize.h - 100);
+    // Use the observed leaf height. If the leaf hasn't fired yet (very first
+    // render), estimate conservatively from the stage height.
+    const effectiveLeafH = leafH > 0 ? leafH : Math.max(100, stageSize.h - 100);
 
     const el = measureRef.current;
     const cs = getComputedStyle(el);
     const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
     const footerReserve = 44; // page-number line + its top margin
-    // Leave 12px breathing room so rounding drift never clips the last line.
-    const baseCapacity = Math.max(120, leafH - padY - footerReserve - 12);
+    // 16px breathing room so rounding/line-height drift never clips the last line.
+    const baseCapacity = Math.max(120, effectiveLeafH - padY - footerReserve - 16);
 
     const openerH = openerMeasureRef.current?.offsetHeight ?? 0;
     const blockEls = Array.from(el.querySelectorAll("[data-block]")) as HTMLElement[];
@@ -204,7 +221,7 @@ export default function Reader() {
     }
     out.push([]);
     setPageMap(out);
-  }, [blocks, stageSize, pagesPerView, prefs.size, prefs.serif]);
+  }, [blocks, stageSize, leafH, pagesPerView, prefs.size, prefs.serif]);
 
   const totalPages = pageMap.length;
   const visibleSpecs = pageMap.slice(pageIndex, pageIndex + pagesPerView);
@@ -663,8 +680,6 @@ export default function Reader() {
                 return (
                   <div
                     key={absoluteIndex}
-                    // leafRef is attached to the first leaf so the pagination
-                    // effect can read the true rendered page height next cycle.
                     ref={i === 0 ? leafRef : undefined}
                     style={{ ...PAPER_VARS, ...pageTypography }}
                     className={`${leafClass(isFirstOfSpread)}${revealing ? " page-reveal" : ""}`}
