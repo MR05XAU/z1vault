@@ -55,7 +55,7 @@ export default function Library() {
         <div className="flex items-start gap-3">
           <span className="display shrink-0 text-lg text-muted-foreground/70 tabular-nums leading-6">{numeral}</span>
           <div className="min-w-0 flex-1">
-            <div className="display text-[15px] font-medium leading-6 group-hover:mint-text transition-colors">
+            <div className="display text-[15px] font-medium leading-6 group-hover:mint-text transition-colors line-clamp-2">
               {stripChapterPrefix(c.title)}
             </div>
             <div className="mt-1.5 flex items-center gap-2 text-xs text-muted-foreground tabular-nums">
