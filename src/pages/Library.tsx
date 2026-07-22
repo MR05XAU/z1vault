@@ -5,12 +5,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { useChapters } from "@/hooks/useChapters";
 import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
-import { Check } from "lucide-react";
+import { Check, Lock } from "lucide-react";
 
 function stripChapterPrefix(title: string): string {
   return title.replace(/^chapter\s+\d+\s*[:.\-–]\s*/i, "");
 }
-
+function isChapterUnlocked(chapter: any, index: number, progress: Record<string, any>, allChapters: any[]) {
+  if (index === 0) return true;
+  const prevChapter = allChapters[index - 1];
+  return progress[prevChapter?.id]?.done === true;
+}
 export default function Library() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -34,27 +38,34 @@ export default function Library() {
   const { coreChapters, bgChapters } = useMemo(() => ({
     coreChapters: chapters.filter((c) => !c.is_background),
     bgChapters: chapters.filter((c) => c.is_background),
-  }), [chapters]);
-
-  const doneCount = chapters.filter((c) => progress[c.id]?.done).length;
-
-  const renderRow = (c: any, i: number, numeral: string) => {
+   const renderRow = (c: any, i: number, numeral: string, chapterList: any[]) => {
     const p = progress[c.id] ?? { pct: 0, done: false };
+    const unlocked = isChapterUnlocked(c, i, progress, chapterList);
+    
     return (
       <button
         key={c.id}
-        onClick={() => nav(`/read/${c.id}`)}
-        className="group relative rounded-2xl border border-border bg-surface-elevated/40 p-3 sm:p-4 text-left press animate-fade-up hover:border-border-strong transition-colors w-full"
+        onClick={() => unlocked ? nav(`/read/${c.id}`) : null}
+        disabled={!unlocked}
+        className={`group relative rounded-2xl border border-border bg-surface-elevated/40 p-3 sm:p-4 text-left press animate-fade-up transition-colors w-full ${
+          unlocked 
+            ? "hover:border-border-strong cursor-pointer" 
+            : "opacity-50 cursor-not-allowed"
+        }`}
         style={{ animationDelay: `${Math.min(i, 12) * 30}ms` }}
       >
         <div className="flex items-start gap-2 sm:gap-3">
-          <span className="display shrink-0 text-sm sm:text-lg text-muted-foreground/70 tabular-nums leading-5 sm:leading-6 mt-0.5">{numeral}</span>
+          <span className="display shrink-0 text-sm sm:text-lg text-muted-foreground/70 tabular-nums leading-5 sm:leading-6 mt-0.5">
+            {unlocked ? numeral : <Lock className="size-4 mt-0.5" />}
+          </span>
           <div className="min-w-0 flex-1 overflow-visible">
             <div className="display text-sm sm:text-[15px] font-medium leading-snug sm:leading-6 group-hover:mint-text transition-colors break-words">
               {stripChapterPrefix(c.title)}
             </div>
             <div className="mt-1 sm:mt-1.5 flex items-center gap-2 text-[11px] sm:text-xs text-muted-foreground tabular-nums">
-              {p.done ? (
+              {!unlocked ? (
+                <span className="flex items-center gap-1 text-muted-foreground"><Lock className="size-3" /> Complete previous chapter</span>
+              ) : p.done ? (
                 <span className="flex items-center gap-1 mint-text"><Check className="size-3" /> Read</span>
               ) : p.pct > 0 ? (
                 <span className="text-mint-bright">{Math.round(p.pct)}% read</span>
@@ -64,10 +75,14 @@ export default function Library() {
             </div>
           </div>
         </div>
-        {!p.done && p.pct > 0 && (
+        {!p.done && p.pct > 0 && unlocked && (
           <div className="absolute inset-x-0 bottom-0 h-0.5 bg-border/60">
             <div className="h-full mint-fill" style={{ width: `${p.pct}%` }} />
           </div>
+        )}
+      </button>
+    );
+  };
         )}
       </button>
     );
@@ -92,7 +107,7 @@ export default function Library() {
       {continueChapter && (
         <button
           onClick={() => nav(`/read/${continueChapter.id}`)}
-          className="mt-5 sm:mt-7 inline-flex items-center gap-2 rounded-2xl mint-fill px-5 sm:px-6 py-2.5 sm:py-3 text-sm font-medium shadow-glow press"
+         {coreChapters.map((c, i) => renderRow(c, i, String(i + 1).padStart(2, "0"), coreChapters))}
         >
           {(progress[continueChapter.id]?.pct ?? 0) > 0 ? "Continue reading" : "Start reading"}
         </button>
@@ -103,7 +118,7 @@ export default function Library() {
   const contents = (
     <>
       <section>
-        <div className="mb-3 flex items-baseline justify-between px-1">
+       {bgChapters.map((c, i) => renderRow(c, i, "app. " + String.fromCharCode(65 + i), bgChapters))}
           <h2 className="display text-base sm:text-lg font-medium">Contents</h2>
         </div>
         <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2">
