@@ -10,11 +10,13 @@ import { Check, Lock } from "lucide-react";
 function stripChapterPrefix(title: string): string {
   return title.replace(/^chapter\s+\d+\s*[:.\-–]\s*/i, "");
 }
+
 function isChapterUnlocked(chapter: any, index: number, progress: Record<string, any>, allChapters: any[]) {
   if (index === 0) return true;
   const prevChapter = allChapters[index - 1];
   return progress[prevChapter?.id]?.done === true;
 }
+
 export default function Library() {
   const nav = useNavigate();
   const { user } = useAuth();
@@ -38,7 +40,11 @@ export default function Library() {
   const { coreChapters, bgChapters } = useMemo(() => ({
     coreChapters: chapters.filter((c) => !c.is_background),
     bgChapters: chapters.filter((c) => c.is_background),
-   const renderRow = (c: any, i: number, numeral: string, chapterList: any[]) => {
+  }), [chapters]);
+
+  const doneCount = chapters.filter((c) => progress[c.id]?.done).length;
+
+  const renderRow = (c: any, i: number, numeral: string, chapterList: any[]) => {
     const p = progress[c.id] ?? { pct: 0, done: false };
     const unlocked = isChapterUnlocked(c, i, progress, chapterList);
     
@@ -83,10 +89,6 @@ export default function Library() {
       </button>
     );
   };
-        )}
-      </button>
-    );
-  };
 
   const continueChapter =
     chapters.find((c) => !progress[c.id]?.done && (progress[c.id]?.pct ?? 0) > 0) ??
@@ -107,7 +109,7 @@ export default function Library() {
       {continueChapter && (
         <button
           onClick={() => nav(`/read/${continueChapter.id}`)}
-         {coreChapters.map((c, i) => renderRow(c, i, String(i + 1).padStart(2, "0"), coreChapters))}
+          className="mt-5 sm:mt-7 inline-flex items-center gap-2 rounded-2xl mint-fill px-5 sm:px-6 py-2.5 sm:py-3 text-sm font-medium shadow-glow press"
         >
           {(progress[continueChapter.id]?.pct ?? 0) > 0 ? "Continue reading" : "Start reading"}
         </button>
@@ -118,11 +120,11 @@ export default function Library() {
   const contents = (
     <>
       <section>
-       {bgChapters.map((c, i) => renderRow(c, i, "app. " + String.fromCharCode(65 + i), bgChapters))}
+        <div className="mb-3 flex items-baseline justify-between px-1">
           <h2 className="display text-base sm:text-lg font-medium">Contents</h2>
         </div>
         <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2">
-          {coreChapters.map((c, i) => renderRow(c, i, String(i + 1).padStart(2, "0")))}
+          {coreChapters.map((c, i) => renderRow(c, i, String(i + 1).padStart(2, "0"), coreChapters))}
         </div>
       </section>
 
@@ -133,7 +135,7 @@ export default function Library() {
             <span className="text-[10px] uppercase tracking-[0.24em] text-muted-foreground">No quiz</span>
           </div>
           <div className="grid gap-2 sm:gap-3 grid-cols-1 sm:grid-cols-2">
-            {bgChapters.map((c, i) => renderRow(c, i, "app. " + String.fromCharCode(65 + i)))}
+            {bgChapters.map((c, i) => renderRow(c, i, "app. " + String.fromCharCode(65 + i), bgChapters))}
           </div>
         </section>
       )}
