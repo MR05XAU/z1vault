@@ -652,7 +652,7 @@ export default function Reader() {
           </div>
         )}
 
-        <div ref={stageRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 overflow-hidden px-3 py-4 md:px-6">
+        <div ref={stageRef} className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 overflow-visible px-3 py-4 md:px-6">
 
           {/*
             Off-screen measurement container.
