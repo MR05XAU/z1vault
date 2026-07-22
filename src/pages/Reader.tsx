@@ -456,17 +456,27 @@ export default function Reader() {
     }
   };
 
-  const completeChapter = async (goTo: () => void) => {
+   const completeChapter = async (goTo: () => void) => {
     if (user && chapter) {
-      // Only mark background chapters as complete immediately
-      // Regular chapters are only marked complete when quiz is passed
+      // Background chapters (no quiz) = mark complete immediately
+      // Regular chapters = only mark complete when quiz is fully passed
       if (chapter.is_background) {
         await supabase.from("user_progress").upsert(
           { user_id: user.id, chapter_id: chapter.id, progress_percentage: 100, last_position: Math.max(0, totalPages - 1), completed: true },
           { onConflict: "user_id,chapter_id" },
         );
       } else {
-        // For regular chapters, just save progress but DON'T mark completed
+        // Save progress but DON'T mark completed - quiz must be passed first
+        await supabase.from("user_progress").upsert(
+          { user_id: user.id, chapter_id: chapter.id, progress_percentage: 100, last_position: Math.max(0, totalPages - 1), completed: false },
+          { onConflict: "user_id,chapter_id" },
+        );
+      }
+    }
+    confetti(70);
+    buzz([15, 60, 15]);
+    setTimeout(goTo, 650);
+  };
         await supabase.from("user_progress").upsert(
           { user_id: user.id, chapter_id: chapter.id, progress_percentage: 100, last_position: Math.max(0, totalPages - 1), completed: false },
           { onConflict: "user_id,chapter_id" },
