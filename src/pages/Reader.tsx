@@ -738,8 +738,7 @@ export default function Reader() {
                       <div
                         style={{ ...PAPER_VARS, ...pageTypography }}
                         className={`flip-face paper-texture px-6 py-8 md:px-10 md:py-10 prose-z1 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.8)] ${flight.dir === "next" ? "rounded-r-md rounded-l-[2px]" : "rounded-l-md rounded-r-[2px]"}`}
-                      >
-                        <div className="relative h-full overflow-hidden">{pageInner(flight.spec, flight.fromAbs)}</div>
+                      ><div className="relative h-full overflow-visible">{pageInner(flight.spec, flight.fromAbs)}</div>
                       </div>
                       <div
                         style={PAPER_VARS}
