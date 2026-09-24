@@ -126,7 +126,7 @@ export default function Reader() {
         if (cached) ch = cached;
       }
       if (ch?.chapter_number) {
-        const generatedAudioUrl = `/audio/ch${String(ch.chapter_number).padStart(2, "0")}.mp3`;
+        const generatedAudioUrl = `https://raw.githubusercontent.com/MR05XAU/z1vault/main/audiobook-assets/ch${String(ch.chapter_number).padStart(2, "0")}.mp3`;
         ch = { ...ch, audio_url: ch.audio_url || generatedAudioUrl };
       }
       setChapter(ch);
