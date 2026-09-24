@@ -69,6 +69,7 @@ export default function Reader() {
   const [dlProgress, setDlProgress] = useState<DownloadProgress | null>(null);
   const [online, setOnline] = useState<boolean>(isOnline());
   const [audioBlobUrl, setAudioBlobUrl] = useState<string | null>(null);
+  const [audioError, setAudioError] = useState(false);
   const [wordLookup, setWordLookup] = useState<{ word: string; x: number; y: number } | null>(null);
 
   const [pageIndex, setPageIndex] = useState(0);
@@ -481,17 +482,6 @@ export default function Reader() {
     buzz([15, 60, 15]);
     setTimeout(goTo, 650);
   };
-        await supabase.from("user_progress").upsert(
-          { user_id: user.id, chapter_id: chapter.id, progress_percentage: 100, last_position: Math.max(0, totalPages - 1), completed: false },
-          { onConflict: "user_id,chapter_id" },
-        );
-      }
-    }
-    confetti(70);
-    buzz([15, 60, 15]);
-    setTimeout(goTo, 650);
-  };
-
   if (!chapter) {
     return (
       <div className="min-h-[100dvh] vault-bg grid place-items-center">
@@ -511,10 +501,21 @@ export default function Reader() {
         {chapter.subtitle && <p className="mt-2 text-sm italic text-muted-foreground">{chapter.subtitle}</p>}
         <div className="mx-auto mt-4 h-px w-8 bg-mint/50" />
       </div>
-      {(audioBlobUrl || chapter.audio_url) && chapter.audio_url && (
-        <div className="rounded-2xl border border-border p-3 mb-6 flex items-center gap-2 bg-black/5">
-          <Headphones className="size-4 text-mint-bright" />
-          <audio controls src={audioBlobUrl ?? chapter.audio_url} className="flex-1 h-9" />
+      {chapter.audio_url && (
+        <div className="rounded-2xl border border-mint/30 p-3 mb-6 bg-black/5">
+          <div className="mb-2 flex items-center gap-2 text-xs font-medium text-foreground">
+            <Headphones className="size-4 text-mint-bright" /> Listen to this chapter
+          </div>
+          <audio
+            controls
+            preload="none"
+            src={audioBlobUrl ?? chapter.audio_url}
+            className="block w-full h-10"
+            aria-label={`Listen to ${chapter.title}`}
+            onError={() => setAudioError(true)}
+            onCanPlay={() => setAudioError(false)}
+          />
+          {audioError && <p className="mt-2 text-xs text-destructive">Audio could not load. Check your connection and try again.</p>}
         </div>
       )}
     </>
