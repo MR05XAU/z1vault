@@ -296,7 +296,9 @@ export default function Reader() {
     if (!user || !chapter || totalPages === 0) return;
     const pct = Math.min(100, Math.round(((newIndex + pagesPerView) / totalPages) * 100));
     await supabase.from("user_progress").upsert(
-      { user_id: user.id, chapter_id: chapter.id, progress_percentage: pct, last_position: newIndex, completed: pct >= 100 },
+      // Reading to the end is not the same as passing the quiz. Only
+      // background chapters are quiz-free and can complete from reading.
+      { user_id: user.id, chapter_id: chapter.id, progress_percentage: pct, last_position: newIndex, completed: chapter.is_background ? pct >= 100 : false },
       { onConflict: "user_id,chapter_id" },
     );
   };
@@ -308,7 +310,7 @@ export default function Reader() {
       const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_progress?on_conflict=user_id,chapter_id`;
       const body = JSON.stringify({
         user_id: user.id, chapter_id: chapter.id,
-        progress_percentage: pct, last_position: pageIndex, completed: pct >= 100,
+        progress_percentage: pct, last_position: pageIndex, completed: chapter.is_background ? pct >= 100 : false,
       });
       try {
         const blob = new Blob([body], { type: "application/json" });

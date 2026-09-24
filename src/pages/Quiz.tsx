@@ -30,6 +30,10 @@ export default function Quiz() {
   const [loading, setLoading] = useState(true);
   const [review, setReview] = useState(false);
   const [nextChapterId, setNextChapterId] = useState<string | null>(null);
+  const [passed, setPassed] = useState(false);
+  const [savingResult, setSavingResult] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const passMark = 0.7;
 
   useEffect(() => {
     if (!chapterId) return;
@@ -59,21 +63,47 @@ export default function Quiz() {
   };
 
   const next = async () => {
-    if (picked === null) return;
+    if (picked === null || savingResult) return;
     const updated = [...answers, picked];
     setAnswers(updated);
     setPicked(null);
     if (idx + 1 >= qs.length) {
       const final = updated.reduce((s, a, i) => s + (a === qs[i].correct_answer ? 1 : 0), 0);
-      await supabase.from("quiz_results").insert({
+      setSavingResult(true);
+      const { error: resultError } = await supabase.from("quiz_results").insert({
         user_id: user!.id,
         chapter_id: chapterId!,
         score: final,
         total_questions: qs.length,
         answers: updated,
       });
+      if (resultError) {
+        setSaveError("Your result could not be saved. Please retry this chapter quiz.");
+        setAnswers(updated);
+        setDone(true);
+        setSavingResult(false);
+        return;
+      }
+      const didPass = final / qs.length >= passMark;
+      if (didPass) {
+        const { error: progressError } = await supabase.from("user_progress").upsert({
+          user_id: user!.id,
+          chapter_id: chapterId!,
+          progress_percentage: 100,
+          completed: true,
+        }, { onConflict: "user_id,chapter_id" });
+        if (progressError) {
+          setSaveError("Your pass could not be recorded. Please retry the quiz before moving on.");
+          setAnswers(updated);
+          setDone(true);
+          setSavingResult(false);
+          return;
+        }
+      }
+      setPassed(didPass);
       setDone(true);
-      if (final / qs.length >= 0.7) { confetti(); buzz([15, 60, 15]); }
+      setSavingResult(false);
+      if (didPass) { confetti(); buzz([15, 60, 15]); }
     } else {
       setIdx(idx + 1);
     }
@@ -145,9 +175,9 @@ export default function Quiz() {
                 );
               })}
             </div>
-            <Button onClick={() => nav(nextChapterId ? `/read/${nextChapterId}` : "/journal")} className="mt-6 h-14 rounded-2xl mint-fill press shadow-glow">
+            {passed && <Button onClick={() => nav(nextChapterId ? `/read/${nextChapterId}` : "/journal")} className="mt-6 h-14 rounded-2xl mint-fill press shadow-glow">
               {nextChapterId ? "Continue — next chapter" : "Start journaling"}
-            </Button>
+            </Button>}
           </div>
         </div>
       );
@@ -185,19 +215,28 @@ export default function Quiz() {
             </button>
           )}
           <div className="flex gap-2 mt-8">
-            <Button onClick={() => setReview(true)} variant="outline" className="flex-1 h-12 rounded-xl border-border-strong">
+            <Button onClick={() => setReview(true)} variant="outline" className={`${passed ? "flex-1" : "w-full"} h-12 rounded-xl border-border-strong`}>
               Review answers
             </Button>
-            <Button
+            {passed && <Button
               onClick={() => nav(nextChapterId ? `/read/${nextChapterId}` : "/journal")}
               className="flex-1 h-12 rounded-xl mint-fill press shadow-glow"
             >
               {nextChapterId ? "Next chapter" : "Start journaling"}
-            </Button>
+            </Button>}
           </div>
-          <button onClick={() => nav(`/read/${chapterId}`)} className="mt-4 text-xs text-muted-foreground press">
-            Re-read chapter
-          </button>
+          {passed ? (
+            <button onClick={() => nav(`/read/${chapterId}`)} className="mt-4 text-xs text-muted-foreground press">Re-read chapter</button>
+          ) : (
+            <div className="mt-4 flex flex-col gap-3">
+              <p className="text-xs text-danger">{saveError || (pct >= 70 ? "Your passing score could not be recorded. Retry the quiz before moving on." : "You need at least 70% to unlock the next chapter. Retry until you pass.")}</p>
+              <Button
+                onClick={() => { setIdx(0); setPicked(null); setAnswers([]); setDone(false); setReview(false); setPassed(false); setSaveError(""); }}
+                className="h-12 rounded-xl mint-fill press"
+              >Retry this chapter quiz</Button>
+              <button onClick={() => nav(`/read/${chapterId}`)} className="text-xs text-muted-foreground press">Re-read this chapter</button>
+            </div>
+          )}
         </div>
       </div>
     );
