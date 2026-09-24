@@ -7,46 +7,66 @@ import { MobileShell } from "@/components/MobileShell";
 import { BottomNav } from "@/components/BottomNav";
 import { Check, Lock } from "lucide-react";
 
+const EMPTY_CHAPTERS: any[] = [];
+
 function stripChapterPrefix(title: string): string {
   return title.replace(/^chapter\s+\d+\s*[:.\-–]\s*/i, "");
 }
 
-function isChapterUnlocked(chapter: any, index: number, progress: Record<string, any>, allChapters: any[]) {
+function isChapterUnlocked(chapter: any, index: number, progress: Record<string, any>, passed: Record<string, boolean>, allChapters: any[]) {
   if (index === 0) return true;
   const prevChapter = allChapters[index - 1];
-  return progress[prevChapter?.id]?.done === true;
+  // Old read-complete flags do not prove that the chapter quiz was passed.
+  return prevChapter?.is_background
+    ? progress[prevChapter.id]?.done === true
+    : passed[prevChapter?.id] === true;
 }
 
 export default function Library() {
   const nav = useNavigate();
   const { user } = useAuth();
-  const { data: chapters = [] } = useChapters();
+  const { data: chapters = EMPTY_CHAPTERS } = useChapters();
   const [progress, setProgress] = useState<Record<string, { pct: number; done: boolean }>>({});
+  const [passed, setPassed] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     (async () => {
-      const { data: p } = await supabase
-        .from("user_progress")
-        .select("chapter_id,progress_percentage,completed")
-        .eq("user_id", user!.id);
+      const [progressResult, quizResult] = await Promise.all([
+        supabase.from("user_progress").select("chapter_id,progress_percentage,completed").eq("user_id", user!.id),
+        supabase.from("quiz_results").select("chapter_id,score,total_questions").eq("user_id", user!.id),
+      ]);
+      const passMap: Record<string, boolean> = {};
+      (quizResult.data ?? []).forEach((result: any) => {
+        if (Number(result.total_questions) > 0 && Number(result.score) / Number(result.total_questions) >= 0.7) {
+          passMap[result.chapter_id] = true;
+        }
+      });
+      setPassed(passMap);
       const map: Record<string, any> = {};
-      (p ?? []).forEach((x: any) => {
-        map[x.chapter_id] = { pct: Number(x.progress_percentage), done: x.completed };
+      (progressResult.data ?? []).forEach((x: any) => {
+        const ch = chapters.find((item) => item.id === x.chapter_id);
+        map[x.chapter_id] = {
+          pct: Number(x.progress_percentage),
+          done: ch?.is_background ? x.completed : passMap[x.chapter_id] === true,
+        };
+      });
+      Object.keys(passMap).forEach((id) => {
+        map[id] = { ...map[id], pct: Number(map[id]?.pct ?? 100), done: true };
       });
       setProgress(map);
     })();
-  }, [user]);
+  }, [user, chapters]);
 
   const { coreChapters, bgChapters } = useMemo(() => ({
     coreChapters: chapters.filter((c) => !c.is_background),
     bgChapters: chapters.filter((c) => c.is_background),
   }), [chapters]);
 
-  const doneCount = chapters.filter((c) => progress[c.id]?.done).length;
+  const doneCount = chapters.filter((c) => c.is_background ? progress[c.id]?.done : passed[c.id]).length;
 
   const renderRow = (c: any, i: number, numeral: string, chapterList: any[]) => {
     const p = progress[c.id] ?? { pct: 0, done: false };
-    const unlocked = isChapterUnlocked(c, i, progress, chapterList);
+    const unlocked = isChapterUnlocked(c, i, progress, passed, chapterList);
     
     return (
       <button

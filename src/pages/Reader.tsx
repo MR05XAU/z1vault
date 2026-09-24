@@ -56,6 +56,8 @@ export default function Reader() {
   const nav = useNavigate();
   const { user } = useAuth();
   const [chapter, setChapter] = useState<any>(null);
+  const [accessChecked, setAccessChecked] = useState(false);
+  const [accessError, setAccessError] = useState("");
   const [neighbors, setNeighbors] = useState<{ prev?: any; next?: any }>({});
   const pageRef = useRef<HTMLDivElement>(null);
   const leafRef = useRef<HTMLDivElement>(null);
@@ -116,6 +118,7 @@ export default function Reader() {
 
   useEffect(() => {
     if (!chapterId) return;
+    setAccessChecked(false);
     (async () => {
       let ch: any = null;
       try {
@@ -147,6 +150,55 @@ export default function Reader() {
       }
     })();
   }, [chapterId]);
+
+  // Enforce the chapter sequence at the reader route itself, not just in the
+  // contents list. This also closes direct-link, bookmark, and swipe bypasses.
+  useEffect(() => {
+    if (!chapter || !user) return;
+    let cancelled = false;
+    setAccessChecked(false);
+    setAccessError("");
+    (async () => {
+      const { data: all, error } = await supabase
+        .from("book_chapters").select("id,is_background").order("order_index");
+      if (cancelled) return;
+      if (error || !all) {
+        setAccessError("We couldn't verify your chapter access. Please go back and try again.");
+        setAccessChecked(true);
+        return;
+      }
+      const index = all.findIndex((item) => item.id === chapter.id);
+      if (index <= 0) { setAccessChecked(true); return; }
+      const previous = all[index - 1];
+      let unlocked = false;
+      if (previous.is_background) {
+        const { data, error: progressError } = await supabase.from("user_progress").select("completed")
+          .eq("user_id", user.id).eq("chapter_id", previous.id).maybeSingle();
+        if (progressError) {
+          setAccessError("We couldn't verify your previous chapter. Please go back and try again.");
+          setAccessChecked(true);
+          return;
+        }
+        unlocked = data?.completed === true;
+      } else {
+        const { data, error: quizError } = await supabase.from("quiz_results").select("score,total_questions")
+          .eq("user_id", user.id).eq("chapter_id", previous.id);
+        if (quizError) {
+          setAccessError("We couldn't verify your previous quiz. Please go back and try again.");
+          setAccessChecked(true);
+          return;
+        }
+        unlocked = (data ?? []).some((result: any) => Number(result.total_questions) > 0 && Number(result.score) / Number(result.total_questions) >= 0.7);
+      }
+      if (cancelled) return;
+      if (!unlocked) {
+        nav(`/read/${previous.id}`, { replace: true });
+        return;
+      }
+      setAccessChecked(true);
+    })();
+    return () => { cancelled = true; };
+  }, [chapter, user, nav]);
 
   const blocks = useMemo(() => (chapter ? splitIntoBlocks(stripLeadingH1(chapter.content)) : []), [chapter]);
   const pagesPerView = isWide ? 2 : 1;
@@ -348,7 +400,8 @@ export default function Reader() {
     touchStartX.current = null;
     if (Math.abs(dx) < 60) return;
     if (dx < 0) {
-      if (isLastPage && neighbors.next) nav(`/read/${neighbors.next.id}`);
+      if (isLastPage && chapter && !chapter.is_background) nav(`/quiz/${chapter.id}`);
+      else if (isLastPage && neighbors.next) nav(`/read/${neighbors.next.id}`);
       else nextPage();
     } else {
       if (pageIndex === 0 && neighbors.prev) nav(`/read/${neighbors.prev.id}`);
@@ -484,7 +537,15 @@ export default function Reader() {
     buzz([15, 60, 15]);
     setTimeout(goTo, 650);
   };
-  if (!chapter) {
+  if (chapter && accessChecked && accessError) {
+    return (
+      <div className="min-h-[100dvh] vault-bg grid place-items-center px-6 text-center">
+        <div><p className="text-sm text-muted-foreground">{accessError}</p><Button onClick={() => nav("/library")} className="mt-4">Back to chapters</Button></div>
+      </div>
+    );
+  }
+
+  if (!chapter || !accessChecked) {
     return (
       <div className="min-h-[100dvh] vault-bg grid place-items-center">
         <div className="size-8 border-2 border-mint/30 border-t-mint rounded-full animate-spin" />
@@ -563,8 +624,8 @@ export default function Reader() {
                   </Button>
                 )}
                 {neighbors.next && (
-                  <Button variant="outline" onClick={() => nav(`/read/${neighbors.next.id}`)} className="flex-1 h-11 rounded-xl border-2 border-mint/40 bg-mint/5 text-foreground hover:bg-mint/15">
-                    Next <ChevronRight className="size-4 ml-1" />
+                  <Button variant="outline" onClick={() => nav(chapter.is_background ? `/read/${neighbors.next.id}` : `/quiz/${chapter.id}`)} className="flex-1 h-11 rounded-xl border-2 border-mint/40 bg-mint/5 text-foreground hover:bg-mint/15">
+                    {chapter.is_background ? "Next" : "Quiz first"} <ChevronRight className="size-4 ml-1" />
                   </Button>
                 )}
               </div>
