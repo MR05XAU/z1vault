@@ -125,6 +125,10 @@ export default function Reader() {
         const cached = await getOffline(chapterId);
         if (cached) ch = cached;
       }
+      if (ch?.chapter_number) {
+        const generatedAudioUrl = `/audio/ch${String(ch.chapter_number).padStart(2, "0")}.mp3`;
+        ch = { ...ch, audio_url: ch.audio_url || generatedAudioUrl };
+      }
       setChapter(ch);
       setPageIndex(0);
       const local = await getOffline(chapterId);
